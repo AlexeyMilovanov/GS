@@ -4482,12 +4482,28 @@ theorem newState_honest : newState Y hY n hn D hD N A ∈ honestStates S P := by
 theorem newState_type : (newState Y hY n hn D hD N A).ty = N.ty := by
   sorry
 
+/-- V4 3.10 (routing): every readable child sees the same parent slot value.
+This is exactly the same statement as `readable_parent_state`. -/
+private theorem child_equations_step1_parent_state (i : S.I N.ty)
+    (r : Parser.ReadableFacet D N A i) :
+    r.parentState = newState Y hY n hn D hD N A := by
+  sorry
+
+/-- V4 2.6(b) at adjacent PRESENT slots of an honest packet, in the form needed here. -/
+private theorem child_equations_step2_adjacent (i : S.I N.ty)
+    (r : Parser.ReadableFacet D N A i) :
+    D.blockState (A.children i).val (A.children i).property =
+      childMap P r.parentState ⟨N.ty, i⟩ := by
+  sorry
+
 /-- R10, V4 3.11: every actual child's old state is the deterministic child
 of S(P) at the prescribed globally distinct role (A_P,i). -/
 theorem child_equations (i : S.I N.ty) :
     D.blockState (A.children i).val (A.children i).property =
       childMap P (newState Y hY n hn D hD N A) ⟨N.ty, i⟩ := by
-  sorry
+  let r := Parser.readableFacet Y hY n hn D hD N A i
+  rw [← child_equations_step1_parent_state Y hY n hn D hD N A i r]
+  exact child_equations_step2_adjacent Y hY n hn D hD N A i r
 
 /-- R9/R10, V4 3.10--3.11, 3.1 (I1): child descent fixes the new height residue. -/
 theorem newState_residue :

@@ -12222,7 +12222,74 @@ theorem sameParent_intersection_cells {A : S.ι} (f g : PrimitiveFacet S A)
     (hp : p ∈ f.carrier ∩ g.carrier) :
     ∃ (i : S.I f.birthType) (e : CellName S (S.child f.birthType i).ty),
       p ∈ relint (f.childCell i e.val) ∧ f.childCell i e.val ⊆ f.carrier ∩ g.carrier := by
-  sorry
+  rcases f with ⟨a, u, F, hF⟩
+  rcases g with ⟨b, v, G, hG⟩
+  have hab : a = b := congrArg Sigma.fst hparent
+  subst b
+  have huv : u = v := eq_of_heq (Sigma.mk.inj hparent).2
+  subst v
+  let f : PrimitiveFacet S A := ⟨a, u, F, hF⟩
+  let g : PrimitiveFacet S A := ⟨a, u, G, hG⟩
+  change ∃ (i : S.I f.birthType) (e : CellName S (S.child f.birthType i).ty),
+    p ∈ relint (f.childCell i e.val) ∧ f.childCell i e.val ⊆ f.carrier ∩ g.carrier
+  change p ∈ f.carrier ∩ g.carrier at hp
+  have hF' := hF
+  have hG' := hG
+  obtain ⟨i, f₀, hFc, -⟩ := hF'
+  obtain ⟨j, g₀, hGc, -⟩ := hG'
+  let P : FramedNode S := ⟨f.birthType, AffineIsometryEquiv.refl ℝ (E d)⟩
+  have hfcell : (P.child 0 i).cell 0 f₀.val = F := by
+    rw [birth_ascent_routing_step2_child_cell_zero]
+    exact hFc.symm
+  have hgcell : (P.child 0 j).cell 0 g₀.val = G := by
+    rw [birth_ascent_routing_step2_child_cell_zero]
+    exact hGc.symm
+  obtain ⟨x, ⟨q, hq, hqx⟩, hxp⟩ := hp.1
+  have hp_eq : f.birthFrame (S.σ.symm q) = p := by
+    rw [hqx]
+    exact hxp
+  have hqg : q ∈ G := by
+    obtain ⟨y, ⟨r, hr, hry⟩, hyp⟩ := hp.2
+    have hqr : q = r := S.σ.symm.injective
+      (hqx.trans ((f.birthFrame.injective (hxp.trans hyp.symm)).trans hry.symm))
+    exact hqr.symm ▸ hr
+  have hqf : q ∈ (P.child 0 i).cell 0 f₀.val := hfcell.symm ▸ hq
+  have hqg' : q ∈ (P.child 0 j).cell 0 g₀.val := hgcell.symm ▸ hqg
+  have hf := (Finset.mem_filter.mp f₀.property).1
+  have hg := (Finset.mem_filter.mp g₀.property).1
+  have hqi := birth_ascent_routing_step2_cell_front (P.child 0 i) 0 f₀.val hf hqf
+  have hqj := birth_ascent_routing_step2_cell_front (P.child 0 j) 0 g₀.val hg hqg'
+  let e := placedMinimalCell (P.child 0 i) 0 q hqi
+  have he := placedMinimalCell_spec (P.child 0 i) 0 q hqi
+  have hef : (P.child 0 i).cell 0 e.val ⊆ (P.child 0 i).cell 0 f₀.val :=
+    hereditary_trace _ _ 0 0 (birth_ascent_routing_step2_desc_refl _ _)
+      f₀.val e.val hf e.property ⟨q, he, hqf⟩
+  have heg : (P.child 0 i).cell 0 e.val ⊆ (P.child 0 j).cell 0 g₀.val := by
+    by_cases hij : i = j
+    · subst j
+      exact hereditary_trace _ _ 0 0 (birth_ascent_routing_step2_desc_refl _ _)
+        g₀.val e.val hg e.property ⟨q, he, hqg'⟩
+    · let e' := placedMinimalCell (P.child 0 j) 0 q hqj
+      have he' := placedMinimalCell_spec (P.child 0 j) 0 q hqj
+      rw [sibling_minimalCell_eq P 0 i j hij q e e' he he']
+      exact hereditary_trace _ _ 0 0 (birth_ascent_routing_step2_desc_refl _ _)
+        g₀.val e'.val hg e'.property ⟨q, he', hqg'⟩
+  have hcell : f.childCell i e.val =
+      f.birthFrame '' (S.σ.symm '' (P.child 0 i).cell 0 e.val) := by
+    rw [birth_ascent_routing_step2_child_cell_zero]
+    rfl
+  refine ⟨i, e, ?_, ?_⟩
+  · rw [hcell]
+    change p ∈ relint (f.birthFrame ''
+      (S.σ.symm.toAffineEquiv '' (P.child 0 i).cell 0 e.val))
+    rw [birth_ascent_routing_step5_relint_image,
+      birth_ascent_routing_step5_relint_image]
+    exact ⟨S.σ.symm q, ⟨q, he, rfl⟩, hp_eq⟩
+  · rw [hcell]
+    rw [hfcell] at hef
+    rw [hgcell] at heg
+    rintro z ⟨y, ⟨r, hr, rfl⟩, rfl⟩
+    exact ⟨⟨_, ⟨_, hef hr, rfl⟩, rfl⟩, ⟨_, ⟨_, heg hr, rfl⟩, rfl⟩⟩
 
 /-- P21, V4 1.25: a directed ascent strictly increases the actual birth height. -/
 theorem AscentLink.birthHeight_lt {A : S.ι} (k : ℕ) (f g : PrimitiveFacet S A)

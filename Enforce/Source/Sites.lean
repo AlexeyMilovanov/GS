@@ -1546,6 +1546,198 @@ private lemma chain_occurrences_disjoint_step1_top {d : ℕ} [Fact (2 ≤ d)] {S
   exact Set.disjoint_left.mp
     (boundary_facet_adjacency_step2_distinct_children P h e aa bb hil) hxa hxb
 
+/-- Step 0 of the V4 proof of `chain_occurrences_disjoint_step2_down` (V4 1.22(c)):
+relative interiors of the placed cells are the images of their prototype relative
+interiors under the full affine frame at height `h`. -/
+private lemma chain_occurrences_disjoint_step2_down_step0_relint_cell
+    (C : FramedNode S) (h : ℕ) (e : Cell d) :
+    relint (C.cell h e) = (C.prototypeFrame h) '' relint e.carrier := by
+  let g := C.prototypeFrame h
+  change relint (g '' e.carrier) = g '' relint e.carrier
+  ext x
+  constructor
+  · intro hx
+    refine ⟨g.symm x, ?_, g.apply_symm_apply x⟩
+    apply recursiveTrace_tiles_step3_halfspace_lift_lem_relint_preimage g
+    simpa only [g.apply_symm_apply] using hx
+  · rintro ⟨y, hy, rfl⟩
+    apply recursiveTrace_tiles_step3_halfspace_lift_lem_relint_preimage g.symm
+    simpa only [Set.image_image, Function.comp_def, g.symm_apply_apply, Set.image_id'] using hy
+
+/-- Step 1 of the V4 proof of `chain_occurrences_disjoint_step2_down` (V4 1.22(c)):
+"As `S_j ⊆ F_j` with `dim S_j = dim F_j`", their affine spans agree.
+This holds for every cell in a chain at any height. -/
+private lemma chain_occurrences_disjoint_step2_down_step1_span
+    {A : S.ι} {F : FacetFlag S A} {r h j0 : ℕ}
+    {C : FramedNode S} (a : ChainOccurrence A F r C h j0)
+    (i : ChainIndex d j0) :
+    affineSpan ℝ (C.cell h (a.cell i).val) =
+      affineSpan ℝ ((S.σ ^ r) ''
+        (F.cell ⟨i.val.val, i.property.2, i.val.isLt⟩).val.carrier) := by
+  have hsub : C.cell h (a.cell i).val ⊆ (S.σ ^ r) ''
+      (F.cell ⟨i.val.val, i.property.2, i.val.isLt⟩).val.carrier := a.contained i
+  have hle : cellDirection (C.cell h (a.cell i).val) ≤
+      cellDirection ((S.σ ^ r) ''
+        (F.cell ⟨i.val.val, i.property.2, i.val.isLt⟩).val.carrier) := by
+    simpa only [cellDirection, direction_affineSpan] using vectorSpan_mono ℝ hsub
+  have hdir : cellDirection (C.cell h (a.cell i).val) =
+      cellDirection ((S.σ ^ r) ''
+        (F.cell ⟨i.val.val, i.property.2, i.val.isLt⟩).val.carrier) := by
+    apply Submodule.eq_of_le_of_finrank_eq hle
+    have hleft : Module.finrank ℝ (cellDirection
+        (C.cell h (a.cell i).val)) = i.val.val := by
+      rw [FramedNode.cell]
+      exact (recursiveTrace_tiles_step0_finrank_image (C.prototypeFrame h) _).trans
+        ((a.cell i).val.flat.dimension.trans (a.dimension i))
+    have hright : Module.finrank ℝ (cellDirection ((S.σ ^ r) ''
+        (F.cell ⟨i.val.val, i.property.2, i.val.isLt⟩).val.carrier)) = i.val.val :=
+      (recursiveTrace_tiles_step0_finrank_image (S.σ ^ r).toAffineEquiv _).trans
+        ((F.cell ⟨i.val.val, i.property.2, i.val.isLt⟩).val.flat.dimension.trans
+          (F.dimension ⟨i.val.val, i.property.2, i.val.isLt⟩))
+    exact hleft.trans hright.symm
+  have hne : (C.cell h (a.cell i).val).Nonempty := by
+    obtain ⟨y, hy⟩ := (a.cell i).val.flat.relint_nonempty
+    rw [FramedNode.cell]
+    exact ⟨_, Set.mem_image_of_mem _ (intrinsicInterior_subset hy)⟩
+  exact AffineSubspace.eq_of_direction_eq_of_nonempty_of_le hdir
+    ((affineSpan_nonempty ℝ).2 hne) (affineSpan_mono ℝ hsub)
+
+/-- Step 2 of the V4 proof of `chain_occurrences_disjoint_step2_down` (V4 1.22(c)):
+"`S_{j+1}` coincides near `x` with the closed half-space ... on the side of
+`F_{j+1}`. The same holds for `S'_{j+1}`." Thus intersecting facet interiors
+lift to intersecting coface interiors. -/
+private lemma chain_occurrences_disjoint_step2_down_step2_lift
+    {A : S.ι} {F : FacetFlag S A} {r h j0 : ℕ}
+    {C D : FramedNode S}
+    (a : ChainOccurrence A F r C h j0) (b : ChainOccurrence A F r D h j0)
+    (i k : ChainIndex d j0) (hik : k.val.val = i.val.val + 1)
+    (hx : (relint (C.cell h (a.cell i).val) ∩
+      relint (D.cell h (b.cell i).val)).Nonempty) :
+    (relint (C.cell h (a.cell k).val) ∩
+      relint (D.cell h (b.cell k).val)).Nonempty := by
+  classical
+  obtain ⟨x, hxa0, hxb0⟩ := hx
+  have hle : i.val.val ≤ k.val.val := by omega
+  have hdim_a : (a.cell k).val.dim = (a.cell i).val.dim + 1 := by
+    rw [a.dimension, a.dimension, hik]
+  have hdim_b : (b.cell k).val.dim = (b.cell i).val.dim + 1 := by
+    rw [b.dimension, b.dimension, hik]
+  have hxa := hxa0
+  have hxb := hxb0
+  rw [chain_occurrences_disjoint_step2_down_step0_relint_cell] at hxa hxb
+  obtain ⟨pa, hpa, hpax⟩ := hxa
+  obtain ⟨pb, hpb, hpbx⟩ := hxb
+  obtain ⟨ℓa, hka, hposa, -⟩ := recursiveTrace_tiles_step3_halfspace_lift_lem_placed _
+    (a.cell i).property (a.cell k).property (a.nested i k hle) hdim_a
+    (C.prototypeFrame h) hpa
+  obtain ⟨ℓb, hkb, hposb, -⟩ := recursiveTrace_tiles_step3_halfspace_lift_lem_placed _
+    (b.cell i).property (b.cell k).property (b.nested i k hle) hdim_b
+    (D.prototypeFrame h) hpb
+  -- the flag cells `F_j ⊆ F_{j+1}` of the root, placed by `σ^r`
+  let jF : {j : ℕ // 1 ≤ j ∧ j < d} := ⟨i.val.val, i.property.2, i.val.isLt⟩
+  let kF : {j : ℕ // 1 ≤ j ∧ j < d} := ⟨k.val.val, k.property.2, k.val.isLt⟩
+  have hsubF : (F.cell jF).val.carrier ⊆ (F.cell kF).val.carrier := F.nested jF kF hle
+  have hdimF : (F.cell kF).val.dim = (F.cell jF).val.dim + 1 := by
+    rw [F.dimension, F.dimension]
+    exact hik
+  let g : E d ≃ᵃ[ℝ] E d := (S.σ ^ r).toAffineEquiv
+  have hxF : x ∈ relint (g '' (F.cell jF).val.carrier) := by
+    obtain ⟨hxe, ρ, hρ, hball⟩ :=
+      recursiveTrace_tiles_step3_halfspace_lift_lem_relint.mp hxa0
+    refine recursiveTrace_tiles_step3_halfspace_lift_lem_relint.mpr
+      ⟨a.contained i hxe, ρ, hρ, fun y hy hyx => a.contained i
+        (hball y ?_ hyx)⟩
+    rw [chain_occurrences_disjoint_step2_down_step1_span a i]
+    exact hy
+  have hgq : g ((S.σ ^ r).symm x) = x := (S.σ ^ r).apply_symm_apply x
+  have hq : (S.σ ^ r).symm x ∈ relint (F.cell jF).val.carrier := by
+    apply recursiveTrace_tiles_step3_halfspace_lift_lem_relint_preimage g
+    rw [hgq]
+    exact hxF
+  obtain ⟨ℓF, hkF, -, hnegF⟩ := recursiveTrace_tiles_step3_halfspace_lift_lem_placed _
+    (F.cell jF).property (F.cell kF).property hsubF hdimF g hq
+  rw [hgq] at hnegF
+  rw [show (C.prototypeFrame h) pa = x from hpax] at hposa
+  rw [show (D.prototypeFrame h) pb = x from hpbx] at hposb
+  -- direction spaces
+  let M := cellDirection (g '' (F.cell kF).val.carrier)
+  let W := cellDirection (g '' (F.cell jF).val.carrier)
+  have hdir : ∀ {N : FramedNode S} (c : ChainOccurrence A F r N h j0)
+      (m : ChainIndex d j0),
+      cellDirection ((N.prototypeFrame h) '' (c.cell m).val.carrier) =
+        cellDirection (g '' (F.cell ⟨m.val.val, m.property.2, m.val.isLt⟩).val.carrier) := by
+    intro N c m
+    have h1 := congrArg AffineSubspace.direction (chain_occurrences_disjoint_step2_down_step1_span c m)
+    rw [FramedNode.cell] at h1
+    exact h1
+  have hMa := hdir a k
+  have hMb := hdir b k
+  have hWa := hdir a i
+  have hWb := hdir b i
+  have hWM : W ≤ M := AffineSubspace.direction_le (affineSpan_mono ℝ (Set.image_mono hsubF))
+  have hfin : ∀ j : {j : ℕ // 1 ≤ j ∧ j < d},
+      Module.finrank ℝ (cellDirection (g '' (F.cell j).val.carrier)) = j.val := fun j =>
+    (recursiveTrace_tiles_step0_finrank_image g _).trans
+      ((F.cell j).val.flat.dimension.trans (F.dimension j))
+  have hlt : W < M := lt_of_le_of_ne hWM (fun hWMeq =>
+    absurd ((hfin jF).symm.trans
+      ((congrArg (fun U : Submodule ℝ (E d) => Module.finrank ℝ U) hWMeq).trans (hfin kF)))
+      (by show i.val.val ≠ k.val.val; omega))
+  obtain ⟨n0, hn0M, hn0W⟩ := SetLike.exists_of_lt hlt
+  -- the lift, for a direction on the positive side of the first chain
+  have key : ∀ n ∈ M, n ∉ W → 0 < ℓa n →
+      (relint (C.cell h (a.cell k).val) ∩
+        relint (D.cell h (b.cell k).val)).Nonempty := by
+    intro n hnM hnW hpos
+    have hnb : ℓb n ≠ 0 := fun h0 => hnW (by
+      have := hkb n (by rw [hMb]; exact hnM) h0
+      rw [hWb] at this
+      exact this)
+    have hnF : ℓF n ≠ 0 := fun h0 => hnW (hkF n hnM h0)
+    obtain ⟨εa, hεa, hA⟩ := hposa n (by rw [hMa]; exact hnM) hpos
+    have hinA : ∀ t, 0 < t → t < εa → x + t • n ∈ g '' (F.cell kF).val.carrier := by
+      intro t ht htε
+      obtain ⟨z, hz, hzx⟩ := hA t ht htε
+      have hmem : x + t • n ∈ C.cell h (a.cell k).val := by
+        rw [FramedNode.cell, ← hzx]
+        exact Set.mem_image_of_mem _ (intrinsicInterior_subset hz)
+      exact a.contained k hmem
+    rcases lt_or_gt_of_ne hnb with hbneg | hbpos
+    · -- opposite sides: impossible, since `F_{j+1}` lies on one side of `aff F_j`
+      exfalso
+      obtain ⟨εb, hεb, hB⟩ := hposb (-n) (by rw [hMb]; exact M.neg_mem hnM)
+        (by rw [map_neg]; linarith)
+      have hinB : ∀ t, 0 < t → t < εb → x + t • (-n) ∈ g '' (F.cell kF).val.carrier := by
+        intro t ht htε
+        obtain ⟨z, hz, hzx⟩ := hB t ht htε
+        have hmem : x + t • (-n) ∈ D.cell h (b.cell k).val := by
+          rw [FramedNode.cell, ← hzx]
+          exact Set.mem_image_of_mem _ (intrinsicInterior_subset hz)
+        exact b.contained k hmem
+      rcases lt_or_gt_of_ne hnF with hFneg | hFpos
+      · obtain ⟨εF, hεF, hC⟩ := hnegF n hnM hFneg
+        have ht : 0 < min εa εF / 2 := half_pos (lt_min hεa hεF)
+        exact hC _ ht (by linarith [min_le_right εa εF])
+          (hinA _ ht (by linarith [min_le_left εa εF]))
+      · obtain ⟨εF, hεF, hC⟩ := hnegF (-n) (M.neg_mem hnM) (by rw [map_neg]; linarith)
+        have ht : 0 < min εb εF / 2 := half_pos (lt_min hεb hεF)
+        exact hC _ ht (by linarith [min_le_right εb εF])
+          (hinB _ ht (by linarith [min_le_left εb εF]))
+    · -- same side: a common point of both relative interiors
+      obtain ⟨εb, hεb, hB⟩ := hposb n (by rw [hMb]; exact hnM) hbpos
+      have ht : 0 < min εa εb / 2 := half_pos (lt_min hεa hεb)
+      rw [chain_occurrences_disjoint_step2_down_step0_relint_cell, chain_occurrences_disjoint_step2_down_step0_relint_cell]
+      exact ⟨x + (min εa εb / 2) • n, hA _ ht (by linarith [min_le_left εa εb]),
+        hB _ ht (by linarith [min_le_right εa εb])⟩
+  have hna : ℓa n0 ≠ 0 := fun h0 => hn0W (by
+    have := hka n0 (by rw [hMa]; exact hn0M) h0
+    rw [hWa] at this
+    exact this)
+  rcases lt_or_gt_of_ne hna with hneg | hpos
+  · exact key (-n0) (M.neg_mem hn0M) (fun h' => hn0W (by simpa using W.neg_mem h'))
+      (by rw [map_neg]; linarith)
+  · exact key n0 hn0M hn0W hpos
+
 /-- Step 2 of the V4 proof of `chain_occurrences_disjoint` (V4 1.22(c)): Step from j+1 to j.
 If the relative interiors of the j-cells intersect, half-space geometry implies that the
 relative interiors of the (j+1)-cells also intersect, contradicting the induction hypothesis. -/
@@ -1561,7 +1753,12 @@ private theorem chain_occurrences_disjoint_step2_down {d : ℕ} [Fact (2 ≤ d)]
                    (relint ((P.child h l).cell h (b.cell ⟨⟨k+1, hkd'⟩, hjk1, hk11⟩).val))) :
     Disjoint (relint ((P.child h i).cell h (a.cell ⟨⟨k, hkd⟩, hjk, hk1⟩).val))
              (relint ((P.child h l).cell h (b.cell ⟨⟨k, hkd⟩, hjk, hk1⟩).val)) := by
-  sorry
+  apply Set.disjoint_left.mpr
+  intro x hxa hxb
+  obtain ⟨y, hya, hyb⟩ :=
+    chain_occurrences_disjoint_step2_down_step2_lift a b
+      ⟨⟨k, hkd⟩, hjk, hk1⟩ ⟨⟨k + 1, hkd'⟩, hjk1, hk11⟩ rfl ⟨x, hxa, hxb⟩
+  exact Set.disjoint_left.mp ih hya hyb
 
 private theorem chain_occurrences_disjoint_aux {d : ℕ} [Fact (2 ≤ d)] {S : SubstSystem d}
     (A : S.ι) (F : FacetFlag S A) (r h : ℕ)

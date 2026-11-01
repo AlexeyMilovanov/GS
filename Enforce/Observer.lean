@@ -58,7 +58,31 @@ def child (a : ObserverWindow P) (r : S.Role) : ObserverWindow P where
 This is an algebraic identity of the compressed representation, even on raw windows. -/
 theorem child_head (a : ObserverWindow P) (r : S.Role) :
     (a.child r).head = childMap P a.head r := by
-  sorry
+  have hw := P.observer_window_bound
+  have hshift : ∀ n, n < P.w - 1 → (a.child r).descend n = a.descend (n + 1) := by
+    intro n
+    induction n with
+    | zero =>
+        intro _
+        change a.descend (P.w - 1 - (P.w - 2)) = a.descend (0 + 1)
+        congr 1
+        omega
+    | succ n ih =>
+        intro hn
+        have hn' : n < P.w - 1 := by omega
+        have hne : P.w - 2 - n ≠ 0 := by omega
+        conv_lhs => rw [descend, dif_pos hn']
+        conv_rhs => rw [descend, dif_pos hn]
+        rw [ih hn']
+        congr 1
+        simp only [child, dif_neg hne]
+        congr 1
+  change (a.child r).descend (P.w - 1) = childMap P (a.descend (P.w - 1)) r
+  have hlen : P.w - 1 = P.w - 2 + 1 := by omega
+  have hlt : P.w - 2 < P.w - 1 := by omega
+  conv_lhs => rw [hlen, descend, dif_pos hlt]
+  rw [hshift (P.w - 2) hlt, ← hlen]
+  simp [child]
 /-- O1, V4 4.1, 8.1: extract the window from one hierarchy and one state assignment.
 Ancestors exist without an upper cutoff, including over the floor height. -/
 def ofHierarchy {T : Tiling S} (H : CoherentHierarchy S T)

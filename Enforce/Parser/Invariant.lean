@@ -99,7 +99,14 @@ belong to that hierarchy, without requiring an honest source or species membersh
 theorem hierarchy_descendant_mem {T : Tiling S} (H : CoherentHierarchy S T)
     (n m : ℕ) (N M : FramedNode S) (hN : N ∈ H.nodes n)
     (hM : M.IsDescendant m N n) : M ∈ H.nodes m := by
-  sorry
+  obtain ⟨r, rfl, w, rfl⟩ := hM
+  induction' r with r ih generalizing N
+  · cases N
+    dsimp [SubstSystem.descendantNode, FramedNode.move]
+    exact hN
+  · have hc := H.children_mem (m + r) N hN w.1
+    have hi := ih (N.child (m + r) w.1) hc w.2
+    exact hi
 
 end Parser
 

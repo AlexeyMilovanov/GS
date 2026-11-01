@@ -2294,6 +2294,46 @@ theorem provider_unique (q : H.Node) (f : FacetName S q.2.val.ty)
   have h2 := (Classical.choose_spec (H.provider_exists_unique q f hf)).2 w hw
   rw [h1, h2]
 
+/-- Step 1 of the V4 proof of `provider_inherited` (V4 1.7(a)): "by dimension",
+a contained facet has its relative interior in the relative interior of the
+containing facet, since their affine spans agree. -/
+private theorem provider_inherited_step1_relint (P C : FramedNode S) (n h : ℕ)
+    (F : FacetName S P.ty) (g : FacetName S C.ty)
+    (hsub : C.cell h g.val ⊆ P.cell n F.val) :
+    relint (C.cell h g.val) ⊆ relint (P.cell n F.val) := by
+  exact hereditary_trace_step2_relint_mono _ _ hsub
+    (facet_dichotomy_step1c_unique_sub P C n h g F hsub)
+
+/-- Step 2 of the V4 proof of `provider_inherited` (V4 1.7(a)): "the same initial
+segment". Containment in a facet at offset `k`, internal to the next ancestor,
+forces the boundary offsets to be exactly `0, …, k`. -/
+private theorem provider_inherited_step2_boundary_track (c : H.Node) (k : ℕ)
+    (g : FacetName S c.2.val.ty)
+    (F : FacetName S (H.ancestor c k).2.val.ty)
+    (hsub : c.2.val.cell c.1 g.val ⊆
+      (H.ancestor c k).2.val.cell (H.ancestor c k).1 F.val)
+    (hint : relint ((H.ancestor c k).2.val.cell (H.ancestor c k).1 F.val) ⊆
+      interior ((H.ancestor c (k + 1)).2.val.carrier (H.ancestor c (k + 1)).1)) :
+    H.boundaryOffsets c g = {s | s < k + 1} := by
+  have hlast : k ∈ H.boundaryOffsets c g :=
+    hsub.trans (hereditary_trace_step1_cell_frontier _ _ _
+      (Finset.mem_filter.mp F.property).1)
+  have hnext : k + 1 ∉ H.boundaryOffsets c g := by
+    intro hb
+    have hr := provider_inherited_step1_relint _ _ _ _ F g hsub
+    obtain ⟨x, hx⟩ : (relint (c.2.val.cell c.1 g.val)).Nonempty := by
+      rw [FramedNode.cell, hereditary_trace_step1_relint_image]
+      exact g.val.flat.relint_nonempty.image _
+    exact (hb (intrinsicInterior_subset hx)).2 (hint (hr hx))
+  ext s
+  change s ∈ H.boundaryOffsets c g ↔ s < k + 1
+  constructor
+  · intro hs
+    by_contra hge
+    exact hnext (boundaryOffsets_initial_step4_downward H c g (by omega) hs)
+  · intro hs
+    exact boundaryOffsets_initial_step4_downward H c g (by omega) hlast
+
 /-- P7, V4 1.7(a): restriction to any contained descendant facet preserves the
 provider carrier and the exact birth parent; existence of the restricted provider
 is part of the conclusion. -/
@@ -2303,7 +2343,53 @@ theorem provider_inherited (q c : H.Node) (r : ℕ) (hc : H.ancestor c r = q)
     ∃ hg : ¬ H.IsFault c g,
       H.providerCarrier c g hg = H.providerCarrier q f hf ∧
         H.birthParent c g hg = H.birthParent q f hf := by
-  sorry
+  classical
+  have hanc (s : ℕ) : H.ancestor c (r + s) = H.ancestor q s := by
+    rw [← hc]
+    dsimp [ancestor]
+    rw [← Function.iterate_add_apply]
+    rw [Nat.add_comm s r]
+  let v := H.firstProvider q f hf
+  have hv : H.IsProvider q f v := H.firstProvider_spec q f hf
+  let F : FacetName S (H.ancestor c (r + v.1)).2.val.ty :=
+    ⟨v.2.val, by rw [hanc]; exact v.2.property⟩
+  let w : H.ProviderCandidate c := ⟨r + v.1, F⟩
+  have hsub' : c.2.val.cell c.1 g.val ⊆
+      (H.ancestor c (r + v.1)).2.val.cell (H.ancestor c (r + v.1)).1 F.val := by
+    change c.2.val.cell c.1 g.val ⊆
+      (H.ancestor c (r + v.1)).2.val.cell (H.ancestor c (r + v.1)).1 v.2.val
+    rw [hanc]
+    exact hsub.trans hv.2.1
+  have hint : relint ((H.ancestor c (r + v.1)).2.val.cell
+      (H.ancestor c (r + v.1)).1 F.val) ⊆
+      interior ((H.ancestor c (r + v.1 + 1)).2.val.carrier
+        (H.ancestor c (r + v.1 + 1)).1) := by
+    change relint ((H.ancestor c (r + v.1)).2.val.cell
+      (H.ancestor c (r + v.1)).1 v.2.val) ⊆ _
+    rw [Nat.add_assoc, hanc, hanc]
+    exact hv.2.2
+  have htrack := provider_inherited_step2_boundary_track H c (r + v.1) g F hsub' hint
+  have hw : H.IsProvider c g w := ⟨htrack, hsub', hint⟩
+  have hg : ¬ H.IsFault c g := by
+    intro h
+    have hn := h (r + v.1 + 1)
+    rw [htrack] at hn
+    exact Nat.lt_irrefl _ hn
+  have heq : H.firstProvider c g hg = w :=
+    H.provider_unique c g _ _ (H.firstProvider_spec c g hg) hw
+  refine ⟨hg, ?_, ?_⟩
+  · change (H.ancestor c (H.firstProvider c g hg).1).2.val.cell
+      (H.ancestor c (H.firstProvider c g hg).1).1 (H.firstProvider c g hg).2.val = _
+    rw [heq]
+    change (H.ancestor c (r + v.1)).2.val.cell
+      (H.ancestor c (r + v.1)).1 v.2.val = _
+    rw [hanc]
+    rfl
+  · change H.parentNode (H.ancestor c (H.firstProvider c g hg).1) = _
+    rw [heq]
+    change H.parentNode (H.ancestor c (r + v.1)) = _
+    rw [hanc]
+    rfl
 
 /-- P7, V4 1.7(b): existence of the provider stratum for any cell in the facet. -/
 theorem stratum_exists_unique (q : H.Node) (f : FacetName S q.2.val.ty)

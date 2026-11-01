@@ -695,6 +695,50 @@ def augmentedLeaf {P : Params S} (C : ClusterData S P) (l : LeafType P) :
   compact := (S.proto l.prototype).compact
   regularClosed := (S.proto l.prototype).regularClosed
 
+/-- Step 1 of the V4 proof of `augmentedLeaf_rigid` (V4 2.10): equality of the
+physical marked carriers transports the augmented marking between native frames. -/
+private theorem augmentedLeaf_rigid_step1_transport {P : Params S}
+    (C : ClusterData S P) (l u : LeafType P) (φ ψ : Iso d)
+    (h : (augmentedLeaf C l).toMarkedSet.move φ =
+      (augmentedLeaf C u).toMarkedSet.move ψ)
+    (x : E d) (hx : x ∈ (S.proto l.prototype).carrier) :
+    ψ.symm (φ x) ∈ (S.proto u.prototype).carrier ∧
+      augmentedColour C l x = augmentedColour C u (ψ.symm (φ x)) := by
+  have hm : ∀ (M N : MarkedSet d (Colour S P)), M = N →
+      ∀ (y : E d) (hy : y ∈ M.carrier) (hy' : y ∈ N.carrier),
+        M.mark ⟨y, hy⟩ = N.mark ⟨y, hy'⟩ := by
+    rintro M N rfl y hy hy'
+    rfl
+  have hxφ : φ x ∈ ((augmentedLeaf C l).toMarkedSet.move φ).carrier :=
+    ⟨x, hx, rfl⟩
+  have hxψ : φ x ∈ ((augmentedLeaf C u).toMarkedSet.move ψ).carrier := by
+    rw [← h]
+    exact hxφ
+  have hy : ψ.symm (φ x) ∈ (S.proto u.prototype).carrier := by
+    obtain ⟨y, hy, he⟩ := hxψ
+    simpa only [← he, AffineIsometryEquiv.symm_apply_apply] using hy
+  refine ⟨hy, ?_⟩
+  have hc := hm _ _ h (φ x) hxφ hxψ
+  change augmentedColour C l (φ.symm (φ x)) =
+    augmentedColour C u (ψ.symm (φ x)) at hc
+  simpa only [AffineIsometryEquiv.symm_apply_apply] using hc
+
+/-- Step 2 of the V4 proof of `augmentedLeaf_rigid` (V4 §2.4, 2.10): the
+"marker colours" occur exactly on their prescribed labelled frame-marker balls;
+the disjoint cluster balls do not alter these colour fibres. -/
+private theorem augmentedLeaf_rigid_step2_frame_iff {P : Params S}
+    (C : ClusterData S P) (l : LeafType P) (a : Fin (d + 1)) (x : E d) :
+    augmentedColour C l x = Colour.frame l.prototype a ↔
+      x ∈ closedBall ((P.marker l.prototype).centre a) (P.marker l.prototype).radius := by
+  constructor
+  · intro h
+    unfold augmentedColour at h
+    split_ifs at h with hint hm hf hs
+    · cases hk : (Classical.choose hm).1 <;> simp [microColour, hk] at h
+    · have ha : Classical.choose hf = a := (Colour.frame.inj h).2
+      simpa only [ha] using Classical.choose_spec hf
+  · exact augmentedMarking_frame C l a x
+
 /-- M2, V4 §2.4, 2.10: the complete marked carrier pins both label and frame.
 The CORE colours identify the leaf type, and the affinely independent labelled
 frame markers identify the isometry, including possible reflections. -/
@@ -702,7 +746,39 @@ theorem augmentedLeaf_rigid {P : Params S} (C : ClusterData S P)
     (l u : LeafType P) (φ ψ : Iso d)
     (h : (augmentedLeaf C l).toMarkedSet.move φ =
       (augmentedLeaf C u).toMarkedSet.move ψ) : l = u ∧ φ = ψ := by
-  sorry
+  have hx : C.centre l .core 0 ∈ C.microball l .core 0 :=
+    mem_closedBall_self C.ρ_pos.le
+  have hxS : C.centre l .core 0 ∈ (S.proto l.prototype).carrier :=
+    interior_subset (C.cluster_inside l .core (Set.mem_iUnion.2 ⟨0, hx⟩))
+  have hc := augmentedLeaf_rigid_step1_transport C l u φ ψ h _ hxS
+  have hlu : u = l :=
+    ((augmentedColour_micro_iff C l u .core 0 _).1
+      (hc.2.symm.trans (augmentedMarking_microball C l .core 0 _ hx))).1
+  subst u
+  refine ⟨rfl, ?_⟩
+  have hballs : ∀ a : Fin (d + 1),
+      (φ.trans ψ.symm) ''
+          closedBall ((P.marker l.prototype).centre a) (P.marker l.prototype).radius =
+        closedBall ((P.marker l.prototype).centre a) (P.marker l.prototype).radius := by
+    intro a
+    ext y
+    constructor
+    · rintro ⟨x, hx, rfl⟩
+      have hxS := interior_subset ((P.marker l.prototype).inside a hx)
+      have hc := augmentedLeaf_rigid_step1_transport C l l φ ψ h x hxS
+      exact (augmentedLeaf_rigid_step2_frame_iff C l a _).1
+        (hc.2.symm.trans (augmentedMarking_frame C l a x hx))
+    · intro hy
+      have hyS := interior_subset ((P.marker l.prototype).inside a hy)
+      have hc := augmentedLeaf_rigid_step1_transport C l l ψ φ h.symm y hyS
+      refine ⟨φ.symm (ψ y), (augmentedLeaf_rigid_step2_frame_iff C l a _).1
+        (hc.2.symm.trans (augmentedMarking_frame C l a y hy)), ?_⟩
+      simp
+  have hi := frameMarker_rigid P l.prototype (φ.trans ψ.symm) hballs
+  apply AffineIsometryEquiv.ext
+  intro x
+  have he : ψ.symm (φ x) = x := congrArg (fun f : Iso d => f x) hi
+  simpa only [AffineIsometryEquiv.apply_symm_apply] using congrArg ψ he
 
 variable {P : Params S}
 

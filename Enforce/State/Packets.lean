@@ -1303,7 +1303,24 @@ theorem certificate_components_honest (P : Params S) (D : Certificate P)
 
 private lemma frameMarker_rigid_step1_center_aux (φ : Iso d) (c : E d) (r : ℝ) (hr : 0 < r)
     (hφ : φ '' Metric.closedBall c r = Metric.closedBall c r) : φ c = c := by
-  sorry
+  have hballs : Metric.closedBall (φ c) r = Metric.closedBall c r :=
+    (φ.toIsometryEquiv.image_closedBall c r).symm.trans hφ
+  by_contra hne
+  have hpos : 0 < ‖φ c - c‖ := norm_pos_iff.mpr (sub_ne_zero.mpr hne)
+  have hscale : 0 ≤ r / ‖φ c - c‖ := (div_pos hr hpos).le
+  have hv : ‖(r / ‖φ c - c‖) • (φ c - c)‖ = r := by
+    rw [norm_smul_of_nonneg hscale, div_mul_cancel₀ r hpos.ne']
+  -- Extend the segment from c to φ c by one radius beyond φ c.
+  have hx : φ c + (r / ‖φ c - c‖) • (φ c - c) ∈ Metric.closedBall (φ c) r := by
+    rw [Metric.mem_closedBall, dist_eq_norm, add_sub_cancel_left, hv]
+  rw [hballs, Metric.mem_closedBall, dist_eq_norm] at hx
+  have heq : φ c + (r / ‖φ c - c‖) • (φ c - c) - c =
+      (1 + r / ‖φ c - c‖) • (φ c - c) := by
+    rw [add_smul, one_smul]
+    abel
+  rw [heq, norm_smul_of_nonneg (by linarith : 0 ≤ 1 + r / ‖φ c - c‖),
+    add_mul, one_mul, div_mul_cancel₀ r hpos.ne'] at hx
+  linarith
 
 private lemma frameMarker_rigid_step1_center (P : Params S) (A : S.ι) (φ : Iso d)
     (hφ : ∀ a : Fin (d + 1),

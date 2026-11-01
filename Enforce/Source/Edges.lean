@@ -300,6 +300,93 @@ theorem edge_ratio_bounds (S : SubstSystem d) : Nonempty (EdgeBounds S) := by
 /-- P16, V4 1.21: the exact paper bound `M = floor (1 / ℓ)`. -/
 def oppositeRootBound (B : EdgeBounds S) : ℕ := ⌊1 / B.lower⌋₊
 
+/-- Step 1 of the V4 proof of `opposite_root_edges_bound` (V4 1.21):
+"disjoint relative interiors". A nondegenerate real interval has its usual
+open interval as relative interior. -/
+private theorem opposite_root_edges_bound_step1_interval_relint (a b : ℝ) (hab : a < b) :
+    intrinsicInterior ℝ (Icc a b) = Ioo a b := by
+  have hspan : affineSpan ℝ (Icc a b) = ⊤ :=
+    (convex_Icc a b).interior_nonempty_iff_affineSpan_eq_top.mp
+      (by rw [interior_Icc]; exact nonempty_Ioo.mpr hab)
+  rw [intrinsicInterior, hspan]
+  change (Homeomorph.Set.univ ℝ) ''
+    interior ((Homeomorph.Set.univ ℝ) ⁻¹' Icc a b) = Ioo a b
+  rw [(Homeomorph.Set.univ ℝ).image_interior]
+  simp
+
+omit [Fact (2 ≤ d)] in
+/-- Step 1 of the V4 proof of `opposite_root_edges_bound` (V4 1.21):
+"`∑ |t_i| ≤ |h|`". The relative interior of a nondegenerate segment is measurable
+and has the same one-dimensional Hausdorff measure as the closed segment. -/
+private theorem opposite_root_edges_bound_step1_segment_measure (p q : E d) (hpq : p ≠ q) :
+    MeasurableSet (relint (segment ℝ p q)) ∧
+      MeasureTheory.Measure.hausdorffMeasure 1 (relint (segment ℝ p q)) =
+        ENNReal.ofReal ‖q - p‖ ∧
+      MeasureTheory.Measure.hausdorffMeasure 1 (segment ℝ p q) =
+        ENNReal.ofReal ‖q - p‖ := by
+  let L := ‖q - p‖
+  have hL : 0 < L := norm_pos_iff.mpr (sub_ne_zero.mpr hpq.symm)
+  let u := L⁻¹ • (q - p)
+  have hu : ‖u‖ = 1 := by
+    dsimp [u]
+    rw [norm_smul, Real.norm_eq_abs, abs_of_pos (inv_pos.mpr hL)]
+    exact inv_mul_cancel₀ hL.ne'
+  let φ : ℝ →ᵃⁱ[ℝ] E d := {
+    toAffineMap := {
+      toFun := fun t => t • u + p
+      linear := (LinearMap.id : ℝ →ₗ[ℝ] ℝ).smulRight u
+      map_vadd' := by
+        intro t s
+        change (s + t) • u + p = s • u + (t • u + p)
+        rw [add_smul, add_assoc] }
+    norm_map := by
+      intro t
+      change ‖t • u‖ = ‖t‖
+      rw [norm_smul, hu, mul_one] }
+  have hφ0 : φ 0 = p := by change (0 : ℝ) • u + p = p; simp
+  have hφL : φ L = q := by
+    change L • (L⁻¹ • (q - p)) + p = q
+    rw [smul_smul, mul_inv_cancel₀ hL.ne', one_smul, sub_add_cancel]
+  have hseg : segment ℝ p q = φ '' Icc 0 L := by
+    simpa only [AffineIsometry.coe_toAffineMap, hφ0, hφL, segment_eq_Icc hL.le] using
+      (image_segment ℝ φ.toAffineMap 0 L).symm
+  have hrel : relint (segment ℝ p q) = φ '' Ioo 0 L := by
+    rw [hseg, relint, φ.image_intrinsicInterior,
+      opposite_root_edges_bound_step1_interval_relint 0 L hL]
+  refine ⟨?_, ?_, ?_⟩
+  · rw [hrel]
+    exact φ.isometry.isClosedEmbedding.measurableEmbedding.measurableSet_image.mpr
+      measurableSet_Ioo
+  · rw [hrel, φ.isometry.hausdorffMeasure_image (Or.inl zero_le_one),
+      MeasureTheory.hausdorffMeasure_real, Real.volume_Ioo, sub_zero]
+  · rw [hseg, φ.isometry.hausdorffMeasure_image (Or.inl zero_le_one),
+      MeasureTheory.hausdorffMeasure_real, Real.volume_Icc, sub_zero]
+
+/-- Step 2 of the V4 proof of `opposite_root_edges_bound` (V4 1.21):
+"`|h| = |σ^n v_{h_0}|`". An arbitrary node frame is isometric, so the measure
+of its expanded edge and of its relative interior is the expanded edge length. -/
+private theorem opposite_root_edges_bound_step2_cell_measure (N : FramedNode S) (n : ℕ)
+    (e : {e // e ∈ (S.cx N.ty).edges}) :
+    MeasurableSet (relint (N.cell n e.val)) ∧
+      MeasureTheory.Measure.hausdorffMeasure 1 (relint (N.cell n e.val)) =
+        ENNReal.ofReal (expandedEdgeLength n ⟨N.ty, e⟩) ∧
+      MeasureTheory.Measure.hausdorffMeasure 1 (N.cell n e.val) =
+        ENNReal.ofReal (expandedEdgeLength n ⟨N.ty, e⟩) := by
+  let ab := Classical.choose (edge_endpoints_exist (⟨N.ty, e⟩ : EdgeName S))
+  have hab : ab.1 ≠ ab.2 ∧ e.val.carrier = segment ℝ ab.1 ab.2 :=
+    Classical.choose_spec (edge_endpoints_exist (⟨N.ty, e⟩ : EdgeName S))
+  let f := N.prototypeFrame n
+  have hseg : N.cell n e.val = segment ℝ (f ab.1) (f ab.2) := by
+    change f '' e.val.carrier = _
+    rw [hab.2]
+    exact image_segment ℝ f.toAffineMap ab.1 ab.2
+  have hlen : ‖f ab.2 - f ab.1‖ = expandedEdgeLength n ⟨N.ty, e⟩ := by
+    change ‖N.frame ((S.σ ^ n) ab.2) - N.frame ((S.σ ^ n) ab.1)‖ =
+      ‖(S.σ ^ n) (ab.2 - ab.1)‖
+    rw [← dist_eq_norm, N.frame.isometry.dist_eq, dist_eq_norm, map_sub]
+  rw [hseg, ← hlen]
+  exact opposite_root_edges_bound_step1_segment_measure _ _ (fun h => hab.1 (f.injective h))
+
 /-- P16, V4 1.21: disjoint reachable root edges at a common height inside one
 edge are bounded in number by the reciprocal lower ratio. The nodes need not be
 siblings or form a side-to-side patch. -/
@@ -312,7 +399,56 @@ theorem opposite_root_edges_bound (B : EdgeBounds S) (n : ℕ)
       (relint ((t a).cell n (e a).val)) (relint ((t b).cell n (e b).val))))
     (hreach : ∀ a, Relation.ReflTransGen (edgeGraph S) ⟨H.ty, h⟩ ⟨(t a).ty, e a⟩) :
     Fintype.card α ≤ oppositeRootBound B := by
-  sorry
+  classical
+  let μ : MeasureTheory.Measure (E d) := MeasureTheory.Measure.hausdorffMeasure 1
+  have hmeas := fun a => opposite_root_edges_bound_step2_cell_measure (t a) n (e a)
+  have hhost := (opposite_root_edges_bound_step2_cell_measure H n h).2.2
+  have hfinite : ∀ a, μ (relint ((t a).cell n (e a).val)) ≠ ⊤ := by
+    intro a
+    change MeasureTheory.Measure.hausdorffMeasure 1 _ ≠ ⊤
+    rw [(hmeas a).2.1]
+    exact ENNReal.ofReal_ne_top
+  have hpos : 0 < expandedEdgeLength n (⟨H.ty, h⟩ : EdgeName S) :=
+    edge_ratio_bounds_step5_pos n _
+  have hsum : ∑ a, expandedEdgeLength n (⟨(t a).ty, e a⟩ : EdgeName S) ≤
+      expandedEdgeLength n (⟨H.ty, h⟩ : EdgeName S) := by
+    calc
+      _ = ∑ a, (μ (relint ((t a).cell n (e a).val))).toReal := by
+        apply Finset.sum_congr rfl
+        intro a _
+        rw [show μ (relint ((t a).cell n (e a).val)) =
+          ENNReal.ofReal (expandedEdgeLength n ⟨(t a).ty, e a⟩) from (hmeas a).2.1,
+          ENNReal.toReal_ofReal (edge_ratio_bounds_step5_pos n _).le]
+      _ = (μ (⋃ a ∈ (Finset.univ : Finset α), relint ((t a).cell n (e a).val))).toReal := by
+        rw [MeasureTheory.measure_biUnion_finset
+          (fun a _ b _ hab => hdisj hab) (fun a _ => (hmeas a).1),
+          ENNReal.toReal_sum (fun a _ => hfinite a)]
+      _ ≤ (μ (H.cell n h.val)).toReal := by
+        apply ENNReal.toReal_mono
+        · change MeasureTheory.Measure.hausdorffMeasure 1 _ ≠ ⊤
+          rw [hhost]
+          exact ENNReal.ofReal_ne_top
+        · exact MeasureTheory.measure_mono
+            (iUnion₂_subset fun a _ => intrinsicInterior_subset.trans (hsub a))
+      _ = _ := by
+        change (MeasureTheory.Measure.hausdorffMeasure 1 _).toReal = _
+        rw [hhost, ENNReal.toReal_ofReal hpos.le]
+  have hlower : ∀ a, B.lower * expandedEdgeLength n (⟨H.ty, h⟩ : EdgeName S) ≤
+      expandedEdgeLength n (⟨(t a).ty, e a⟩ : EdgeName S) := by
+    intro a
+    exact (le_div_iff₀ hpos).mp (B.bounds _ _ (hreach a) n).1
+  have hcount : (Fintype.card α : ℝ) *
+      (B.lower * expandedEdgeLength n (⟨H.ty, h⟩ : EdgeName S)) ≤
+      expandedEdgeLength n (⟨H.ty, h⟩ : EdgeName S) := by
+    calc
+      _ = ∑ _a : α, B.lower * expandedEdgeLength n (⟨H.ty, h⟩ : EdgeName S) := by simp
+      _ ≤ ∑ a, expandedEdgeLength n (⟨(t a).ty, e a⟩ : EdgeName S) :=
+        Finset.sum_le_sum (fun a _ => hlower a)
+      _ ≤ _ := hsum
+  apply Nat.le_floor
+  apply (le_div_iff₀ B.lower_pos).mpr
+  apply (mul_le_mul_iff_left₀ hpos).mp
+  simpa only [mul_assoc, one_mul] using hcount
 
 /-- P16, V4 1.21: the bound is positive whenever a root edge is present. -/
 theorem oppositeRootBound_pos (B : EdgeBounds S) (e : EdgeName S) :

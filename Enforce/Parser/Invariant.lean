@@ -992,7 +992,40 @@ theorem parent_eq (i : S.I N.ty) :
 /-- R7, V4 3.7: the parent is the union of its chosen children. -/
 theorem union_children :
     N.carrier (n + 1) = ⋃ i : S.I N.ty, (A.children i).val.carrier := by
-  sorry
+  have hc : ∀ i, (A.children i).val.carrier = (N.child n i).carrier n := by
+    intro i
+    change (A.children i).val.node.carrier n = _
+    rw [A.child_eq i]
+  have hpar : N.carrier (n+1) = N.prototypeFrame n '' S.supertile 1 N.ty := by
+    simp only [FramedNode.carrier, FramedNode.prototypeFrame, SubstSystem.supertile,
+      placedSet, Set.image_image, pow_one]
+    congr 1
+  have hfr : ∀ i, (N.child n i).prototypeFrame n =
+      (S.child N.ty i).frame.toAffineEquiv.trans (N.prototypeFrame n) := by
+    intro i
+    apply AffineEquiv.ext; intro x
+    change N.frame (S.placeChild n i ((S.σ ^ n) x)) =
+      N.frame ((S.σ ^ n) ((S.child N.ty i).frame x))
+    congr 1
+    rw [S.placeChild_apply]
+    simp [linearConj, Child.frame, rigidMotion, zpow_neg,
+      LinearEquiv.mul_apply, ← map_add]
+  have hci : ∀ M : FramedNode S, M.carrier n = M.prototypeFrame n '' (S.proto M.ty).carrier := by
+    intro M
+    simp only [FramedNode.carrier, FramedNode.prototypeFrame, SubstSystem.supertile,
+      placedSet, Set.image_image]
+    rfl
+  have hch : ∀ i, (N.child n i).carrier n = N.prototypeFrame n ''
+      placedSet (S.child N.ty i).frame (S.proto (S.child N.ty i).ty).carrier := by
+    intro i
+    rw [hci, hfr]
+    simp only [placedSet, Set.image_image]
+    rfl
+  rw [hpar]
+  simp_rw [hc]
+  change N.prototypeFrame n '' (S.σ '' (S.proto N.ty).carrier) = _
+  rw [S.children_cover, Set.image_iUnion]
+  exact Set.iUnion_congr (fun i => (hch i).symm)
 
 end AssembledParent
 

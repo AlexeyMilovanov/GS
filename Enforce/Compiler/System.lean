@@ -729,7 +729,21 @@ private lemma move_refl_step4_parents (U : HonestSource S) (n : ℕ) (N : {N // 
     (hN : N.val.move (AffineIsometryEquiv.refl ℝ (E d)) ∈ U.hierarchy.nodes n) :
     (U.hierarchy.parent n ⟨N.val.move (AffineIsometryEquiv.refl ℝ (E d)), hN⟩).val =
       (U.hierarchy.parent n N).val.move (AffineIsometryEquiv.refl ℝ (E d)) := by
-  sorry
+  have key : N.val.move (AffineIsometryEquiv.refl ℝ (E d)) = N.val := by
+    dsimp [FramedNode.move]
+    ext
+    · rfl
+    · simp
+  have key2 : (⟨N.val.move (AffineIsometryEquiv.refl ℝ (E d)), hN⟩ : {N // N ∈ U.hierarchy.nodes n}) = N := by
+    apply Subtype.ext
+    exact key
+  rw [key2]
+  have key3 : (U.hierarchy.parent n N).val.move (AffineIsometryEquiv.refl ℝ (E d)) = (U.hierarchy.parent n N).val := by
+    dsimp [FramedNode.move]
+    ext
+    · rfl
+    · simp
+  rw [key3]
 
 /-- Step 5 of the V4 proof of `move_refl` (V4 2.14(d)): roles equality -/
 private lemma move_refl_step5_roles (U : HonestSource S) (n : ℕ) (N : {N // N ∈ U.hierarchy.nodes n})

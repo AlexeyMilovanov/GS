@@ -406,13 +406,81 @@ theorem roles_ne_nil (A : S.ι) : roles A ≠ [] := by
   have := mem_roles A i
   simp only [h, List.not_mem_nil] at this
 end Observer
-/-- Step 1 of the V4 proof of `range_raise` (V4 4.3(0)):
-Exact-scale transfer preserves the full joint observer data. -/
+open private state_scaleTransfer_step1_ancestor state_scaleTransfer_step1_tail_ancestor state_scaleTransfer_step2_address from Enforce.State.State in
+private theorem dummy_step1_window {U V : HonestSource S} {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J) (hab : a % P.L = b % P.L) (t : U.hierarchy.Tail a) : ObserverWindow.ofHierarchy V.hierarchy (stateOf V P) (e.toEquiv t).val = ObserverWindow.ofHierarchy U.hierarchy (stateOf U P) t.val := by
+  apply ObserverWindow.ext
+  · change stateOf V P (V.hierarchy.ancestor (e.toEquiv t).val (P.w - 1)) = stateOf U P (U.hierarchy.ancestor t.val (P.w - 1))
+    rw [← state_scaleTransfer_step1_ancestor e t, ← state_scaleTransfer_step1_tail_ancestor U.hierarchy a t]
+    exact (state_scaleTransfer P e hab _).symm
+  · funext j
+    exact (state_scaleTransfer_step2_address e t j.val).symm
+
+private theorem dummy_step2_packet_ext {p p' : Packet P} (hi : p.incidence = p'.incidence) (hj : p.jstar = p'.jstar) (hs : p.sstar = p'.sstar) (hr : ∀ (j : ℕ) (h : j < p.jstar.val) (h' : j < p'.jstar.val), p.roles ⟨j, h⟩ = p'.roles ⟨j, h'⟩) : p = p' := by
+  obtain ⟨i, j, s, r⟩ := p
+  obtain ⟨i', j', s', r'⟩ := p'
+  simp only at hi hj hs hr
+  subst hi hj hs
+  congr
+  funext x
+  exact hr x.val x.isLt x.isLt
+
+open private state_scaleTransfer_step1_ancestor state_scaleTransfer_step1_tail_ancestor state_scaleTransfer_step2_address state_scaleTransfer_step4_side state_scaleTransfer_step6_birth from Enforce.State.State in
+private theorem dummy_step3_packet {U V : HonestSource S} {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J) (hab : a % P.L = b % P.L) (t : U.hierarchy.Tail a) (f : FacetName S t.val.2.val.ty) (g : FacetName S (e.toEquiv t).val.2.val.ty) (hfg : f.val = g.val) : V.facetPacket P (e.toEquiv t).val g = U.facetPacket P t.val f := by
+  classical
+  by_cases hf : U.hierarchy.IsFault t.val f
+  · have hg := (e.faults t f g hfg).mp hf
+    unfold HonestSource.facetPacket
+    rw [dif_pos hf, dif_pos hg]
+  · have hg : ¬ V.hierarchy.IsFault (e.toEquiv t).val g :=
+      fun h => hf ((e.faults t f g hfg).mpr h)
+    unfold HonestSource.facetPacket
+    rw [dif_neg hf, dif_neg hg]
+    congr 1
+    obtain ⟨Z, hZU, hZV, -, -⟩ := state_scaleTransfer_step6_birth e t f g hfg hf hg
+    have hinc := (state_scaleTransfer_step4_side P e t f g hfg hf hg).1
+    let gU := U.providerOccurrence P t.val f hf
+    let gV := V.providerOccurrence P (e.toEquiv t).val g hg
+    have hbU : gU.birth = Z.val := hZU
+    have hbV : gV.birth = (e.toEquiv Z).val := hZV
+    have hstate : stateOf V P gV.birth = stateOf U P gU.birth := by
+      rw [hbU, hbV]
+      exact (state_scaleTransfer P e hab Z).symm
+    have hmask : ∀ j, mask V P gV j ↔ mask U P gU j := by
+      intro j
+      rw [packet_mask_fn, packet_mask_fn, hstate]
+      change packetMask P (V.recordIncidence P (e.toEquiv t).val g hg) _ j ↔ packetMask P (U.recordIncidence P t.val f hf) _ j
+      rw [hinc]
+    have hps : presentSlots V P gV = presentSlots U P gU := by
+      unfold presentSlots
+      ext j
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+      exact hmask j
+    have key : ∀ (s s' : Finset (Fin P.k)) (hs : s.Nonempty) (hs' : s'.Nonempty), s = s' → s.max' hs = s'.max' hs' := by
+      rintro s s' hs hs' rfl
+      rfl
+    have htop : topSlot V P gV = topSlot U P gU := key _ _ _ _ hps
+    change packetOf V P gV = packetOf U P gU
+    apply dummy_step2_packet_ext
+    · exact hinc.symm
+    · exact htop
+    · change stateOf V P (V.hierarchy.ancestor gV.birth (topSlot V P gV).val) = stateOf U P (U.hierarchy.ancestor gU.birth (topSlot U P gU).val)
+      rw [htop, hbU, hbV, ← state_scaleTransfer_step1_ancestor e Z, ← state_scaleTransfer_step1_tail_ancestor U.hierarchy a Z]
+      exact (state_scaleTransfer P e hab _).symm
+    · intro j _ _
+      change V.hierarchy.nodeRole (V.hierarchy.ancestor gV.birth j) = U.hierarchy.nodeRole (U.hierarchy.ancestor gU.birth j)
+      rw [hbU, hbV]
+      exact (state_scaleTransfer_step2_address e Z j).symm
+
+open private state_scaleTransfer_step7_heq_facet from Enforce.State.State in
 private lemma dummy (P : Params S)
     {U V : HonestSource S} {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J)
     (hab : a % P.L = b % P.L) (q : U.hierarchy.Tail a) :
     V.observerOf P (e.toEquiv q).val = U.observerOf P q.val := by
-  sorry
+  apply Observer.ext
+  · exact e.types q
+  · exact dummy_step1_window e hab q
+  · exact state_scaleTransfer_step7_heq_facet (e.types q) _ _
+      (fun g f hgf => dummy_step3_packet e hab q f g hgf.symm)
 
 /-- Step 1 of the V4 proof of `range_raise` (V4 4.3(0)):
 Exact-scale transfer preserves the full joint observer data. -/

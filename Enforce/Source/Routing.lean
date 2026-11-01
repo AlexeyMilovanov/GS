@@ -10145,6 +10145,316 @@ private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step3_reach_wal
       (A c) hqA hyA (by simpa only [segment_symm] using hzseg.mem_segment) hzA
   exact hqD (hzq ▸ hzD)
 
+/-- Step 1 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood_step4_wall_connected`
+(V4 1.25): "in general position". Finitely many proper affine subspaces have
+dense complement in an affine space, including when the obstacles are specified
+in a larger ambient space. -/
+private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step4_wall_connected_step1_relative_density
+    {ι : Type*} (t : Finset ι) (F : ι → AffineSubspace ℝ (E d))
+    (H : AffineSubspace ℝ (E d)) [Nonempty H]
+    (hF : ∀ i ∈ t, ¬ H ≤ F i) :
+    Dense {x : H | ∀ i ∈ t, (x : E d) ∉ F i} := by
+  classical
+  let G (i : ι) : AffineSubspace ℝ H := (F i).comap H.subtype
+  have hproper (i : ι) (hi : i ∈ t) : G i ≠ ⊤ := by
+    intro heq
+    apply hF i hi
+    intro x hx
+    have hmem : (⟨x, hx⟩ : H) ∈ G i := by rw [heq]; trivial
+    exact hmem
+  have hdense (i : ι) (hi : i ∈ t) : Dense (G i : Set H)ᶜ := by
+    apply interior_eq_empty_iff_dense_compl.mp
+    apply Set.eq_empty_iff_forall_notMem.mpr
+    intro x hx
+    apply hproper i hi
+    apply top_unique
+    rw [← isOpen_interior.affineSpan_eq_top ⟨x, hx⟩]
+    exact affineSpan_le.mpr interior_subset
+  have hdall : ∀ u : Finset ι, u ⊆ t → Dense (⋂ i ∈ (u : Set ι), (G i : Set H)ᶜ) := by
+    intro u
+    induction u using Finset.induction_on with
+    | empty =>
+      intro _
+      simpa using (dense_univ : Dense (Set.univ : Set H))
+    | @insert i u hi ih =>
+      intro hut
+      rw [Finset.coe_insert, Set.biInter_insert]
+      exact (hdense i (hut (Finset.mem_insert_self i u))).inter_of_isOpen_left
+        (ih (fun j hj => hut (Finset.mem_insert_of_mem hj)))
+        (G i).closed_of_finiteDimensional.isOpen_compl
+  have hd := hdall t (Finset.Subset.refl t)
+  have heq : (⋂ i ∈ (t : Set ι), (G i : Set H)ᶜ) =
+      {x : H | ∀ i ∈ t, (x : E d) ∉ F i} := by
+    ext x
+    simp [G]
+  rwa [heq] at hd
+
+/-- Step 1 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood_step4_wall_connected`
+(V4 1.25): "in general position (avoiding the ... skeleton)". In a simplex,
+a finite family of flat sets of strictly smaller dimension misses points
+arbitrarily close to every point of the simplex. This is used on a ridge. -/
+private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step4_wall_connected_step1_ridge_point
+    (s : Finset (E d)) (hs : AffineIndependent ℝ ((↑) : s → E d))
+    (A : Finset (Cell d)) (hA : ∀ c ∈ A, c.dim + 1 < s.card)
+    (p : E d) (hp : p ∈ convexHull ℝ (s : Set (E d))) (r : ℝ) (hr : 0 < r) :
+    ((convexHull ℝ (s : Set (E d)) ∩ Metric.ball p r) \
+      (⋃ c ∈ A, (affineSpan ℝ c.carrier : Set (E d)))).Nonempty := by
+  classical
+  let Q := convexHull ℝ (s : Set (E d))
+  let H := affineSpan ℝ Q
+  have hne : s.Nonempty :=
+    Finset.coe_nonempty.mp (convexHull_nonempty_iff.mp ⟨p, hp⟩)
+  letI : Nonempty s := hne.to_subtype
+  letI : Nonempty H := ⟨⟨p, subset_affineSpan ℝ Q hp⟩⟩
+  have hdim : Module.finrank ℝ H.direction + 1 = s.card := by
+    have hrange : Set.range ((↑) : s → E d) = (s : Set (E d)) := Subtype.range_val
+    have hdir : H.direction = vectorSpan ℝ (s : Set (E d)) := by
+      dsimp [H, Q]
+      rw [affineSpan_convexHull, direction_affineSpan]
+    have hv : Module.finrank ℝ (vectorSpan ℝ (s : Set (E d))) + 1 = s.card :=
+      (congrArg (fun n : ℕ => n + 1)
+        (congrArg (fun t : Set (E d) => Module.finrank ℝ (vectorSpan ℝ t)) hrange)).symm.trans
+        (hs.finrank_vectorSpan_add_one.trans (Fintype.card_coe s))
+    exact (congrArg (fun W : Submodule ℝ (E d) => Module.finrank ℝ W + 1) hdir).trans hv
+  have hproper : ∀ c ∈ A, ¬ H ≤ affineSpan ℝ c.carrier := by
+    intro c hc hle
+    have hrank := Submodule.finrank_mono (AffineSubspace.direction_le hle)
+    have hcd : Module.finrank ℝ (affineSpan ℝ c.carrier).direction = c.dim := c.flat.dimension
+    rw [hcd] at hrank
+    have := hA c hc
+    omega
+  have hd := birth_ascent_routing_step4_lower_cell_neighborhood_step4_wall_connected_step1_relative_density
+    A (fun c => affineSpan ℝ c.carrier) H hproper
+  have hpcl : p ∈ closure (relint Q) := by
+    rw [(principal_component_step1_hull_geometry_step10_jordan_brouwer_step15_facet_samples_step3_relative_interior s hne).2]
+    exact hp
+  obtain ⟨y, hyb, hyrel⟩ := mem_closure_iff.mp hpcl (Metric.ball p r)
+    Metric.isOpen_ball (Metric.mem_ball_self hr)
+  obtain ⟨z, hz, rfl⟩ := hyrel
+  let U : Set H := interior (Subtype.val ⁻¹' Q) ∩ Subtype.val ⁻¹' Metric.ball p r
+  have hU : IsOpen U := isOpen_interior.inter (Metric.isOpen_ball.preimage continuous_subtype_val)
+  obtain ⟨w, hwU, hw⟩ := hd.inter_open_nonempty U hU ⟨z, hz, hyb⟩
+  have hwQ : w ∈ (Subtype.val ⁻¹' Q : Set H) := interior_subset hwU.1
+  refine ⟨w.val, ⟨hwQ, hwU.2⟩, ?_⟩
+  intro hwB
+  obtain ⟨c, hc, hwc⟩ := Set.mem_iUnion₂.mp hwB
+  exact hw c hc hwc
+
+/-- Step 2 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood_step4_wall_connected`
+(V4 1.25): "in general position (avoiding the ... skeleton)". Inside one
+convex simplex, deleting finitely many flat sets of codimension at least two
+preserves preconnectedness, also after cutting by a ball. A generic intermediate
+point joins any two points by two segments avoiding the obstacle spans; density
+then includes points on those spans which are outside the actual obstacles. -/
+private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step4_wall_connected_step2_simplex_complement
+    (s : Finset (E d)) (hs : AffineIndependent ℝ ((↑) : s → E d))
+    (A : Finset (Cell d)) (hA : ∀ c ∈ A, c.dim + 2 < s.card)
+    (p : E d) (hp : p ∈ convexHull ℝ (s : Set (E d))) (r : ℝ) (hr : 0 < r) :
+    IsPreconnected ((convexHull ℝ (s : Set (E d)) ∩ Metric.ball p r) \
+      (⋃ c ∈ A, c.carrier)) := by
+  classical
+  let Q := convexHull ℝ (s : Set (E d))
+  let H := affineSpan ℝ Q
+  let B : Set (E d) := ⋃ c ∈ A, c.carrier
+  let L : Set (E d) := ⋃ c ∈ A, (affineSpan ℝ c.carrier : Set (E d))
+  let V := (Q ∩ Metric.ball p r) \ L
+  have hne : s.Nonempty :=
+    Finset.coe_nonempty.mp (convexHull_nonempty_iff.mp ⟨p, hp⟩)
+  letI : Nonempty s := hne.to_subtype
+  letI : Nonempty H := ⟨⟨p, subset_affineSpan ℝ Q hp⟩⟩
+  have hdim : Module.finrank ℝ H.direction + 1 = s.card := by
+    have hrange : Set.range ((↑) : s → E d) = (s : Set (E d)) := Subtype.range_val
+    have hdir : H.direction = vectorSpan ℝ (s : Set (E d)) := by
+      dsimp [H, Q]
+      rw [affineSpan_convexHull, direction_affineSpan]
+    have hv : Module.finrank ℝ (vectorSpan ℝ (s : Set (E d))) + 1 = s.card :=
+      (congrArg (fun n : ℕ => n + 1)
+        (congrArg (fun t : Set (E d) => Module.finrank ℝ (vectorSpan ℝ t)) hrange)).symm.trans
+        (hs.finrank_vectorSpan_add_one.trans (Fintype.card_coe s))
+    exact (congrArg (fun W : Submodule ℝ (E d) => Module.finrank ℝ W + 1) hdir).trans hv
+  let U : Set H := interior (Subtype.val ⁻¹' Q) ∩ Subtype.val ⁻¹' Metric.ball p r
+  have hU : IsOpen U := isOpen_interior.inter (Metric.isOpen_ball.preimage continuous_subtype_val)
+  have hUne : U.Nonempty := by
+    have hpcl : p ∈ closure (relint Q) := by
+      rw [(principal_component_step1_hull_geometry_step10_jordan_brouwer_step15_facet_samples_step3_relative_interior s hne).2]
+      exact hp
+    obtain ⟨y, hyb, hyrel⟩ := mem_closure_iff.mp hpcl (Metric.ball p r)
+      Metric.isOpen_ball (Metric.mem_ball_self hr)
+    obtain ⟨z, hz, rfl⟩ := hyrel
+    exact ⟨z, hz, hyb⟩
+  have hV : IsPreconnected V := by
+    refine isPreconnected_of_forall_pair fun x hx y hy => ?_
+    let J (i : A × Bool) := affineSpan ℝ
+      (insert (if i.2 then x else y) i.1.val.carrier)
+    have hproper : ∀ i ∈ (Finset.univ : Finset (A × Bool)), ¬ H ≤ J i := by
+      intro i _ hle
+      have hrank := Submodule.finrank_mono (AffineSubspace.direction_le hle)
+      have hinsert := finrank_vectorSpan_insert_le_set ℝ i.1.val.carrier
+        (if i.2 then x else y)
+      have hcd : Module.finrank ℝ (vectorSpan ℝ i.1.val.carrier) = i.1.val.dim := by
+        rw [← direction_affineSpan]
+        exact i.1.val.flat.dimension
+      change Module.finrank ℝ H.direction ≤
+        Module.finrank ℝ (affineSpan ℝ (insert (if i.2 then x else y) i.1.val.carrier)).direction at hrank
+      rw [direction_affineSpan (k := ℝ)
+        (insert (if i.2 then x else y) i.1.val.carrier)] at hrank
+      rw [hcd] at hinsert
+      have := hA i.1.val i.1.property
+      omega
+    have hd := birth_ascent_routing_step4_lower_cell_neighborhood_step4_wall_connected_step1_relative_density
+      Finset.univ J H hproper
+    obtain ⟨z, hzU, hz⟩ := hd.inter_open_nonempty U hU hUne
+    have hzQ' : z ∈ (Subtype.val ⁻¹' Q : Set H) := interior_subset hzU.1
+    have hzQ : z.val ∈ Q ∩ Metric.ball p r := ⟨hzQ', hzU.2⟩
+    have hseg : ∀ a ∈ V, (∀ c ∈ A, z.val ∉ affineSpan ℝ (insert a c.carrier)) →
+        segment ℝ a z.val ⊆ V := by
+      intro a ha hza w hw
+      refine ⟨((convex_convexHull ℝ _).inter (convex_ball p r)).segment_subset ha.1 hzQ hw, ?_⟩
+      intro hwL
+      obtain ⟨c, hc, hwc⟩ := Set.mem_iUnion₂.mp hwL
+      let Jc := affineSpan ℝ (insert a c.carrier)
+      have haJ : a ∈ Jc := subset_affineSpan ℝ _ (Set.mem_insert a _)
+      have hsub : affineSpan ℝ c.carrier ≤ Jc := affineSpan_mono ℝ (Set.subset_insert a _)
+      have hwa : w = a :=
+        principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step4_segment_span
+          Jc haJ (hza c hc) hw (hsub hwc)
+      exact ha.2 (Set.mem_iUnion₂.mpr ⟨c, hc, hwa ▸ hwc⟩)
+    have hxseg : segment ℝ x z.val ⊆ V := hseg x hx fun c hc => by
+      simpa only [J, if_true] using hz (⟨c, hc⟩, true) (Finset.mem_univ _)
+    have hyseg : segment ℝ y z.val ⊆ V := hseg y hy fun c hc => by
+      simpa only [J, Bool.false_eq_true, if_false] using hz (⟨c, hc⟩, false) (Finset.mem_univ _)
+    refine ⟨segment ℝ x z.val ∪ segment ℝ y z.val, Set.union_subset hxseg hyseg,
+      Or.inl (left_mem_segment ℝ x z.val), Or.inr (left_mem_segment ℝ y z.val), ?_⟩
+    exact IsPreconnected.union z.val (right_mem_segment ℝ x z.val) (right_mem_segment ℝ y z.val)
+      (convex_segment (𝕜 := ℝ) x z.val).isPreconnected
+      (convex_segment (𝕜 := ℝ) y z.val).isPreconnected
+  have hsub : V ⊆ (Q ∩ Metric.ball p r) \ B := by
+    rintro x ⟨hx, hxL⟩
+    refine ⟨hx, ?_⟩
+    intro hxB
+    obtain ⟨c, hc, hxc⟩ := Set.mem_iUnion₂.mp hxB
+    exact hxL (Set.mem_iUnion₂.mpr ⟨c, hc, subset_affineSpan ℝ _ hxc⟩)
+  apply hV.subset_closure hsub
+  rintro x ⟨⟨hxQ, hxb⟩, _⟩
+  apply Metric.mem_closure_iff.mpr
+  intro δ hδ
+  have hroom : 0 < r - dist x p := sub_pos.mpr hxb
+  let η := min (δ / 2) ((r - dist x p) / 2)
+  have hη : 0 < η := lt_min (by linarith) (by linarith)
+  obtain ⟨y, ⟨hyQ, hyb⟩, hyL⟩ :=
+    birth_ascent_routing_step4_lower_cell_neighborhood_step4_wall_connected_step1_ridge_point
+      s hs A (fun c hc => by have := hA c hc; omega) x hxQ η hη
+  have hyd : dist y x < η := hyb
+  have hyp : dist y p < r := by
+    have := min_le_right (δ / 2) ((r - dist x p) / 2)
+    have := dist_triangle y x p
+    dsimp [η] at hyd
+    linarith
+  refine ⟨y, ⟨⟨hyQ, hyp⟩, hyL⟩, ?_⟩
+  rw [dist_comm]
+  exact hyd.trans_le ((min_le_left _ _).trans (by linarith))
+
+/-- Step 3 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood_step4_wall_connected`
+(V4 1.25, (H1)): "the polyhedral boundary ... a small ball". Connected links
+give ridge chains in the closed star of a point. Downward induction on the size
+of the common face upgrades link chains to ridge chains while retaining the
+point in every simplex. This is solely a statement about the triangulation. -/
+private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step4_wall_connected_step3_star_chains
+    (K : Geometry.SimplicialComplex ℝ (E d)) (hfin : K.faces.Finite)
+    (hpure : ∀ f ∈ K.facets, f.card = d)
+    (hman : IsLocallyEuclidean (d - 1) K.space) (p : E d) :
+    ∀ f g : K.facets,
+      p ∈ convexHull ℝ (f.val : Set (E d)) →
+      p ∈ convexHull ℝ (g.val : Set (E d)) →
+      Relation.ReflTransGen (fun u v : K.facets =>
+        p ∈ convexHull ℝ (u.val : Set (E d)) ∧
+        p ∈ convexHull ℝ (v.val : Set (E d)) ∧
+        (u.val ∩ v.val).card = d - 1) f g := by
+  classical
+  have hlink : ∀ σ ∈ K.faces, σ.card + 2 ≤ d → ∀ f g : K.facets,
+      σ ⊆ f.val → σ ⊆ g.val → Relation.ReflTransGen
+        (fun u v : K.facets => σ ⊆ u.val ∧ σ ⊆ v.val ∧
+          σ.card < (u.val ∩ v.val).card) f g := by
+    intro σ hσ hσd
+    by_cases hσc : σ.card < 2
+    · have h1 : σ.card = 1 := by
+        have := (K.nonempty_of_mem_faces hσ).card_pos
+        omega
+      exact principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step4_vertex_links
+        K hfin hpure hman hσ h1 hσd
+    · exact principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step5_face_links
+        K hfin hpure hman hσ (by omega) hσd
+  suffices H : ∀ n : ℕ, ∀ f g : K.facets, d - (f.val ∩ g.val).card ≤ n →
+      p ∈ convexHull ℝ (f.val : Set (E d)) →
+      p ∈ convexHull ℝ (g.val : Set (E d)) →
+      Relation.ReflTransGen (fun u v : K.facets =>
+        p ∈ convexHull ℝ (u.val : Set (E d)) ∧
+        p ∈ convexHull ℝ (v.val : Set (E d)) ∧
+        (u.val ∩ v.val).card = d - 1) f g by
+    intro f g hf hg
+    exact H _ f g le_rfl hf hg
+  intro n
+  induction n with
+  | zero =>
+    intro f g hn _ _
+    have hfc := hpure f.val f.property
+    have heq : f.val ∩ g.val = f.val :=
+      Finset.eq_of_subset_of_card_le Finset.inter_subset_left (by omega)
+    have hfg : f = g := by
+      apply Subtype.ext
+      apply f.property.2 g.property.1
+      rw [← heq]
+      exact Finset.inter_subset_right
+    subst hfg
+    exact Relation.ReflTransGen.refl
+  | succ n ih =>
+    intro f g hn hf hg
+    by_cases hbig : d - (f.val ∩ g.val).card ≤ n
+    · exact ih f g hbig hf hg
+    by_cases hridge : (f.val ∩ g.val).card = d - 1
+    · exact Relation.ReflTransGen.single ⟨hf, hg, hridge⟩
+    have hle : (f.val ∩ g.val).card ≤ d := by
+      have := Finset.card_le_card (Finset.inter_subset_left (s₁ := f.val) (s₂ := g.val))
+      rwa [hpure f.val f.property] at this
+    have hpσ : p ∈ convexHull ℝ ((f.val ∩ g.val : Finset (E d)) : Set (E d)) := by
+      simpa only [Finset.coe_inter] using
+        K.inter_subset_convexHull f.property.1 g.property.1 ⟨hf, hg⟩
+    have hne : (f.val ∩ g.val).Nonempty :=
+      Finset.coe_nonempty.mp (convexHull_nonempty_iff.mp ⟨p, hpσ⟩)
+    have hσ : f.val ∩ g.val ∈ K.faces :=
+      K.down_closed f.property.1 Finset.inter_subset_left hne
+    have hch := hlink _ hσ (by omega) f g Finset.inter_subset_left Finset.inter_subset_right
+    have h2 := Relation.ReflTransGen.mono (fun u v huv =>
+      ih u v (by omega)
+        (convexHull_mono (fun _ hw => huv.1 hw) hpσ)
+        (convexHull_mono (fun _ hw => huv.2.1 hw) hpσ)) hch
+    rwa [Relation.reflTransGen_idem] at h2
+
+/-- Step 4 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood_step4_wall_connected`
+(V4 1.25): "smaller than the distance from p to all cells ... not containing p
+(finitely many)". A sufficiently small ball meets only the closed simplices
+whose carriers contain its centre. -/
+private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step4_wall_connected_step4_isolate
+    (K : Geometry.SimplicialComplex ℝ (E d)) (hfin : K.faces.Finite) (p : E d) :
+    ∃ ε : ℝ, 0 < ε ∧ ∀ f : K.facets,
+      (convexHull ℝ (f.val : Set (E d)) ∩ Metric.ball p ε).Nonempty →
+        p ∈ convexHull ℝ (f.val : Set (E d)) := by
+  classical
+  letI : Finite K.facets := (hfin.subset K.facets_subset).to_subtype
+  let F := {f : K.facets // p ∉ convexHull ℝ (f.val : Set (E d))}
+  let B : Set (E d) := ⋃ f : F, convexHull ℝ (f.val.val : Set (E d))
+  have hB : IsClosed B := isClosed_iUnion_of_finite fun f : F =>
+    f.val.val.finite_toSet.isCompact_convexHull.isClosed
+  have hpB : p ∉ B := by
+    intro h
+    obtain ⟨f, hf⟩ := Set.mem_iUnion.mp h
+    exact f.property hf
+  obtain ⟨ε, hε, hball⟩ := Metric.isOpen_iff.mp hB.isOpen_compl p hpB
+  refine ⟨ε, hε, ?_⟩
+  rintro f ⟨x, hxf, hxb⟩
+  by_contra hpf
+  exact hball hxb (Set.mem_iUnion.mpr ⟨⟨f, hpf⟩, hxf⟩)
+
 /-- Step 4 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood`
 (V4 1.25, using (H1) of V4 §1.0): "the polyhedral boundary ... a small ball".
 Strong connectivity of the boundary near `p`: for small `r`, the part of
@@ -10161,7 +10471,83 @@ private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step4_wall_conn
     ∃ ε : ℝ, 0 < ε ∧ ∀ r : ℝ, 0 < r → r < ε →
       IsPreconnected {y | y ∈ frontier D.carrier ∩ Metric.ball p r ∧
         ∀ c ∈ C.cells, y ∈ c.carrier → d ≤ c.dim + 2} := by
-  sorry
+  classical
+  obtain ⟨K, hfin, hK, hpure⟩ :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation
+      (principal_component_step1_hull_geometry_step10_jordan_brouwer_step5_frontier_polyhedral
+        D.polyhedral) D.frontier_manifold
+  have hman : IsLocallyEuclidean (d - 1) K.space := hK.symm ▸ D.frontier_manifold
+  obtain ⟨ε, hε, hisolate⟩ :=
+    birth_ascent_routing_step4_lower_cell_neighborhood_step4_wall_connected_step4_isolate K hfin p
+  refine ⟨ε, hε, fun r hr hrε => ?_⟩
+  let A := C.cells.filter fun c => c.dim + 2 < d
+  let B : Set (E d) := ⋃ c ∈ A, c.carrier
+  let T : Set K.facets := {f | p ∈ convexHull ℝ (f.val : Set (E d))}
+  let S : K.facets → Set (E d) := fun f =>
+    (convexHull ℝ (f.val : Set (E d)) ∩ Metric.ball p r) \ B
+  have hS : ∀ f ∈ T, IsPreconnected (S f) := by
+    intro f hf
+    exact birth_ascent_routing_step4_lower_cell_neighborhood_step4_wall_connected_step2_simplex_complement
+      f.val (K.indep f.property.1) A (by
+        intro c hc
+        simpa only [hpure f.val f.property] using (Finset.mem_filter.mp hc).2)
+      p hf r hr
+  have hmeet : ∀ f g : K.facets, f ∈ T → g ∈ T →
+      (f.val ∩ g.val).card = d - 1 → (S f ∩ S g).Nonempty := by
+    intro f g hf hg hcard
+    have hpσ : p ∈ convexHull ℝ ((f.val ∩ g.val : Finset (E d)) : Set (E d)) := by
+      simpa only [Finset.coe_inter] using
+        K.inter_subset_convexHull f.property.1 g.property.1 ⟨hf, hg⟩
+    have hne : (f.val ∩ g.val).Nonempty :=
+      Finset.coe_nonempty.mp (convexHull_nonempty_iff.mp ⟨p, hpσ⟩)
+    have hσ := K.down_closed f.property.1 Finset.inter_subset_left hne
+    obtain ⟨x, ⟨hxσ, hxb⟩, hxB⟩ :=
+      birth_ascent_routing_step4_lower_cell_neighborhood_step4_wall_connected_step1_ridge_point
+        _ (K.indep hσ) A (by
+          intro c hc
+          have := (Finset.mem_filter.mp hc).2
+          rw [hcard]
+          omega) p hpσ r hr
+    have hxB' : x ∉ B := by
+      intro hxB'
+      obtain ⟨c, hc, hxc⟩ := Set.mem_iUnion₂.mp hxB'
+      exact hxB (Set.mem_iUnion₂.mpr ⟨c, hc, subset_affineSpan ℝ _ hxc⟩)
+    exact ⟨x, ⟨⟨convexHull_mono (by simpa using
+      (Finset.inter_subset_left (s₁ := f.val) (s₂ := g.val))) hxσ, hxb⟩, hxB'⟩,
+      ⟨⟨convexHull_mono (by simpa using
+        (Finset.inter_subset_right (s₁ := f.val) (s₂ := g.val))) hxσ, hxb⟩, hxB'⟩⟩
+  have hconn : IsPreconnected (⋃ f ∈ T, S f) := by
+    apply IsPreconnected.biUnion_of_reflTransGen hS
+    intro f hf g hg
+    exact Relation.ReflTransGen.mono (fun u v huv =>
+      ⟨hmeet u v huv.1 huv.2.1 huv.2.2, huv.1⟩)
+      (birth_ascent_routing_step4_lower_cell_neighborhood_step4_wall_connected_step3_star_chains
+        K hfin hpure hman p f g hf hg)
+  have heq : (⋃ f ∈ T, S f) =
+      {y | y ∈ frontier D.carrier ∩ Metric.ball p r ∧
+        ∀ c ∈ C.cells, y ∈ c.carrier → d ≤ c.dim + 2} := by
+    ext y
+    constructor
+    · intro hy
+      obtain ⟨f, _, ⟨hyf, hyb⟩, hyB⟩ := Set.mem_iUnion₂.mp hy
+      refine ⟨⟨hK ▸ K.convexHull_subset_space f.property.1 hyf, hyb⟩, ?_⟩
+      intro c hc hyc
+      by_contra hdim
+      exact hyB (Set.mem_iUnion₂.mpr
+        ⟨c, Finset.mem_filter.mpr ⟨hc, by omega⟩, hyc⟩)
+    · rintro ⟨⟨hyf, hyb⟩, hyc⟩
+      have hyK : y ∈ K.space := hK.symm ▸ hyf
+      rw [principal_component_step1_hull_geometry_step10_jordan_brouwer_step9_facets_cover K hfin] at hyK
+      obtain ⟨f, hyf⟩ := Set.mem_iUnion.mp hyK
+      have hfT : f ∈ T := hisolate f
+        ⟨y, hyf, Metric.ball_subset_ball hrε.le hyb⟩
+      refine Set.mem_iUnion₂.mpr ⟨f, hfT, ⟨hyf, hyb⟩, ?_⟩
+      intro hyB
+      obtain ⟨c, hc, hyc'⟩ := Set.mem_iUnion₂.mp hyB
+      have hcd := (Finset.mem_filter.mp hc).2
+      have := hyc c (Finset.mem_filter.mp hc).1 hyc'
+      omega
+  rwa [← heq]
 
 /-- Step 5 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood`
 (V4 1.25): "near a boundary point the polyhedral boundary separates a small ball

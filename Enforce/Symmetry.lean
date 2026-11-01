@@ -36,6 +36,7 @@ def ContainsSolidCone (D : Set (E d)) : Prop :=
   ∃ (q : E d) (K : Set (E d)), IsClosed K ∧ (interior K).Nonempty ∧
     (∀ t : ℝ, 0 ≤ t → ∀ v ∈ K, t • v ∈ K) ∧ (fun v => q + v) '' K ⊆ D
 
+open private WF_is_node_step1_descendant_subset from Enforce.Recognition in
 /-- Y1, V4 5.7, Step 1: components of ground tiles coincide precisely when
 they have a common ancestor. An actual ground tile supplies nonempty geometry. -/
 theorem component_eq_iff (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
@@ -43,7 +44,61 @@ theorem component_eq_iff (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     component Y hY q = component Y hY r ↔
       ∃ n : ℕ, (parsedHierarchy Y hY).ancestor q n =
         (parsedHierarchy Y hY).ancestor r n := by
-  sorry
+  let H := parsedHierarchy Y hY
+  have nested (a : H.Node) :
+      Monotone (fun n => (H.ancestor a n).2.val.carrier (H.ancestor a n).1) := by
+    intro i j hij
+    have hd := H.ancestor_descendant (H.ancestor a i) (j - i)
+    rw [H.ancestor_add, Nat.add_sub_of_le hij] at hd
+    exact WF_is_node_step1_descendant_subset _ _ _ _ hd
+  constructor
+  · intro heq
+    have hqcar : q.2.val.carrier q.1 = q.2.val.toTile.carrier := by
+      simp [hq, FramedNode.carrier, FramedNode.toTile, PlacedTile.ofFrame,
+        SubstSystem.supertile, placedSet]
+    have htile : q.2.val.toTile ∈ (Y.project (nativeDecoration S P C)).tiles := by
+      rw [← H.ground]
+      exact ⟨q.2.val, by simpa only [hq] using q.2.property, rfl⟩
+    obtain ⟨t, ht, htnative⟩ := htile
+    change t.native (nativeDecoration S P C) = q.2.val.toTile at htnative
+    have hnonempty : (interior q.2.val.toTile.carrier).Nonempty := by
+      change (interior (q.2.val.frame.toHomeomorph '' (S.proto q.2.val.ty).carrier)).Nonempty
+      rw [← q.2.val.frame.toHomeomorph.image_interior]
+      exact (S.proto q.2.val.ty).interior_nonempty.image _
+    obtain ⟨x, hx⟩ := hnonempty
+    have hxtile : Y.IsTileInterior x := by
+      refine ⟨t, ht, ?_⟩
+      rw [← PlacedMarkedTile.native_carrier (nativeDecoration S P C), htnative]
+      exact hx
+    have hxq : x ∈ q.2.val.carrier q.1 := by
+      rw [hqcar]
+      exact interior_subset hx
+    have hxcomp : x ∈ component Y hY q := mem_iUnion.mpr ⟨0, hxq⟩
+    rw [heq] at hxcomp
+    obtain ⟨n, hxr⟩ := mem_iUnion.mp hxcomp
+    have hheightq : (H.ancestor q n).1 = n := by simp [H.ancestor_height, hq]
+    have hheightr : (H.ancestor r n).1 = n := by simp [H.ancestor_height, hr]
+    have hxqn : x ∈ (H.ancestor q n).2.val.carrier n := by
+      simpa only [hheightq] using nested q (Nat.zero_le n) hxq
+    have hxrn : x ∈ (H.ancestor r n).2.val.carrier n := by
+      change x ∈ (H.ancestor r n).2.val.carrier (H.ancestor r n).1 at hxr
+      simpa only [hheightr] using hxr
+    obtain ⟨N, hN, huniq⟩ := parsed_node_through_interior Y hY n x hxtile
+    have hframes : (H.ancestor q n).2.val = (H.ancestor r n).2.val := by
+      exact (huniq _ ⟨hxqn, by simpa only [hheightq] using (H.ancestor q n).2.property⟩).trans
+        (huniq _ ⟨hxrn, by simpa only [hheightr] using (H.ancestor r n).2.property⟩).symm
+    exact ⟨n, Sigma.subtype_ext (hheightq.trans hheightr.symm) hframes⟩
+  · rintro ⟨n, hn⟩
+    have tail (a b : H.Node) (hab : H.ancestor a n = H.ancestor b n) :
+        component Y hY a ⊆ component Y hY b := by
+      intro x hx
+      obtain ⟨m, hm⟩ := mem_iUnion.mp hx
+      have hm' : x ∈ (H.ancestor a (n + m)).2.val.carrier (H.ancestor a (n + m)).1 :=
+        nested a (Nat.le_add_left m n) hm
+      have he : H.ancestor a (n + m) = H.ancestor b (n + m) := by
+        rw [← H.ancestor_add, ← H.ancestor_add, hab]
+      exact mem_iUnion.mpr ⟨n + m, he ▸ hm'⟩
+    exact Subset.antisymm (tail q r hn) (tail r q hn.symm)
 
 open private compiler_certificates_open_meets_interior from Enforce.Compiler.System
 

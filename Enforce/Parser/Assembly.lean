@@ -4526,12 +4526,61 @@ private theorem child_equations_step1_parent_state (i : S.I N.ty)
   rw [hs] at hd2
   exact Option.some.inj (hd2.symm.trans hdec)
 
+omit hY hn hD A in
+/-- Step 1 of the V4 proof of `child_equations_step2_adjacent` (V4 2.6(b)):
+"for adjacent present slots": reconstruct the two states in their common honest
+hierarchy, where the upper node is the parent of the lower node. Its downward
+role is the first address letter of the lower state. -/
+private theorem child_equations_step2_adjacent_step1_packet
+    (q : Packet P) (hq : q ∈ honestPackets S P)
+    (j j' : Fin P.k) (hnext : j'.val = j.val + 1)
+    (c p : State P) (hc : decode q j = some c) (hp : decode q j' = some p) :
+    c = childMap P p (c.address ⟨0, P.k_pos⟩) := by
+  classical
+  obtain ⟨U, g, rfl⟩ := hq
+  have hd (l : Fin P.k) (s : State P)
+      (hs : decode (packetOf U P g) l = some s) :
+      stateOf U P (U.hierarchy.ancestor g.birth l.val) = s := by
+    unfold decode at hs
+    split at hs
+    next h =>
+      exact (reconstructed_spec U P g l h.1).symm.trans (Option.some.inj hs)
+    next h => contradiction
+  have hc' := hd j c hc
+  have hp' := hd j' p hp
+  rw [← hc', ← hp']
+  let Q := U.hierarchy.ancestor g.birth j.val
+  have hparent : U.hierarchy.ancestor g.birth j'.val = U.hierarchy.parentNode Q := by
+    rw [hnext]
+    exact Function.iterate_succ_apply' U.hierarchy.parentNode j.val g.birth
+  rw [hparent]
+  have hpos : 1 ≤ (U.hierarchy.parentNode Q).1 := Nat.le_add_left 1 Q.1
+  have hchild : U.childNode (U.hierarchy.parentNode Q) hpos
+      (U.hierarchy.role Q.1 Q.2) = Q := by
+    obtain ⟨m, M, hM⟩ := Q
+    exact Sigma.subtype_ext rfl (U.hierarchy.child_eq m ⟨M, hM⟩).symm
+  have hstep := childMap_spec U P (U.hierarchy.parentNode Q) hpos
+    (U.hierarchy.role Q.1 Q.2)
+  rw [hchild] at hstep
+  exact hstep
+
 /-- V4 2.6(b) at adjacent PRESENT slots of an honest packet, in the form needed here. -/
 private theorem child_equations_step2_adjacent (i : S.I N.ty)
     (r : Parser.ReadableFacet D N A i) :
     D.blockState (A.children i).val (A.children i).property =
       childMap P r.parentState ⟨N.ty, i⟩ := by
-  sorry
+  have hheight : r.birthFacet.height ≤ n := by
+    rw [r.height_eq]
+    exact Nat.sub_le _ _
+  have hnext : r.parentSlot.val = r.childSlot.val + 1 := by
+    rw [r.parentSlot_eq, r.childSlot_eq]
+    omega
+  have h := child_equations_step2_adjacent_step1_packet r.packet r.honest
+    r.childSlot r.parentSlot hnext _ _ r.child_decode r.parent_decode
+  change _ = childMap P r.parentState
+    (firstRole D (A.children i).val (A.children i).property) at h
+  rw [A.first_letters i] at h
+  exact h
 
 /-- R10, V4 3.11: every actual child's old state is the deterministic child
 of S(P) at the prescribed globally distinct role (A_P,i). -/

@@ -449,7 +449,37 @@ theorem incident_tails [Nonempty S.ι] (p : E d) :
     ∃ N : ℕ, Function.Bijective (fun t : P.IncidentTail p N => t.node 0) ∧
       Finite (P.IncidentTail p N) ∧
       Nat.card (P.IncidentTail p N) ≤ multiplicityBound S.proto S.cx := by
-  sorry
+  classical
+  obtain ⟨hbound, _, N, hN⟩ := P.incidentForest p
+  let next (r : ℕ) (a : P.Incident p (N + r)) : P.Incident p (N + (r + 1)) :=
+    Classical.choose (hN (N + r) (by omega) a)
+  have hnext (r : ℕ) (a : P.Incident p (N + r)) :
+      P.IncidentChild p (N + r) a (next r a) :=
+    (Classical.choose_spec (hN (N + r) (by omega) a)).1
+  let node (a : P.Incident p N) : ∀ r, P.Incident p (N + r) :=
+    fun r => Nat.rec a (fun r b => next r b) r
+  let tail (a : P.Incident p N) : P.IncidentTail p N :=
+    ⟨node a, fun r => hnext r (node a r)⟩
+  have hinj : Function.Injective (fun t : P.IncidentTail p N => t.node 0) := by
+    intro t u h
+    have hn : t.node = u.node := by
+      funext r
+      induction r with
+      | zero => exact h
+      | succ r ih =>
+        exact (hN (N + r) (by omega) (t.node r)).unique (t.step r)
+          (by rw [ih]; exact u.step r)
+    cases t
+    cases u
+    dsimp only at hn
+    cases hn
+    rfl
+  have hsurj : Function.Surjective (fun t : P.IncidentTail p N => t.node 0) :=
+    fun a => ⟨tail a, rfl⟩
+  haveI : Finite (P.Incident p N) := (hbound N).1
+  haveI : Finite (P.IncidentTail p N) := Finite.of_injective _ hinj
+  exact ⟨N, ⟨hinj, hsurj⟩, inferInstance,
+    (Nat.card_le_card_of_injective _ hinj).trans (hbound N).2⟩
 
 /-- P9/P5, V4 1.14, 1.5(b): common-listed points in the original patch. -/
 def CommonListed (p : E d) : Prop :=

@@ -1940,7 +1940,24 @@ theorem carrier_regular : IsCompact B.carrier ∧ IsRegularClosed B.carrier := b
 /-- M8, V4 2.17(a): the block has genuine full-dimensional connected interior. -/
 theorem carrier_interior : IsConnected (interior B.carrier) ∧
     (interior B.carrier).Nonempty := by
-  sorry
+  dsimp [carrier, node, FramedNode.carrier, placedSet, SubstSystem.supertile]
+  have h1 : (S.σ ^ P.K) '' (S.proto B.certificate.val.ty).carrier =
+    ((S.σ ^ P.K).toContinuousLinearEquiv).toHomeomorph '' (S.proto B.certificate.val.ty).carrier := rfl
+  rw [h1]
+  have h2 : B.frame '' (((S.σ ^ P.K).toContinuousLinearEquiv).toHomeomorph '' (S.proto B.certificate.val.ty).carrier) =
+    B.frame.toHomeomorph '' (((S.σ ^ P.K).toContinuousLinearEquiv).toHomeomorph '' (S.proto B.certificate.val.ty).carrier) := rfl
+  rw [h2]
+  rw [← Homeomorph.image_interior B.frame.toHomeomorph]
+  rw [← Homeomorph.image_interior ((S.σ ^ P.K).toContinuousLinearEquiv).toHomeomorph]
+  constructor
+  · apply IsConnected.image
+    · apply IsConnected.image
+      · exact (S.proto B.certificate.val.ty).interior_connected
+      · exact ((S.σ ^ P.K).toContinuousLinearEquiv).continuous.continuousOn
+    · exact B.frame.continuous.continuousOn
+  · apply Nonempty.image
+    apply Nonempty.image
+    exact (S.proto B.certificate.val.ty).interior_nonempty
 
 /-- M8, V4 2.17(a): a common actual leaf identifies the entire certificate block.
 The prescribed label identifies D and i; its full frame identifies the block frame. -/

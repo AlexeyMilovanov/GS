@@ -484,11 +484,65 @@ theorem rotGroup_conj :
     ext x : 1
     simpa [C, op, linearConj] using congrArg (fun f : E d →L[ℝ] E d => f x) heq'
 
+private lemma linearConj_add {d : ℕ} (σ : E d ≃ₗ[ℝ] E d) (a b : ℤ) (R : E d ≃ₗ[ℝ] E d) :
+  linearConj σ (a + b) R = linearConj σ a (linearConj σ b R) := by
+  dsimp [linearConj]
+  rw [zpow_add, neg_add]
+  have h1 : σ ^ (-a + -b) = σ ^ (-b) * σ ^ (-a) := by
+    rw [add_comm, zpow_add]
+  rw [h1]
+  ext x
+  simp
+
+private lemma linearConj_zero {d : ℕ} (σ : E d ≃ₗ[ℝ] E d) (R : E d ≃ₗ[ℝ] E d) :
+    linearConj σ 0 R = R := by
+  dsimp [linearConj]
+  ext x
+  simp
+
+private lemma linearConj_neg1_1 {d : ℕ} (σ : E d ≃ₗ[ℝ] E d) (R : E d ≃ₗ[ℝ] E d) :
+    linearConj σ (-1) (linearConj σ 1 R) = R := by
+  dsimp [linearConj]
+  ext x
+  simp
+
 /-- S6, V4 1.10(a): all integral conjugates of group elements are orthogonal
 and remain in the same group, including the negative powers used in coarsening. -/
 theorem rotGroup_conj_zpow (m : ℤ) (R : Ortho d) (hR : R ∈ S.rotGroup) :
     ∃ Q ∈ S.rotGroup, Q.toLinearEquiv = linearConj S.σ m R.toLinearEquiv := by
-  sorry
+  have H1 (R' : Ortho d) (hR' : R' ∈ S.rotGroup) : ∃ Q ∈ S.rotGroup, Q.toLinearEquiv = linearConj S.σ 1 R'.toLinearEquiv := by
+    have hc := S.rotGroup_conj
+    have h1 : linearConj S.σ 1 R'.toLinearEquiv ∈ (fun (x : Ortho d) => linearConj S.σ 1 x.toLinearEquiv) '' S.rotGroup := by
+      exact Set.mem_image_of_mem (fun x => linearConj S.σ 1 x.toLinearEquiv) hR'
+    rw [hc] at h1
+    rcases h1 with ⟨Q, hQ, hQ_eq⟩
+    exact ⟨Q, hQ, hQ_eq⟩
+  have H2 (R' : Ortho d) (hR' : R' ∈ S.rotGroup) : ∃ Q ∈ S.rotGroup, Q.toLinearEquiv = linearConj S.σ (-1) R'.toLinearEquiv := by
+    have hc := S.rotGroup_conj
+    have h1 : R'.toLinearEquiv ∈ (fun (x : Ortho d) => x.toLinearEquiv) '' S.rotGroup := by
+      exact Set.mem_image_of_mem (fun x => x.toLinearEquiv) hR'
+    rw [← hc] at h1
+    rcases h1 with ⟨Q, hQ, hQ_eq⟩
+    refine ⟨Q, hQ, ?_⟩
+    have heq : linearConj S.σ (-1) R'.toLinearEquiv = linearConj S.σ (-1) (linearConj S.σ 1 Q.toLinearEquiv) := by
+      rw [← hQ_eq]
+    rw [heq, linearConj_neg1_1]
+  induction m using Int.induction_on with
+  | zero =>
+    rw [linearConj_zero]
+    exact ⟨R, hR, rfl⟩
+  | succ i hi =>
+    rcases hi with ⟨Q, hQ, hQ_eq⟩
+    have heq : (i : ℤ) + 1 = 1 + (i : ℤ) := add_comm _ _
+    rw [heq, linearConj_add, ← hQ_eq]
+    exact H1 Q hQ
+  | pred i hi =>
+    rcases hi with ⟨Q, hQ, hQ_eq⟩
+    have heq2 : (-↑i - 1 : ℤ) = (-1 + -↑i : ℤ) := by omega
+    have heq3 : linearConj S.σ (-↑i - 1 : ℤ) R.toLinearEquiv = linearConj S.σ (-1 + -↑i : ℤ) R.toLinearEquiv := by
+      rw [heq2]
+    rw [heq3, linearConj_add, ← hQ_eq]
+    exact H2 Q hQ
 
 /-- S6, V4 1.10(b): descendants in a node have orthogonal parts in `Q H`. -/
 theorem descendant_frames (A : S.ι) (h depth : ℕ) (w : S.RoleWord A depth)

@@ -3570,7 +3570,24 @@ private theorem power_cone_formula_step1_expansion (F : PowerFactorisation S) (a
 /-- Step 2 of the V4 proof of `power_cone_formula` (V4 1.16(c)): "$\sigma^rR^a\sigma^{-r}\in\mathsf H$, so that $\sigma^nG=R_n\sigma^rG$". -/
 private theorem power_cone_formula_step2_rotation (F : PowerFactorisation S) (a r : ℕ) :
     ∃ Q ∈ S.rotGroup, Q.toLinearEquiv = linearConj S.σ (r : ℤ) (F.R.toLinearEquiv ^ a) := by
-  sorry
+  obtain ⟨Q, hQ, hQeq⟩ := S.rotGroup_conj_zpow (r : ℤ) (F.R ^ a) (Subgroup.pow_mem S.rotGroup F.R_mem a)
+  use Q, hQ
+  rw [hQeq]
+  congr 1
+  clear hQeq hQ Q r
+  induction a with
+  | zero =>
+    ext x
+    rfl
+  | succ a ih =>
+    ext x
+    have h : (F.R ^ (a + 1)).toLinearEquiv x = (F.R ^ a).toLinearEquiv (F.R.toLinearEquiv x) := by rfl
+    rw [h]
+    have ih_eq : ∀ y, (F.R ^ a).toLinearEquiv y = (F.R.toLinearEquiv ^ a) y := by
+      intro y
+      exact LinearEquiv.congr_fun ih y
+    rw [ih_eq]
+    rfl
 
 /-- Step 3 of the V4 proof of `power_cone_formula` (V4 1.16(c)): "$\sigma^nG=\sigma^rR^aG=(\sigma^rR^a\sigma^{-r})\sigma^rG$". -/
 private theorem power_cone_formula_step3_image (F : PowerFactorisation S) (a r : ℕ)

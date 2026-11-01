@@ -273,11 +273,46 @@ def rotGroup : Subgroup (Ortho d) :=
     IsClosed ((fun R : Ortho d => R.toLinearIsometry.toContinuousLinearMap) ''
       (G : Set (Ortho d)))}
 
+private theorem rotGroup_op_injective (d : ℕ) :
+    Function.Injective (fun R : Ortho d => R.toLinearIsometry.toContinuousLinearMap) := by
+  intro R Q h
+  ext x : 1
+  exact congrArg (fun f : E d →L[ℝ] E d => f x) h
+
+private theorem ortho_range_isClosed (d : ℕ) : IsClosed (Set.range (fun R : Ortho d => R.toLinearIsometry.toContinuousLinearMap)) := by
+  have hC : IsClosed {f : E d →L[ℝ] E d | ∀ x, ‖f x‖ = ‖x‖} := by
+    have : {f : E d →L[ℝ] E d | ∀ x, ‖f x‖ = ‖x‖} = ⋂ x, {f | ‖f x‖ = ‖x‖} := by ext f; simp
+    rw [this]
+    refine isClosed_iInter fun x => isClosed_eq ?_ continuous_const
+    exact continuous_norm.comp (ContinuousLinearMap.apply ℝ (E d) x).continuous
+  convert hC using 1
+  ext f
+  constructor
+  · rintro ⟨R, rfl⟩ x; exact R.norm_map x
+  · intro h
+    let li : E d →ₗᵢ[ℝ] E d := ⟨f.toLinearMap, h⟩
+    exact ⟨li.toLinearIsometryEquiv rfl, by ext x; rfl⟩
+
 /-- S5, V4 1.9: the closed hull contains the generators and is closed. -/
 theorem rotGroup_spec : S.rotationGenerators ⊆ (S.rotGroup : Set (Ortho d)) ∧
     IsClosed ((fun R : Ortho d => R.toLinearIsometry.toContinuousLinearMap) ''
       (S.rotGroup : Set (Ortho d))) := by
-  sorry
+  set op : Ortho d → (E d →L[ℝ] E d) := fun R => R.toLinearIsometry.toContinuousLinearMap with hop
+  set F : Set (Subgroup (Ortho d)) := {G | S.rotationGenerators ⊆ (G : Set (Ortho d)) ∧ IsClosed (op '' (G : Set (Ortho d)))} with hF
+  have key : (S.rotGroup : Set (Ortho d)) = ⋂ G ∈ F, (G : Set (Ortho d)) := by
+    show ((sInf F : Subgroup (Ortho d)) : Set (Ortho d)) = _
+    exact Subgroup.coe_sInf F
+  refine ⟨?_, ?_⟩
+  · intro x hx; rw [key]; simp only [Set.mem_iInter]; exact fun G hG => hG.1 hx
+  · rw [key]
+    rcases F.eq_empty_or_nonempty with h | hne
+    · simp only [h, Set.mem_empty_iff_false, Set.iInter_of_empty, Set.iInter_univ, Set.image_univ]
+      exact ortho_range_isClosed d
+    · haveI : Nonempty F := hne.to_subtype
+      have e : (⋂ G ∈ F, (G : Set (Ortho d))) = ⋂ G : F, ((G : Subgroup (Ortho d)) : Set (Ortho d)) := by
+        ext x; simp only [Set.mem_iInter, SetCoe.forall]
+      rw [e, Set.InjOn.image_iInter_eq ((rotGroup_op_injective d).injOn)]
+      exact isClosed_iInter fun G => G.2.2
 
 /-- The forward inclusion in V4 1.10(a), using minimality of the closed hull. -/
 private theorem rotGroup_conj_forward :

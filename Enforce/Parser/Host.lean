@@ -205,6 +205,436 @@ private def two_sided_constancy_header (Q : FramedNode S) (m : ℕ)
         sides := fun j => normalize ((pos ι).linear '' (P.flag ι).sides j) }
       else none }
 
+/-- Step 1 of the V4 proof of `two_sided_constancy_step6_left_end` (V4 3.4):
+"Let q be a vertex of g." The initial endpoint of the chosen flag supplies a
+listed vertex of the left child on the primitive facet. -/
+private theorem two_sided_constancy_step6_left_end_step1_vertex
+    (g : Parser.BornFacet P) :
+    ∃ p ∈ g.carrier, g.leftNode.Lists (g.height - 1) p := by
+  let F := P.flag g.incidence
+  have hinit : F.initial ∈ g.incidence.val.leftFacet.val.carrier := by
+    have hsub := F.flag.nested edgeIndex facetIndex (by
+      change 1 ≤ d - 1
+      have := (Fact.out : 2 ≤ d)
+      omega)
+    rw [F.top] at hsub
+    apply hsub
+    rw [F.edge_eq]
+    exact left_mem_segment ℝ _ _
+  obtain ⟨v, hv, hvc⟩ := F.initial_listed
+  let p := g.leftNode.prototypeFrame (g.height - 1) F.initial
+  refine ⟨p, ?_, v, hv, F.initial, ?_, rfl⟩
+  · rw [← g.sides_carrier.1]
+    exact ⟨F.initial, hinit, rfl⟩
+  · rw [hvc]
+    exact mem_singleton _
+
+/-- Step 2 of the V4 proof of `two_sided_constancy_step6_left_end` (V4 1.8, 3.4):
+"the child facets inside g tile it ... iterated down to tiles". Iterated heredity
+supplies an actual native facet piece through any specified point of a block facet. -/
+private theorem two_sided_constancy_step6_left_end_step2_piece
+    (Y : MarkedTiling (systemM S P C))
+    (m : ℕ) (N : FramedNode S) (hN : IsBlock Y m N)
+    (F : FacetName S N.ty) (p : E d) (hp : p ∈ N.cell m F.val) :
+    ∃ (t : PlacedMarkedTile (systemM S P C)) (f : FacetName S (tileNode t).ty),
+      Parser.IsFacetPiece Y m N F t f ∧ p ∈ (tileNode t).cell 0 f.val := by
+  classical
+  obtain ⟨parts, hparts⟩ := S.heredity_iter N.ty m F.val (Finset.mem_filter.mp F.property).1
+  obtain ⟨x, hxf, hpx⟩ := hp
+  have hσx : (S.σ ^ m) x ∈ (S.σ ^ m) '' F.val.carrier := ⟨x, hxf, rfl⟩
+  rw [hparts] at hσx
+  obtain ⟨q, hq, y, hy, hxy⟩ := Set.mem_iUnion₂.mp hσx
+  obtain ⟨t, ht, hnode⟩ := hN q.1
+  let f : FacetName S (tileNode t).ty := ⟨q.2.val, by
+    rw [hnode]
+    exact Finset.mem_filter.mpr ⟨q.2.property.1,
+      q.2.property.2.trans (Finset.mem_filter.mp F.property).2⟩⟩
+  have hdesc : (tileNode t).IsDescendant 0 N m := ⟨m, by omega, q.1, hnode⟩
+  have hsub : (tileNode t).cell 0 f.val ⊆ N.cell m F.val := by
+    rintro z ⟨w, hw, rfl⟩
+    have hmem : (S.nativeTile N.ty m q.1).frame w ∈ (S.σ ^ m) '' F.val.carrier := by
+      rw [hparts]
+      exact Set.mem_iUnion₂.mpr ⟨q, hq, w, hw, rfl⟩
+    obtain ⟨z, hz, he⟩ := hmem
+    refine ⟨z, hz, ?_⟩
+    rw [hnode]
+    change N.frame ((S.σ ^ m) z) = N.frame ((S.nativeTile N.ty m q.1).frame w)
+    exact congrArg N.frame he
+  refine ⟨t, f, ⟨ht, hdesc, hsub⟩, y, hy, ?_⟩
+  rw [hnode]
+  change N.frame ((S.nativeTile N.ty m q.1).frame y) = p
+  exact (congrArg N.frame hxy).trans hpx
+
+open private hereditary_trace_step1_cell_subset from Enforce.Source.Trace in
+/-- Step 3 of the V4 proof of `two_sided_constancy_step6_left_end` (V4 1.5(b), 3.4):
+"Tiles inside C with a piece in g containing q exist." A listed block vertex
+remains listed in the selected native owner; its singleton cell lies in the piece. -/
+private theorem two_sided_constancy_step6_left_end_step3_native_vertex
+    (Y : MarkedTiling (systemM S P C))
+    (m : ℕ) (N : FramedNode S) (F : FacetName S N.ty)
+    (p : E d) (hp : N.Lists m p)
+    (t : PlacedMarkedTile (systemM S P C)) (f : FacetName S (tileNode t).ty)
+    (hpiece : Parser.IsFacetPiece Y m N F t f)
+    (hpf : p ∈ (tileNode t).cell 0 f.val) :
+    ∃ v : VertexName S (tileNode t).ty,
+      v.val.carrier ⊆ f.val.carrier ∧ (compilerFrame C t) (vertexPoint v) = p := by
+  have hpt : p ∈ (tileNode t).carrier 0 :=
+    hereditary_trace_step1_cell_subset _ _ f.val (Finset.mem_filter.mp f.property).1 hpf
+  obtain ⟨v, hv, hvp⟩ := commonListed_inherited N (tileNode t) m 0 hpiece.2.1 p hp hpt
+  let v' : VertexName S (tileNode t).ty := ⟨v, hv⟩
+  have hvp' : (compilerFrame C t) (vertexPoint v') = p := by
+    obtain ⟨x, hx, hxp⟩ := hvp
+    rw [vertexPoint_spec v', Set.mem_singleton_iff] at hx
+    subst x
+    exact hxp
+  refine ⟨v', ?_, hvp'⟩
+  rw [vertexPoint_spec v', Set.singleton_subset_iff]
+  obtain ⟨x, hx, hxp⟩ := hpf
+  have hxeq : x = vertexPoint v' := by
+    apply (compilerFrame C t).injective
+    exact hxp.trans hvp'.symm
+  exact hxeq ▸ hx
+
+/-- Step 4 of the V4 proof of `two_sided_constancy_step6_left_end` (V4 1.13(c), 3.4):
+"by (I2) their record ... is the restriction of S(C)'s record". Realize an honest
+state at the prescribed height and frame, using its type and height residue. -/
+private theorem two_sided_constancy_step6_left_end_step4_realise
+    (s : State P) (hs : s ∈ honestStates S P) (N : FramedNode S) (n : ℕ)
+    (hty : s.ty = N.ty) (hres : s.residue.val = n % P.L) :
+    ∃ (U : HonestSource S) (hN : N ∈ U.hierarchy.nodes n),
+      stateOf U P ⟨n, ⟨N, hN⟩⟩ = s := by
+  obtain ⟨U, q, rfl⟩ := hs
+  have hmod : q.1 % P.L = n % P.L := hres
+  have hshift : (q.1 - n) % P.L = (n - q.1) % P.L := by
+    rcases le_total q.1 n with h | h
+    · rw [Nat.sub_eq_zero_of_le h, Nat.zero_mod]
+      exact (Nat.dvd_iff_mod_eq_zero.mp ((Nat.modEq_iff_dvd' h).mp hmod)).symm
+    · rw [Nat.sub_eq_zero_of_le h, Nat.zero_mod]
+      exact Nat.dvd_iff_mod_eq_zero.mp ((Nat.modEq_iff_dvd' h).mp hmod.symm)
+  obtain ⟨V, e, N', he⟩ := exactScaleTransfer U q.1 q.2.val q.2.property n
+    (AffineIsometryEquiv.refl ℝ (E d))
+  have hs' : stateOf V P ⟨n, N'⟩ = stateOf U P q := by
+    have h := state_scaleTransfer P e hshift ⟨q, Nat.sub_le _ _⟩
+    rw [he] at h
+    exact h.symm
+  have hty' : N'.val.ty = N.ty := by
+    have h := e.types ⟨q, Nat.sub_le _ _⟩
+    rw [he] at h
+    exact h.trans hty
+  let J := N'.val.frame.symm.trans N.frame
+  obtain ⟨W, f, N'', hf⟩ := exactScaleTransfer V n N'.val N'.property n J
+  have hs'' : stateOf W P ⟨n, N''⟩ = stateOf V P ⟨n, N'⟩ := by
+    have h := state_scaleTransfer P f rfl ⟨⟨n, N'⟩, Nat.sub_le _ _⟩
+    rw [hf] at h
+    exact h.symm
+  have hnode : N''.val = N := by
+    apply FramedNode.ext
+    · have h := f.types ⟨⟨n, N'⟩, Nat.sub_le _ _⟩
+      rw [hf] at h
+      exact h.trans hty'
+    · have h := f.frames ⟨⟨n, N'⟩, Nat.sub_le _ _⟩
+      rw [hf] at h
+      apply AffineIsometryEquiv.ext
+      intro x
+      have hx := congrArg (fun g : E d ≃ᵃ[ℝ] E d => g ((S.σ ^ n).symm x)) h
+      simpa [FramedNode.prototypeFrame, J] using hx
+  obtain ⟨N'', hN''⟩ := N''
+  dsimp only at hnode
+  subst N''
+  exact ⟨W, hN'', hs''.trans hs'⟩
+
+/-- Step 5 of the V4 proof of `two_sided_constancy_step6_left_end` (V4 2.3, 3.4):
+"by (I2) their record ... is the restriction". The child equations identify
+all descendant states and their exact ancestors in the chosen honest source. -/
+private theorem two_sided_constancy_step6_left_end_step5_descent
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ} (D : DecodedLevel Y n) (hD : Inv D)
+    (U : HonestSource S) (h r : ℕ) (N : FramedNode S)
+    (hN : N ∈ D.geometry.nodes (h + r)) (hU : N ∈ U.hierarchy.nodes (h + r))
+    (hs : stateOf U P ⟨h + r, ⟨N, hU⟩⟩ = D.stateAt (h + r) N hN)
+    (w : S.RoleWord N.ty r) :
+    let M := (S.descendantNode N.ty h r w).move N.frame
+    ∃ (hM : M ∈ D.geometry.nodes h) (hMU : M ∈ U.hierarchy.nodes h),
+      stateOf U P ⟨h, ⟨M, hMU⟩⟩ = D.stateAt h M hM ∧
+        U.hierarchy.ancestor ⟨h, ⟨M, hMU⟩⟩ r = ⟨h + r, ⟨N, hU⟩⟩ := by
+  induction r generalizing N with
+  | zero =>
+    have hnode : (S.descendantNode N.ty h 0 w).move N.frame = N := by
+      cases N
+      simp [SubstSystem.descendantNode, FramedNode.move]
+    simp only [hnode]
+    exact ⟨hN, hU, hs, rfl⟩
+  | succ r ih =>
+    let i := w.1
+    let N' := N.child (h + r) i
+    have hN' : N' ∈ D.geometry.nodes (h + r) := D.geometry.child_mem _ N hN i
+    have hU' : N' ∈ U.hierarchy.nodes (h + r) := U.hierarchy.children_mem _ N hU i
+    have hs' : stateOf U P ⟨h + r, ⟨N', hU'⟩⟩ = D.stateAt (h + r) N' hN' := by
+      rw [hD.I2.1 (h + r) N hN i]
+      simp only [Nat.add_assoc]
+      rw [← hs]
+      have hc := childMap_spec U P ⟨h + r + 1, ⟨N, hU⟩⟩
+        (by change 1 ≤ h + r + 1; omega) i
+      simpa [HonestSource.childNode, N'] using hc
+    obtain ⟨hM, hMU, hstate, hanc⟩ := ih N' hN' hU' hs' w.2
+    have hnode : (S.descendantNode N.ty h (r + 1) w).move N.frame =
+        (S.descendantNode N'.ty h r w.2).move N'.frame := by
+      simp [SubstSystem.descendantNode, FramedNode.move, FramedNode.child, N', i,
+        AffineIsometryEquiv.trans_assoc]
+    simp only [hnode]
+    refine ⟨hM, hMU, hstate, ?_⟩
+    rw [CoherentHierarchy.ancestor, Function.iterate_succ_apply']
+    change U.hierarchy.parentNode (U.hierarchy.ancestor _ r) = _
+    rw [hanc]
+    apply Sigma.ext
+    · simp [CoherentHierarchy.parentNode, Nat.add_assoc]
+    · apply heq_of_eq
+      apply Subtype.ext
+      exact (U.hierarchy.parent_unique (h + r) ⟨N', hU'⟩ N hU ⟨i, rfl⟩).symm
+
+/-- Step 6 of the V4 proof of `two_sided_constancy_step6_left_end` (V4 1.7(b), 3.4):
+"tau({q}) = {q} is a vertex of the provider". If the event point is listed in
+the serving node, its canonical provider stratum is a singleton and has dimension zero. -/
+private theorem two_sided_constancy_step6_left_end_step6_zero
+    (U : HonestSource S) (q : U.Node) (f : FacetName S q.2.val.ty)
+    (hf : ¬ U.hierarchy.IsFault q f) (v : VertexName S q.2.val.ty)
+    (hv : v.val.carrier ⊆ f.val.carrier)
+    (hp : (U.hierarchy.servingChild q f hf).2.val.Lists
+      (U.hierarchy.servingChild q f hf).1
+      (q.2.val.prototypeFrame q.1 (vertexPoint v))) :
+    (U.recordTau P q f hf ⟨vertexCell v, hv⟩).val.val.dim = 0 := by
+  obtain ⟨w, hw, hpw⟩ := hp
+  let w' : VertexName S (U.hierarchy.servingChild q f hf).2.val.ty := ⟨w, hw⟩
+  have hpoint : q.2.val.prototypeFrame q.1 (vertexPoint v) =
+      (U.hierarchy.servingChild q f hf).2.val.prototypeFrame
+        (U.hierarchy.servingChild q f hf).1 (vertexPoint w') := by
+    change _ ∈ (U.hierarchy.servingChild q f hf).2.val.cell
+      (U.hierarchy.servingChild q f hf).1 w'.val at hpw
+    simpa only [FramedNode.cell, vertexPoint_spec w', Set.image_singleton,
+      Set.mem_singleton_iff] using hpw
+  have hcell : q.2.val.cell q.1 (vertexCell v).val =
+      (U.hierarchy.servingChild q f hf).2.val.cell
+        (U.hierarchy.servingChild q f hf).1 (vertexCell w').val := by
+    simp only [FramedNode.cell, vertexCell, vertexPoint_spec, Set.image_singleton, hpoint]
+  have hstratum : U.hierarchy.stratumMap q f hf (vertexCell v)
+      (U.cellInFacet_placed q f ⟨vertexCell v, hv⟩) = vertexCell w' := by
+    exact ((Classical.choose_spec (U.hierarchy.stratum_exists_unique q f hf
+      (vertexCell v) (U.cellInFacet_placed q f ⟨vertexCell v, hv⟩))).2
+        (vertexCell w') (by rw [hcell])).symm
+  have htau := record_tau_spec U P q f hf ⟨vertexCell v, hv⟩
+  rw [hstratum] at htau
+  change U.providerPlacement P q f hf ''
+      (U.recordTau P q f hf ⟨vertexCell v, hv⟩).val.val.carrier =
+    (U.hierarchy.servingChild q f hf).2.val.prototypeFrame
+      (U.hierarchy.servingChild q f hf).1 '' w'.val.carrier at htau
+  rw [vertexPoint_spec, Set.image_singleton] at htau
+  let e := U.recordTau P q f hf ⟨vertexCell v, hv⟩
+  have hsingleton : e.val.val.carrier =
+      {(U.providerPlacement P q f hf).symm
+        ((U.hierarchy.servingChild q f hf).2.val.prototypeFrame
+          (U.hierarchy.servingChild q f hf).1 (vertexPoint w'))} := by
+    apply (U.providerPlacement P q f hf).injective.image_injective
+    simpa only [Set.image_singleton, AffineEquiv.apply_symm_apply] using htau
+  change e.val.val.dim = 0
+  rw [← e.val.val.flat.dimension, hsingleton]
+  simp [cellDirection, direction_affineSpan]
+
+/-- Step 7 of the V4 proof of `two_sided_constancy_step6_left_end` (V4 2.5, 2.6(c), 3.4):
+"the tile has an END slot". The nonfault facet record of an honest leaf has
+a non-NULL packet on the same port, as required by the END-slot structure. -/
+private theorem two_sided_constancy_step6_left_end_step7_packet
+    (l : LeafType P) (f : Cell d)
+    (r : FacetRecord P) (hr : leafRecord l f = some r) :
+    ∃ q : Packet P, leafPacket l f = some q := by
+  classical
+  obtain ⟨U, t, ht, hw⟩ := (certificate_components_honest P l.1.val l.1.property).1 l.2
+  change prePatternOf U P t ht = l.prePattern at hw
+  unfold leafRecord at hr
+  rw [← hw] at hr
+  change stateRecordAt (stateOf U P t) f = some r at hr
+  unfold stateRecordAt at hr
+  split at hr
+  next hf =>
+    change f ∈ (S.cx t.2.val.ty).facets at hf
+    change U.facetRecordOf P t ⟨f, hf⟩ = some r at hr
+    unfold HonestSource.facetRecordOf at hr
+    split at hr
+    · contradiction
+    next hn =>
+      refine ⟨packetOf U P (U.providerOccurrence P t ⟨f, hf⟩ hn), ?_⟩
+      unfold leafPacket
+      rw [← hw]
+      simp only [prePatternOf, dif_pos hf, HonestSource.facetPacket, dif_neg hn]
+  · contradiction
+
+open private exists_childMap_step2_parent from Enforce.State.State in
+open private packet_attached_step4_internal from Enforce.State.Packets in
+/-- Step 8 of the V4 proof of `two_sided_constancy_step6_left_end` (V4 Cor. 2.4(a), 3.4):
+"S(C)'s record of g ... is the age-1 record with tau = id". Realize the decoded
+birth state and its prescribed left child in one source; the internal child
+facet serves itself and its birth parent is exactly the decoded birth node. -/
+private theorem two_sided_constancy_step6_left_end_step8_source
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ} (D : DecodedLevel Y n) (hD : Inv D)
+    (g : Parser.BornFacet P) (hg : g.birth ∈ D.geometry.nodes g.height)
+    (hl : g.leftNode ∈ D.geometry.nodes (g.height - 1)) :
+    ∃ (U : HonestSource S) (hb : g.birth ∈ U.hierarchy.nodes g.height)
+      (hU : g.leftNode ∈ U.hierarchy.nodes (g.height - 1)),
+      stateOf U P ⟨g.height - 1, ⟨g.leftNode, hU⟩⟩ =
+        D.stateAt (g.height - 1) g.leftNode hl ∧
+      ∃ hf : ¬ U.hierarchy.IsFault ⟨g.height - 1, ⟨g.leftNode, hU⟩⟩ g.incidence.val.leftFacet,
+        U.hierarchy.servingChild ⟨g.height - 1, ⟨g.leftNode, hU⟩⟩ g.incidence.val.leftFacet hf =
+          ⟨g.height - 1, ⟨g.leftNode, hU⟩⟩ ∧
+        U.hierarchy.birthParent ⟨g.height - 1, ⟨g.leftNode, hU⟩⟩ g.incidence.val.leftFacet hf =
+          ⟨g.height, ⟨g.birth, hb⟩⟩ := by
+  obtain ⟨m, hm, ⟨A, φ⟩, ι, hty⟩ := g
+  dsimp only at hty
+  subst hty
+  let B : FramedNode S := ⟨ι.val.ty, φ⟩
+  let L := B.child (m - 1) ι.val.left
+  have hpos : m - 1 + 1 = m := Nat.sub_add_cancel hm
+  obtain ⟨htype, hres⟩ := hD.node_type_residue m B hg
+  obtain ⟨U, hb, hs⟩ := two_sided_constancy_step6_left_end_step4_realise
+    (D.stateAt m B hg) (D.state_honest m ⟨B, hg⟩) B m htype hres
+  let b : U.Node := ⟨m, ⟨B, hb⟩⟩
+  have hU : L ∈ U.hierarchy.nodes (m - 1) := U.hierarchy.children_mem (m - 1) B
+    (by simpa only [hpos] using hb) ι.val.left
+  let q : U.Node := ⟨m - 1, ⟨L, hU⟩⟩
+  have hparent : U.hierarchy.parentNode q = b :=
+    exists_childMap_step2_parent U b hm ι.val.left
+  have hi : D.stateAt (m - 1) L hl =
+      childMap P (D.stateAt m B hg) ⟨ι.val.ty, ι.val.left⟩ := by
+    simpa only [hpos] using hD.I2.1 (m - 1) B
+      (by simpa only [hpos] using hg) ι.val.left
+  have hstate : stateOf U P q = D.stateAt (m - 1) L hl := by
+    rw [hi, ← hs]
+    exact childMap_spec U P b hm ι.val.left
+  let g' : Parser.BornFacet P := ⟨m, hm, B, ι, rfl⟩
+  let G : PrimitiveOccurrence U P := ⟨b, hm, ι, rfl⟩
+  have hcarrier : L.cell (m - 1) ι.val.leftFacet.val = G.carrier := g'.sides_carrier.1
+  have hint : relint (L.cell (m - 1) ι.val.leftFacet.val) ⊆ interior (B.carrier m) := by
+    rw [hcarrier]
+    exact packet_attached_step4_internal U P G
+  obtain ⟨hf, -, hbirth, hage⟩ := U.hierarchy.restriction_det_internal q ι.val.leftFacet
+    (by rw [hparent]; exact hint)
+  have hoff : (U.hierarchy.firstProvider q ι.val.leftFacet hf).1 = 0 := by
+    have := (U.hierarchy.birthHeight_age_spec q ι.val.leftFacet hf).2.1
+    omega
+  have hserv : U.hierarchy.servingChild q ι.val.leftFacet hf = q := by
+    simp only [CoherentHierarchy.servingChild, hoff, CoherentHierarchy.ancestor,
+      Function.iterate_zero, id_eq]
+  exact ⟨U, hb, hU, hstate, hf, hserv, hbirth.trans hparent⟩
+
+/-- Step 9 of the V4 proof of `two_sided_constancy_step6_left_end` (V4 Prop. 2.3, 3.4):
+"the (S6) record of an age-one facet is the header of the immediate parent at q".
+For a fixed native facet piece through a listed provider vertex, restriction
+preserves the birth parent, and the leaf's END header is its actual geometric header. -/
+private theorem two_sided_constancy_step6_left_end_step9_readout
+    (Y : MarkedTiling (systemM S P C)) (n : ℕ) (D : DecodedLevel Y n) (hD : Inv D)
+    (g : Parser.BornFacet P) (hg : g.birth ∈ D.geometry.nodes g.height)
+    (p : E d) (hp : g.leftNode.Lists (g.height - 1) p)
+    (t : PlacedMarkedTile (systemM S P C)) (f : FacetName S (tileNode t).ty)
+    (v : VertexName S (tileNode t).ty)
+    (hpiece : Parser.IsFacetPiece Y (g.height - 1) g.leftNode g.incidence.val.leftFacet t f)
+    (hv : v.val.carrier ⊆ f.val.carrier) (hvp : compilerFrame C t (vertexPoint v) = p) :
+    ∃ j : EndSlot (compilerLeaf C t), j.facet = f ∧
+      Compiler.endVertex (compilerFrame C t) j = p ∧
+      j.header = two_sided_constancy_header g.birth g.height (compilerFrame C t) p := by
+  classical
+  have hl : g.leftNode ∈ D.geometry.nodes (g.height - 1) :=
+    D.geometry.descendant_mem _ _ _ _ hg g.sides_descendant.1
+  obtain ⟨U, hb, hU, hs, hf, hserv, hbirthRoot⟩ :=
+    two_sided_constancy_step6_left_end_step8_source D hD g hg hl
+  let q : U.Node := ⟨g.height - 1, ⟨g.leftNode, hU⟩⟩
+  let b : U.Node := ⟨g.height, ⟨g.birth, hb⟩⟩
+  obtain ⟨r, hr, w, htile⟩ := hpiece.2.1
+  have hrm : r = g.height - 1 := by omega
+  subst r
+  have hreal {k : ℕ} (hk : k = g.height - 1)
+      (hN : g.leftNode ∈ D.geometry.nodes k)
+      (hU' : g.leftNode ∈ U.hierarchy.nodes k) :
+      stateOf U P ⟨k, ⟨g.leftNode, hU'⟩⟩ = D.stateAt k g.leftNode hN := by
+    subst k
+    exact hs
+  have hnode {k : ℕ} (hk : k = g.height - 1)
+      (hU' : g.leftNode ∈ U.hierarchy.nodes k) :
+      (⟨k, ⟨g.leftNode, hU'⟩⟩ : U.Node) = q := by
+    subst k
+    rfl
+  have hdesc : ∃ (htD : tileNode t ∈ D.geometry.nodes 0)
+      (htU : tileNode t ∈ U.hierarchy.nodes 0),
+      stateOf U P ⟨0, ⟨tileNode t, htU⟩⟩ = D.stateAt 0 (tileNode t) htD ∧
+        U.hierarchy.ancestor ⟨0, ⟨tileNode t, htU⟩⟩ (g.height - 1) = q := by
+    obtain ⟨htD, htU, htstate, hanc⟩ :=
+      two_sided_constancy_step6_left_end_step5_descent D hD U 0 (g.height - 1) g.leftNode
+        (by simpa only [Nat.zero_add] using hl)
+        (by simpa only [Nat.zero_add] using hU)
+        (hreal (Nat.zero_add (g.height - 1)) _ _) w
+    rw [htile]
+    exact ⟨htD, htU, htstate, hanc.trans (hnode (Nat.zero_add (g.height - 1)) _)⟩
+  obtain ⟨htD, htU, htstate, hanc⟩ := hdesc
+  let c : U.Node := ⟨0, ⟨tileNode t, htU⟩⟩
+  have hleaf : stateOf U P c = (compilerLeaf C t).prePattern.state :=
+    htstate.trans (hD.I2.2 (tileNode t) htD t hpiece.1 rfl)
+  obtain ⟨hfinite, hprovider, hbirth⟩ := U.hierarchy.provider_inherited q c
+    (g.height - 1) hanc g.incidence.val.leftFacet f hf hpiece.2.2
+  have hbirth' : U.hierarchy.birthParent c f hfinite = b := hbirth.trans hbirthRoot
+  have hcserv : U.hierarchy.servingChild c f hfinite = q := by
+    have hh := congrArg (fun z : U.Node => z.1) hbirth'
+    have hoff' := (U.hierarchy.birthHeight_age_spec c f hfinite).1
+    have he : (U.hierarchy.firstProvider c f hfinite).1 = g.height - 1 := by
+      change U.hierarchy.birthHeight c f hfinite = g.height at hh
+      change U.hierarchy.birthHeight c f hfinite = 0 + _ + 1 at hoff'
+      omega
+    simpa only [CoherentHierarchy.servingChild, he] using hanc
+  have hframe : c.2.val.prototypeFrame c.1 = (compilerFrame C t).toAffineEquiv := by
+    ext x
+    rfl
+  have hpoint : c.2.val.prototypeFrame c.1 (vertexPoint v) = p := by
+    rw [hframe]
+    exact hvp
+  have hzero := two_sided_constancy_step6_left_end_step6_zero (P := P)
+    U c f hfinite v hv (by rw [hcserv, hpoint]; exact hp)
+  have hrleaf : leafRecord (compilerLeaf C t) f.val = some (U.recordOf P c f hfinite) := by
+    unfold leafRecord
+    rw [← hleaf]
+    simp only [stateRecordAt, stateOf, c, dif_pos f.property,
+      HonestSource.facetRecordOf, dif_neg hfinite]
+  have hheader : leafHeader (compilerLeaf C t) v.val f.val =
+      some (U.headerOf P c f hfinite v) := by
+    unfold leafHeader
+    rw [← hleaf]
+    simp only [stateOf, c, dif_pos v.property, dif_pos f.property,
+      HonestSource.headerRecordOf, dif_pos hv, dif_neg hfinite, hzero, if_pos True.intro]
+  obtain ⟨packet, hpacket⟩ := two_sided_constancy_step6_left_end_step7_packet
+    (compilerLeaf C t) f.val (U.recordOf P c f hfinite) hrleaf
+  have hvc : v.val ∈ (S.cx (tileNode t).ty).cells := (vertexCell v).property
+  let j : EndSlot (compilerLeaf C t) := {
+    facet := f
+    record := U.recordOf P c f hfinite
+    record_eq := hrleaf
+    type_eq := rfl
+    facet_eq := rfl
+    vertex := v
+    onFacet := hv
+    providerVertex := U.recordTau P c f hfinite ⟨vertexCell v, hv⟩
+    tau_vertex := by
+      simp only [FacetRecord.tauAt, HonestSource.recordOf, c,
+        dif_pos hvc, dif_pos hv]
+      rfl
+    provider_zero := hzero
+    header := U.headerOf P c f hfinite v
+    header_eq := hheader
+    packet := packet
+    packet_eq := hpacket }
+  refine ⟨j, rfl, hvp, ?_⟩
+  change U.headerOf P c f hfinite v = _
+  have hnorm (K : Set (E d)) : U.normalizeCone c K =
+      (compilerFrame C t).linearIsometryEquiv.symm '' K := by
+    rw [HonestSource.normalizeCone, hframe]
+    rfl
+  unfold HonestSource.headerOf
+  rw [hbirth']
+  simp only [b, hpoint, hnorm, two_sided_constancy_header]
+
 /-- Step 6 of the V4 proof of `two_sided_constancy` (V4 3.4, 1.8, Cor. 2.4(a),
 Prop. 2.3): "Let `q` be a vertex of `g`. Tiles inside `C` with a piece in `g`
 containing `q` exist ..., so `τ({q}) = {q}` is a vertex of the provider and the
@@ -221,7 +651,17 @@ private theorem two_sided_constancy_step6_left_end
       Parser.IsFacetPiece Y (g.height - 1) g.leftNode g.incidence.val.leftFacet t j.facet ∧
         Compiler.endVertex (compilerFrame C t) j = p ∧
         j.header = two_sided_constancy_header g.birth g.height (compilerFrame C t) p := by
-  sorry
+  obtain ⟨p, hp, hlisted⟩ := two_sided_constancy_step6_left_end_step1_vertex g
+  have hl : g.leftNode ∈ D.geometry.nodes (g.height - 1) :=
+    D.geometry.descendant_mem _ _ _ _ hg g.sides_descendant.1
+  obtain ⟨t, f, hpiece, hpf⟩ := two_sided_constancy_step6_left_end_step2_piece Y
+    (g.height - 1) g.leftNode (D.geometry.node_actual _ _ hl) g.incidence.val.leftFacet p
+    (g.sides_carrier.1.symm ▸ hp)
+  obtain ⟨v, hv, hvp⟩ := two_sided_constancy_step6_left_end_step3_native_vertex Y
+    (g.height - 1) g.leftNode g.incidence.val.leftFacet p hlisted t f hpiece hpf
+  obtain ⟨j, hj, hjp, hjheader⟩ := two_sided_constancy_step6_left_end_step9_readout
+    Y n D hD g hg p hlisted t f v hpiece hv hvp
+  exact ⟨p, hp, t, j, hj.symm ▸ hpiece, hjp, hjheader⟩
 
 /-- Step 7 of the V4 proof of `two_sided_constancy` (V4 3.4, 1.8, 1.0(b)):
 "Tiles inside `C'` with pieces in `g` near `q` have interior points in

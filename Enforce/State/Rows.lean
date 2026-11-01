@@ -2737,11 +2737,251 @@ def honestEndGeometries (S : SubstSystem d) (P : Params S) : Set (EndGeometry P)
     (U.recordTau P t f hf ⟨vertexCell v, hv⟩).val.val.dim = 0 ∧
       EndGeometryRealizes U P t f hf v G}
 
+open private states_finite_step3_patch states_finite_step6_patch_native
+  from Enforce.State.State in
+/-- Step 1 of the V4 proof of `endTemplates_finite` (V4 2.2, 1.18):
+"B is a native tile of sigma^(b-1) Pi". A native descendant of a height-`n+1`
+parent has an exact address in the depth-`n` first-generation patch. -/
+private theorem endTemplates_finite_step1_native (C B : FramedNode S) (n : ℕ)
+    (hd : C.IsDescendant 0 B (n + 1)) :
+    ∃ a : (states_finite_step3_patch B.ty).Address n,
+      C = ((states_finite_step3_patch B.ty).native n a).move B.frame := by
+  obtain ⟨r, hr, w, hC⟩ := hd
+  simp only [zero_add] at hr
+  subst r
+  obtain ⟨a, ha⟩ := states_finite_step6_patch_native B.ty n w
+  exact ⟨a, hC.trans (congrArg (fun N : FramedNode S => N.move B.frame) ha.symm)⟩
+
+/-- Step 2 of the V4 proof of `endTemplates_finite` (V4 1.18):
+"the isometry is fixed by t's frame". The common parent frame cancels when
+one descendant is expressed in another descendant's frame. -/
+private theorem endTemplates_finite_step2_relative (C T B : FramedNode S) :
+    (C.move B.frame).move (T.move B.frame).frame.symm = C.move T.frame.symm := by
+  apply FramedNode.ext
+  · rfl
+  · apply AffineIsometryEquiv.ext
+    intro x
+    change T.frame.symm (B.frame.symm (B.frame (C.frame x))) = T.frame.symm (C.frame x)
+    rw [B.frame.symm_apply_apply]
+
+open private states_finite_step3_patch from Enforce.State.State in
+/-- Step 2 of the V4 proof of `endTemplates_finite` (V4 1.18):
+"applied to the patch of children of sigma A_P". Each owned native tile
+transports to an incident address at the same depth in that fixed patch. -/
+private theorem endTemplates_finite_step2_incident (U : HonestSource S)
+    (B q : U.Node) (n : ℕ) (hb : B.1 = n + 1) (x p : E d)
+    (hx : B.2.val.frame ((S.σ ^ n) p) = x)
+    (hq : q ∈ ownedStarSet U B x) :
+    ∃ a : (states_finite_step3_patch B.2.val.ty).Incident p n,
+      q.2.val = ((states_finite_step3_patch B.2.val.ty).native n a.val).move B.2.val.frame := by
+  obtain ⟨h0, hanc, hmem⟩ := hq
+  have hd := U.hierarchy.ancestor_descendant q B.1
+  rw [hanc] at hd
+  simp only [h0, hb] at hd
+  obtain ⟨a, ha⟩ := endTemplates_finite_step1_native q.2.val B.2.val n hd
+  refine ⟨⟨a, ?_⟩, ha⟩
+  simp only [h0, ha] at hmem
+  obtain ⟨z, hz, hzx⟩ := hmem
+  refine ⟨z, hz, ?_⟩
+  exact B.2.val.frame.injective (hzx.trans hx.symm)
+
+open private positioned_stars_finite_step3_frames from Enforce.Source.Headers in
+/-- Step 3 of the V4 proof of `endTemplates_finite` (V4 1.18):
+"the relative orthogonal placement" and "translations are fixed". In a
+fixed common-listed patch, the positioned incident tiles have finite range. -/
+private theorem endTemplates_finite_step3_patch_tiles [Nonempty S.ι]
+    (patch : CompatiblePatch S) (p : E d) (hp : patch.CommonListed p) :
+    {u : FramedNode S | ∃ (n : ℕ) (a b : patch.Incident p n),
+      u = (patch.native n a.val).move (patch.native n b.val).frame.symm}.Finite := by
+  have hFr := positioned_stars_finite_step3_frames patch p hp
+  refine (((Set.finite_univ : (Set.univ : Set S.ι).Finite).prod hFr).image
+    (fun z : S.ι × Iso d => (⟨z.1, z.2⟩ : FramedNode S))).subset ?_
+  rintro u ⟨n, a, b, rfl⟩
+  exact ⟨((patch.native n a.val).ty,
+    (patch.native n a.val).frame.trans (patch.native n b.val).frame.symm),
+    ⟨Set.mem_univ _, n, a, b, rfl⟩, rfl⟩
+
+open private states_finite_step3_seed states_finite_step3_patch states_finite_step3_point
+  states_finite_step6_provider_anchor states_finite_step5_birthFrame
+  from Enforce.State.State in
+/-- Step 4 of the V4 proof of `endTemplates_finite` (V4 2.2, 2.5):
+"there are finitely many data (A_P,p)". Transport the owned tiles and the
+central tile to a common-listed seed patch, and take the finite union. -/
+private theorem endTemplates_finite_step4_positioned_tiles (S : SubstSystem d) (P : Params S) :
+    ∃ T : Set (FramedNode S), T.Finite ∧
+      ∀ (U : HonestSource S) (t : U.Node) (_ht : t.1 = 0)
+        (f : FacetName S t.2.val.ty) (hf : ¬ U.hierarchy.IsFault t f)
+        (v : VertexName S t.2.val.ty) (hv : v.val.carrier ⊆ f.val.carrier),
+        (U.recordTau P t f hf ⟨vertexCell v, hv⟩).val.val.dim = 0 →
+        ∀ q ∈ ownedStarSet U (U.hierarchy.birthParent t f hf)
+            (t.2.val.prototypeFrame t.1 (vertexPoint v)),
+          q.2.val.move t.2.val.frame.symm ∈ T := by
+  classical
+  letI : Finite (states_finite_step3_seed S) := by
+    unfold states_finite_step3_seed
+    infer_instance
+  let Seed := {a : states_finite_step3_seed S //
+    (states_finite_step3_patch a.1).CommonListed (states_finite_step3_point a)}
+  let family (a : Seed) : Set (FramedNode S) :=
+    {u | ∃ (n : ℕ)
+      (q t : (states_finite_step3_patch a.val.1).Incident (states_finite_step3_point a.val) n),
+      u = ((states_finite_step3_patch a.val.1).native n q.val).move
+        ((states_finite_step3_patch a.val.1).native n t.val).frame.symm}
+  have hfamily (a : Seed) : (family a).Finite := by
+    letI : Nonempty S.ι := ⟨a.val.1⟩
+    exact endTemplates_finite_step3_patch_tiles _ _ a.property
+  refine ⟨⋃ a, family a, Set.finite_iUnion hfamily, ?_⟩
+  intro U t ht f hf v hv hz q hq
+  let B := U.hierarchy.birthParent t f hf
+  let x := t.2.val.prototypeFrame t.1 (vertexPoint v)
+  obtain ⟨a, hA, hp, hlisted⟩ := states_finite_step6_provider_anchor P U t f hf v hv hz
+  let z : Seed := ⟨a, hlisted⟩
+  refine Set.mem_iUnion.mpr ⟨z, ?_⟩
+  have hb : 1 ≤ B.1 := by
+    dsimp [B, CoherentHierarchy.birthParent, CoherentHierarchy.parentNode]
+    omega
+  let n := B.1 - 1
+  have hn : B.1 = n + 1 := by omega
+  have hx : B.2.val.frame ((S.σ ^ n) (states_finite_step3_point a)) = x := by
+    rw [hp]
+    exact (states_finite_step5_birthFrame B.2.val B.1).apply_symm_apply x
+  obtain ⟨ta, hta⟩ := endTemplates_finite_step2_incident U B t n hn x
+    (states_finite_step3_point a) hx (endGeometry_exists_step1_central U t ht f hf v)
+  obtain ⟨qa, hqa⟩ := endTemplates_finite_step2_incident U B q n hn x
+    (states_finite_step3_point a) hx hq
+  have hrel : q.2.val.move t.2.val.frame.symm =
+      ((states_finite_step3_patch B.2.val.ty).native n qa.val).move
+        ((states_finite_step3_patch B.2.val.ty).native n ta.val).frame.symm := by
+    rw [hta, hqa]
+    exact endTemplates_finite_step2_relative _ _ _
+  dsimp only [family]
+  rw [hA]
+  exact ⟨n, qa, ta, hrel⟩
+
+open private states_finite_step7_headers from Enforce.State.State in
+/-- Step 5 of the V4 proof of `endTemplates_finite` (V4 §2.5 with Proposition 2.2, (S6)):
+"with the header as a finite label by Theorem 1.17": the headers of honest END geometries
+lie in the finite set of honest provider-zero header records. -/
+private theorem endTemplates_finite_step5_headers (S : SubstSystem d) (P : Params S) :
+    ∃ Ω : Set (State.Header P), Ω.Finite ∧ ∀ G ∈ honestEndGeometries S P, G.header ∈ Ω := by
+  refine ⟨_, states_finite_step7_headers P, ?_⟩
+  rintro G ⟨U, t, _ht, f, hf, v, hv, hz, hG⟩
+  refine ⟨U, t, v, f, ?_⟩
+  rw [hG.2.2.1]
+  unfold HonestSource.headerRecordOf
+  rw [dif_pos hv, dif_neg hf, if_pos hz]
+
+/-- Step 6 of the V4 proof of `endTemplates_finite` (V4 §2.5): "Types and vertex names are
+finite" and the (E1) port data (incidence, side, provider vertex) range over finite
+alphabets: primitive ports on a finite set of positioned tiles form a finite set. -/
+private theorem endTemplates_finite_step6_primitive (P : Params S)
+    (T : Set (FramedNode S)) (hT : T.Finite) :
+    {a : PrimitivePort P | a.tile ∈ T}.Finite := by
+  classical
+  haveI := hT.to_subtype
+  let Code := Σ u : T, FacetName S u.1.ty × VertexName S u.1.ty ×
+    (Σ ι : P.Incidence, Bool × S.Role × ProviderCell ι.val)
+  let enc : {a : PrimitivePort P // a.tile ∈ T} → Code := fun a =>
+    ⟨⟨a.1.tile, a.2⟩, a.1.facet, a.1.vertex, ⟨a.1.incidence, a.1.sideIndex, a.1.side,
+      a.1.providerVertex⟩⟩
+  have hinj : Function.Injective enc := by
+    rintro ⟨⟨tile, f, v, o, inc, b, s, se, pv, pz⟩, ht⟩
+      ⟨⟨tile', f', v', o', inc', b', s', se', pv', pz'⟩, ht'⟩ e
+    have h1 : tile = tile' := congrArg (fun c : Code => c.1.1) e
+    subst h1
+    have e2 := eq_of_heq (Sigma.mk.inj_iff.mp e).2
+    simp only [Prod.mk.injEq] at e2
+    obtain ⟨rfl, rfl, e3⟩ := e2
+    have h3 : inc = inc' := congrArg Sigma.fst e3
+    subst h3
+    have e4 := eq_of_heq (Sigma.mk.inj_iff.mp e3).2
+    simp only [Prod.mk.injEq] at e4
+    obtain ⟨rfl, rfl, rfl⟩ := e4
+    rfl
+  exact Set.finite_coe_iff.mp (Finite.of_injective enc hinj)
+
+/-- Step 7 of the V4 proof of `endTemplates_finite` (V4 §2.5, annotation): "each ρ^F_{u,f_u}
+ranges over a finite set of functions and the annotated catalogue is finite": boundary ports
+on a finite set of tiles whose annotations lie in a finite set of functions form a finite set. -/
+private theorem endTemplates_finite_step7_boundary (P : Params S)
+    (T : Set (FramedNode S)) (hT : T.Finite)
+    (R : Set (FacetRecord P → FacetRecord P)) (hR : R.Finite) :
+    {x : Σ A : S.ι, BoundaryPort P A | x.2.tile ∈ T ∧ x.2.restriction ∈ R}.Finite := by
+  classical
+  haveI := hT.to_subtype
+  haveI := hR.to_subtype
+  let Code := Σ u : T, FacetName S u.1.ty × VertexName S u.1.ty ×
+    (Σ A : S.ι, FacetName S A) × R
+  let enc : {x : Σ A : S.ι, BoundaryPort P A // x.2.tile ∈ T ∧ x.2.restriction ∈ R} → Code :=
+    fun x => ⟨⟨x.1.2.tile, x.2.1⟩, x.1.2.facet, x.1.2.vertex, ⟨x.1.1, x.1.2.parentFacet⟩,
+      ⟨x.1.2.restriction, x.2.2⟩⟩
+  have hinj : Function.Injective enc := by
+    rintro ⟨⟨A, tile, f, v, o, pf, r⟩, ht⟩ ⟨⟨A', tile', f', v', o', pf', r'⟩, ht'⟩ e
+    have h1 : tile = tile' := congrArg (fun c : Code => c.1.1) e
+    subst h1
+    have e2 := eq_of_heq (Sigma.mk.inj_iff.mp e).2
+    simp only [Prod.mk.injEq] at e2
+    obtain ⟨rfl, rfl, e3, e4⟩ := e2
+    have h3 : A = A' := congrArg Sigma.fst e3
+    subst h3
+    have h5 : pf = pf' := eq_of_heq (Sigma.mk.inj_iff.mp e3).2
+    have h6 : r = r' := congrArg Subtype.val e4
+    subst h5 h6
+    rfl
+  exact Set.finite_coe_iff.mp (Finite.of_injective enc hinj)
+
+/-- Step 8 of the V4 proof of `endTemplates_finite` (V4 §2.5): an END geometry is determined
+by its central type and vertex, header, tiles and two port sets. -/
+private theorem endTemplates_finite_step8_code_injective (P : Params S) :
+    Function.Injective (fun G : EndGeometry P =>
+      ((⟨G.centralType, G.vertex⟩ : Σ A : S.ι, VertexName S A), G.header, G.tiles,
+        G.primitivePorts,
+        G.boundaryPorts.map ⟨fun a => (⟨G.header.birthType, a⟩ : Σ A : S.ι, BoundaryPort P A),
+          sigma_mk_injective⟩)) := by
+  rintro ⟨A, v, h, T, c, dj, l, pp, bp, pt, bt, pa, ba⟩
+    ⟨A', v', h', T', c', dj', l', pp', bp', pt', bt', pa', ba'⟩ e
+  simp only [Prod.mk.injEq, Sigma.mk.injEq] at e
+  obtain ⟨⟨rfl, hv⟩, rfl, rfl, rfl, hb⟩ := e
+  cases hv
+  cases Finset.map_injective _ hb
+  rfl
+
 /-- Q13, V4 §2.5, 1.17--1.18: complete annotated END geometries form a finite set.
 Finiteness of annotations uses `facetRecords_finite` and `restrictionOps_finite`. -/
 theorem endTemplates_finite (S : SubstSystem d) (P : Params S) :
     (honestEndGeometries S P).Finite := by
-  sorry
+  classical
+  obtain ⟨T, hT, hTmem⟩ := endTemplates_finite_step4_positioned_tiles S P
+  obtain ⟨Ω, hΩ, hΩmem⟩ := endTemplates_finite_step5_headers S P
+  have hPP := endTemplates_finite_step6_primitive P T hT
+  have hBP := endTemplates_finite_step7_boundary P T hT _ (restrictionOps_finite P)
+  have htiles : ∀ G ∈ honestEndGeometries S P, ∀ u ∈ G.tiles, u ∈ T := by
+    rintro G ⟨U, t, ht, f, hf, v, hv, hz, hG⟩ u hu
+    rw [hG.2.2.2.1, Finset.mem_image] at hu
+    obtain ⟨q, hq, rfl⟩ := hu
+    exact hTmem U t ht f hf v hv hz q ((Set.Finite.mem_toFinset _).mp hq)
+  refine Set.Finite.of_finite_image ?_
+    ((endTemplates_finite_step8_code_injective P).injOn)
+  refine ((Set.finite_univ (α := Σ A : S.ι, VertexName S A)).prod (hΩ.prod
+    ((hT.toFinset.powerset : Set (Finset (FramedNode S))).toFinite.prod
+    ((hPP.toFinset.powerset : Set (Finset (PrimitivePort P))).toFinite.prod
+    (hBP.toFinset.powerset : Set (Finset (Σ A : S.ι, BoundaryPort P A))).toFinite)))).subset ?_
+  rintro _ ⟨G, hG, rfl⟩
+  refine ⟨Set.mem_univ _, hΩmem G hG, ?_, ?_, ?_⟩
+  · simp only [Finset.mem_coe, Finset.mem_powerset]
+    intro u hu
+    exact (Set.Finite.mem_toFinset _).mpr (htiles G hG u hu)
+  · simp only [Finset.mem_coe, Finset.mem_powerset]
+    intro a ha
+    exact (Set.Finite.mem_toFinset _).mpr (htiles G hG a.tile (G.primitive_tiles a ha))
+  · simp only [Finset.mem_coe, Finset.mem_powerset]
+    intro x hx
+    rw [Finset.mem_map] at hx
+    obtain ⟨a, ha, rfl⟩ := hx
+    refine (Set.Finite.mem_toFinset _).mpr ⟨htiles G hG a.tile (G.boundary_tiles a ha), ?_⟩
+    obtain ⟨U, t, _ht, f, hf, v, _hv, _hz, hR⟩ := hG
+    obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, ⟨path, -, hpath⟩⟩ := (hR.2.2.2.2.2 a).mp ha
+    exact ⟨path, hpath.symm⟩
 
 open private states_finite_step5_child_frame states_finite_step5_parent_frame
   from Enforce.State.State in

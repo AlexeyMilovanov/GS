@@ -1690,7 +1690,41 @@ theorem internal_facet_pairing (P : FramedNode S) (n : ℕ) (i : S.I P.ty)
 private lemma vertex_inherited_step1_H5 {d : ℕ} [Fact (2 ≤ d)] {S : SubstSystem d} (P : FramedNode S) (n : ℕ) (p : E d)
     (hp : P.Lists (n + 1) p) :
     ∃ j : S.I P.ty, (P.child n j).Lists n p := by
-  sorry
+  dsimp [FramedNode.Lists] at hp ⊢
+  rcases hp with ⟨e, he, hp_e⟩
+  have he_cells : e ∈ (S.cx P.ty).cells := (Finset.mem_filter.1 he).1
+  have H := S.heredity P.ty e he_cells
+  rcases H with ⟨f, hf⟩
+  dsimp [FramedNode.cell] at hp_e
+  rcases hp_e with ⟨u, hu, rfl⟩
+  have hu2 : S.σ u ∈ ⇑S.σ '' e.carrier := mem_image_of_mem _ hu
+  rw [hf] at hu2
+  simp only [mem_iUnion] at hu2
+  rcases hu2 with ⟨q, hq_f, hq_u⟩
+  dsimp [placedSet] at hq_u
+  rcases hq_u with ⟨v, hv, h_eq⟩
+  use q.1
+  use q.2.1
+  constructor
+  · rw [CellComplex.vertices] at he ⊢
+    rw [Finset.mem_filter] at he ⊢
+    have hdim : q.2.1.dim = 0 := by
+      have hedim : e.dim = 0 := he.2
+      rw [q.2.2.2, hedim]
+    exact ⟨q.2.2.1, hdim⟩
+  · dsimp [FramedNode.cell]
+    use v
+    constructor
+    · exact hv
+    · have Hc : (P.child n q.1).prototypeFrame n v = P.prototypeFrame (n + 1) (S.σ.symm ((S.child P.ty q.1).frame v)) := by
+        change P.frame (S.placeChild n q.1 ((S.σ ^ n) v)) =
+          P.frame ((S.σ ^ (n + 1)) (S.σ.symm ((S.child P.ty q.1).frame v)))
+        congr 1
+        rw [S.placeChild_apply]
+        simp [linearConj, Child.frame, rigidMotion, pow_succ, zpow_neg,
+          LinearEquiv.mul_apply, ← map_add]
+      rw [Hc, h_eq]
+      simp
 
 /-- Step 2 of the V4 proof of `vertex_inherited` (V4 1.5a): For another child C ni sigma v, (H6) with mc_B(sigma v) = {sigma v} makes {sigma v} a cell of C. -/
 private lemma vertex_inherited_step2_H6 {d : ℕ} [Fact (2 ≤ d)] {S : SubstSystem d} (P : FramedNode S) (n : ℕ) (p : E d)

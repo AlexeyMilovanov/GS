@@ -368,6 +368,156 @@ theorem cellInFacet_placed (q : U.Node) (f : FacetName S q.2.val.ty)
     q.2.val.cell q.1 e.val.val ⊆ q.2.val.cell q.1 f.val := by
   exact Set.image_mono e.property
 
+/-- Step 1 of the V4 proof of `recordTau_exists` (V4 §1.0, Frames):
+"in the prototype frame of the node"; relative interiors transport through the full
+invertible affine frame. -/
+private theorem recordTau_exists_step1_relint_image
+    (e : E d ≃ᵃ[ℝ] E d) (K : Set (E d)) :
+    relint (e '' K) = e '' relint K := by
+  let h := e.toHomeomorphOfFiniteDimensional
+  have hspan : h '' (affineSpan ℝ K : Set (E d)) =
+      (affineSpan ℝ (e '' K) : Set (E d)) := by
+    exact congrArg (fun A : AffineSubspace ℝ (E d) => (A : Set (E d)))
+      (AffineSubspace.map_span e.toAffineMap K)
+  let f : (affineSpan ℝ K) ≃ₜ (affineSpan ℝ (e '' K)) :=
+    (h.image _).trans (Homeomorph.setCongr hspan)
+  have hf (x : affineSpan ℝ K) : (f x).val = e x.val := rfl
+  have hp : (f ⁻¹' ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))) =
+      ((↑) ⁻¹' K : Set (affineSpan ℝ K)) := by
+    ext x
+    change e x.val ∈ e '' K ↔ x.val ∈ K
+    exact e.injective.mem_set_image
+  have hi := f.preimage_interior ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))
+  rw [hp] at hi
+  ext x
+  constructor
+  · rintro ⟨y, hy, rfl⟩
+    have hm : f.symm y ∈ interior ((↑) ⁻¹' K : Set (affineSpan ℝ K)) := by
+      rw [← hi]
+      simpa using hy
+    refine ⟨(f.symm y).val, ⟨f.symm y, hm, rfl⟩, ?_⟩
+    simpa only [f.apply_symm_apply] using (hf (f.symm y)).symm
+  · rintro ⟨z, ⟨w, hw, rfl⟩, rfl⟩
+    refine ⟨f w, ?_, hf w⟩
+    change w ∈ f ⁻¹' interior ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))
+    rwa [hi]
+
+/-- Step 2 of the V4 proof of `recordTau_exists` (V4 §1.0, Frames):
+"A child of role i of this node is φ(σ⁻¹(Rᵢ Aᵢ + tᵢ))". -/
+private theorem recordTau_exists_step2_child_frame
+    (B : FramedNode S) (n : ℕ) (i : S.I B.ty) :
+    (B.child n i).prototypeFrame n =
+      (S.child B.ty i).frame.toAffineEquiv.trans
+        (S.σ.symm.toAffineEquiv.trans (B.prototypeFrame (n + 1))) := by
+  apply AffineEquiv.ext
+  intro x
+  change B.frame (S.placeChild n i ((S.σ ^ n) x)) =
+    B.frame ((S.σ ^ (n + 1)) (S.σ.symm ((S.child B.ty i).frame x)))
+  have hplace : S.placeChild n i ((S.σ ^ n) x) =
+      (S.σ ^ n) ((S.child B.ty i).frame x) := by
+    change linearConj S.σ (n : ℤ) (S.child B.ty i).rotation.toLinearEquiv
+        ((S.σ ^ n) x) + (S.σ ^ n) (S.child B.ty i).offset =
+      (S.σ ^ n) ((S.child B.ty i).rotation x + (S.child B.ty i).offset)
+    simp [linearConj, zpow_neg, LinearEquiv.mul_apply]
+  rw [hplace, pow_succ, LinearEquiv.mul_apply, LinearEquiv.apply_symm_apply]
+
+/-- Step 3 of the V4 proof of `recordTau_exists` (V4 1.4(a)):
+"For every p ∈ B ∩ C: mc_B(p) = mc_C(p)". A listed cell of one child
+contained in a listed cell of another has the same placed name on that child. -/
+private theorem recordTau_exists_step3_sibling_cell
+    (B : FramedNode S) (n : ℕ) (i j : S.I B.ty)
+    (c F : Cell d) (hc : c ∈ (S.cx (S.child B.ty i).ty).cells)
+    (hF : F ∈ (S.cx (S.child B.ty j).ty).cells)
+    (hsub : (B.child n i).cell n c ⊆ (B.child n j).cell n F) :
+    ∃ t : CellName S (S.child B.ty j).ty,
+      (B.child n j).cell n t.val = (B.child n i).cell n c := by
+  by_cases hij : i = j
+  · subst j
+    exact ⟨⟨c, hc⟩, rfl⟩
+  have hne : (relint ((B.child n i).cell n c)).Nonempty := by
+    rw [FramedNode.cell, recordTau_exists_step1_relint_image]
+    exact c.flat.relint_nonempty.image _
+  obtain ⟨p, hp⟩ := hne
+  have hpF := hsub (intrinsicInterior_subset hp)
+  have hfront : p ∈ frontier ((B.child n j).carrier n) := by
+    have hinside : F.carrier ⊆ frontier (S.proto (S.child B.ty j).ty).carrier := by
+      rw [← (S.cx (S.child B.ty j).ty).carriers_cover]
+      exact Set.subset_iUnion₂_of_subset F hF (Set.Subset.refl _)
+    let H := ((B.child n j).prototypeFrame n).toHomeomorphOfFiniteDimensional
+    have hcar : (B.child n j).carrier n = H '' (S.proto (S.child B.ty j).ty).carrier := by
+      simp [H, FramedNode.carrier, FramedNode.prototypeFrame, FramedNode.child, placedSet,
+        SubstSystem.supertile, Set.image_image]
+    rw [hcar, ← H.image_frontier]
+    exact Set.image_mono hinside hpF
+  obtain ⟨t, ht, _⟩ := placedMinimalCell_exists_unique (B.child n j) n p hfront
+  exact ⟨t, (sibling_minimalCell_eq B n i j hij p ⟨c, hc⟩ t hp ht).symm⟩
+
+/-- Step 4 of the V4 proof of `recordTau_exists` (V4 §2.1 (P2)):
+"the two children's complexes agree on g". Express a cell of an actual child
+in the prototype coordinates of an incidence's left child of the same parent. -/
+private theorem recordTau_exists_step4_incidence_cell
+    (B C : FramedNode S) (n : ℕ) (i : S.I B.ty) (hC : C = B.child n i)
+    (ι : PrimitiveIncidence S) (hι : ι.ty = B.ty)
+    (c : Cell d) (hc : c ∈ (S.cx C.ty).cells)
+    (hsub : C.cell n c ⊆
+      ((S.child ι.ty ι.left).frame.toAffineEquiv.trans
+        (S.σ.symm.toAffineEquiv.trans (B.prototypeFrame (n + 1)))) ''
+          ι.leftFacet.val.carrier) :
+    ∃ t : ProviderCell ι,
+      ((S.child ι.ty ι.left).frame.toAffineEquiv.trans
+        (S.σ.symm.toAffineEquiv.trans (B.prototypeFrame (n + 1)))) ''
+          t.val.val.carrier = C.cell n c := by
+  subst C
+  rcases B with ⟨A, g⟩
+  rcases ι with ⟨A', l, r, hlr, F, G, hFG, hint⟩
+  dsimp at hι
+  subst A'
+  dsimp only at hsub ⊢
+  rw [← recordTau_exists_step2_child_frame (⟨A, g⟩ : FramedNode S) n l] at hsub ⊢
+  obtain ⟨t, ht⟩ := recordTau_exists_step3_sibling_cell (⟨A, g⟩ : FramedNode S)
+    n i l c F.val hc (Finset.mem_filter.mp F.property).1 hsub
+  refine ⟨⟨t, ?_⟩, ht⟩
+  intro x hx
+  apply (((⟨A, g⟩ : FramedNode S).child n l).prototypeFrame n).injective.mem_set_image.mp
+  apply hsub
+  rw [← ht]
+  exact ⟨x, hx, rfl⟩
+
+/-- Step 5 of the V4 proof of `recordTau_exists` (V4 §2.2 (S4a)):
+"the primitive incidence ι(f) of its first provider g (side-independent, (P2))".
+Canonicalization preserves the positioned facet and hence its actual carrier. -/
+private theorem recordTau_exists_step5_provider_carrier
+    (P : Params S) (q : U.Node) (f : FacetName S q.2.val.ty)
+    (hf : ¬ U.hierarchy.IsFault q f) :
+    U.providerPlacement P q f hf ''
+        (U.recordIncidence P q f hf).val.leftFacet.val.carrier =
+      U.hierarchy.providerCarrier q f hf := by
+  have hpos := (P.canonical_spec (U.hierarchy.providerIncidence q f hf)).2
+  change (U.hierarchy.providerIncidence q f hf).positioned =
+    (U.recordIncidence P q f hf).val.positioned at hpos
+  calc
+    _ = (U.hierarchy.birthParent q f hf).2.val.prototypeFrame
+        (U.hierarchy.birthHeight q f hf) ''
+        (S.σ.symm '' (U.recordIncidence P q f hf).val.positioned) := by
+      simp [providerPlacement, Params.incidencePlacement, PrimitiveIncidence.positioned,
+        placedSet, Set.image_image]
+    _ = _ := by rw [← hpos]; exact (U.hierarchy.providerIncidence_spec q f hf).2.2.2.symm
+
+/-- Step 6 of the V4 proof of `recordTau_exists` (V4 §2.2 (S4c)):
+"τ_f: {cells of K(B) contained in f} → {cells contained in g}".
+An invertible placement and the carrier determine the listed cell uniquely. -/
+private theorem recordTau_exists_step6_unique
+    (ι : PrimitiveIncidence S) (g : E d ≃ᵃ[ℝ] E d) (t₁ t₂ : ProviderCell ι)
+    (h : g '' t₁.val.val.carrier = g '' t₂.val.val.carrier) : t₁ = t₂ := by
+  have hc : t₁.val.val.carrier = t₂.val.val.carrier := g.injective.image_injective h
+  have key : ∀ a b : Cell d, a.carrier = b.carrier → a = b := by
+    rintro ⟨K, n, hn⟩ ⟨K', n', hn'⟩ hK
+    cases hK
+    have hd : n = n' := hn.dimension.symm.trans hn'.dimension
+    cases hd
+    rfl
+  exact Subtype.ext (Subtype.ext (key _ _ hc))
+
 /-- Q3, V4 §2.2 (S4c): unique canonical name of the actual provider stratum.
 Existence is the stage-2 stratum map, transported between the paired side names. -/
 theorem recordTau_exists (P : Params S) (q : U.Node) (f : FacetName S q.2.val.ty)
@@ -377,7 +527,21 @@ theorem recordTau_exists (P : Params S) (q : U.Node) (f : FacetName S q.2.val.ty
         (U.hierarchy.servingChild q f hf).2.val.cell
           (U.hierarchy.servingChild q f hf).1
           (U.hierarchy.stratumMap q f hf e.val (U.cellInFacet_placed q f e)).val := by
-  sorry
+  let C := U.hierarchy.servingChild q f hf
+  let B := U.hierarchy.birthParent q f hf
+  let ι := (U.recordIncidence P q f hf).val
+  let c := U.hierarchy.stratumMap q f hf e.val (U.cellInFacet_placed q f e)
+  have hty : ι.ty = B.2.val.ty :=
+    (P.canonical_spec (U.hierarchy.providerIncidence q f hf)).1.symm.trans
+      (U.hierarchy.providerIncidence_spec q f hf).1
+  have hsub : C.2.val.cell C.1 c.val ⊆
+      U.providerPlacement P q f hf '' ι.leftFacet.val.carrier := by
+    rw [recordTau_exists_step5_provider_carrier U P q f hf]
+    exact (U.hierarchy.stratumMap_spec q f hf e.val (U.cellInFacet_placed q f e)).2.2
+  obtain ⟨t, ht⟩ := recordTau_exists_step4_incidence_cell B.2.val C.2.val C.1
+    (U.hierarchy.role C.1 C.2) (U.hierarchy.child_eq C.1 C.2) ι hty c.val c.property hsub
+  exact ⟨t, ht, fun y hy => recordTau_exists_step6_unique ι
+    (U.providerPlacement P q f hf) y t (hy.trans ht.symm)⟩
 
 /-- Q3, V4 §2.2 (S4c): actual canonical stratum map. -/
 def recordTau (P : Params S) (q : U.Node) (f : FacetName S q.2.val.ty)

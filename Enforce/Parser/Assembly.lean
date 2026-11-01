@@ -9050,13 +9050,54 @@ theorem parsedState_principal (Y : MarkedTiling (systemM S P C)) (hY : MProper Y
         decode p ⟨q.1 - g.height, hdepth⟩ = some (parsedState Y hY q) :=
   (parsedRealization Y hY).principal_invariant q g hbirth hdepth hprincipal
 
+open private exists_childMap_step2_address from Enforce.State.State in
 /-- V4 3.1 (I2): the address of a parent's child is the parent's address shifted by one. -/
 private theorem parsedState_address_step1_shift (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (q : (parsedHierarchy Y hY).Node) (j : Fin P.k) (hj : j.val + 1 < P.k) :
     (parsedState Y hY q).address ⟨j.val + 1, hj⟩ =
       (parsedState Y hY ((parsedHierarchy Y hY).parentNode q)).address j := by
-  sorry
-
+  let H := parsedHierarchy Y hY
+  let p := H.parentNode q
+  let i := H.role q.1 q.2
+  have hc : p.2.val.child q.1 i = q.2.val :=
+    (H.child_eq q.1 q.2).symm
+  have hp := parsedState_type_residue Y hY p
+  obtain ⟨U, hU, hs⟩ := routing_constant_step2_source_realization
+    (parsedState Y hY p) hp.1 p.2.val p.1 hp.2.1 hp.2.2
+  let u : U.Node := ⟨p.1, ⟨p.2.val, hU⟩⟩
+  have hu : 1 ≤ u.1 := by
+    change 1 ≤ q.1 + 1
+    omega
+  have hc' : p.2.val.child (p.1 - 1) i = q.2.val := by
+    have h1 : p.1 - 1 = q.1 := by change q.1 + 1 - 1 = q.1; omega
+    rw [h1]
+    exact hc
+  have hq_mem : p.2.val.child (p.1 - 1) i ∈ (parsedHierarchy Y hY).nodes (p.1 - 1) := by
+    have h1 : p.1 - 1 = q.1 := by change q.1 + 1 - 1 = q.1; omega
+    have h2 : p.2.val.child (p.1 - 1) i = p.2.val.child q.1 i := by rw [h1]
+    rw [h2, h1, hc]
+    exact q.2.property
+  have h_parsed_child := parsedState_child Y hY p hu i hq_mem
+  have hq_eq : parsedState Y hY q = stateOf U P (U.childNode u hu i) := by
+    have h1 : parsedState Y hY q = parsedState Y hY ⟨p.1 - 1, ⟨p.2.val.child (p.1 - 1) i, hq_mem⟩⟩ := by
+      have h2 : p.1 - 1 = q.1 := by change q.1 + 1 - 1 = q.1; omega
+      cases h2
+      congr 1
+      exact Sigma.ext rfl (by simp [hc'])
+    rw [h1, h_parsed_child, ← hs]
+    exact (childMap_spec U P u hu i).symm
+  rw [hq_eq]
+  have h_addr := exists_childMap_step2_address U P u hu i ⟨j.val + 1, hj⟩
+  have hj_neq : j.val + 1 ≠ 0 := Nat.succ_ne_zero j.val
+  rw [dif_neg hj_neq] at h_addr
+  have h_idx : j.val + 1 - 1 = j.val := by omega
+  have h_addr_simp : (stateOf U P (U.childNode u hu i)).address ⟨j.val + 1, hj⟩ =
+      (stateOf U P u).address j := by
+    have h1 : (stateOf U P (U.childNode u hu i)).address ⟨j.val + 1, hj⟩ =
+      (stateOf U P u).address ⟨j.val + 1 - 1, by omega⟩ := by exact h_addr
+    rw [h1]
+    congr 1
+  exact h_addr_simp.trans (congrArg (fun (s : State P) => s.address j) hs)
 /-- R12/R13, V4 3.1, 3.13: every letter in the assigned upward address is
 the actual globally distinct role of the indicated hierarchy ancestor. -/
 theorem parsedState_address (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)

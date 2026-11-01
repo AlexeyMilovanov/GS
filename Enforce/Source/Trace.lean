@@ -4251,7 +4251,17 @@ theorem active_edge_hereditary (q c : H.Node) (r : ℕ) (hc : H.ancestor c r = q
         (H.stratumMap q f hf t ht).val =
       (H.servingChild c g hg).2.val.cell (H.servingChild c g hg).1
         (H.stratumMap c g hg s hs).val := by
-  sorry
+  obtain ⟨t, ht, hrel, hdim_le, hstratum⟩ :=
+    active_flags_hereditary_step2_cell H q c r hc f g hf hg hsub s hs
+  refine ⟨t, ht, ?_, hrel, hstratum⟩
+  have hdimeq := active_flags_hereditary_step3_dimension
+    (H.servingChild q f hf).2.val (H.servingChild c g hg).2.val
+    (H.servingChild q f hf).1 (H.servingChild c g hg).1
+    (H.stratumMap q f hf t ht).val (H.stratumMap c g hg s hs).val hstratum
+  have hupper := stratumMap_spec_step2_dim q f hf t ht
+  rw [hdimeq, hactive] at hupper
+  rw [hdim] at hdim_le
+  omega
 
 end CoherentHierarchy
 

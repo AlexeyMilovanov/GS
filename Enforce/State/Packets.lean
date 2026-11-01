@@ -757,7 +757,47 @@ variable (U : HonestSource S)
 theorem descendant_mem (q : U.Node) (a : ℕ) (ha : a ≤ q.1) (w : S.RoleWord q.2.val.ty a) :
     (S.descendantNode q.2.val.ty (q.1 - a) a w).move q.2.val.frame ∈
       U.hierarchy.nodes (q.1 - a) := by
-  sorry
+  induction' a with a ih generalizing q
+  · have h0 : q.1 - 0 = q.1 := rfl
+    have h1 : S.descendantNode q.2.val.ty (q.1 - 0) 0 w = ⟨q.2.val.ty, AffineIsometryEquiv.refl ℝ (E d)⟩ := rfl
+    rw [h1]
+    have h2 : (FramedNode.mk q.2.val.ty (AffineIsometryEquiv.refl ℝ (E d))).move q.2.val.frame = q.2.val := by
+      rcases q.2.val with ⟨qty, qframe⟩
+      rfl
+    rw [h2, h0]
+    exact q.2.property
+  · have h_desc : S.descendantNode q.2.val.ty (q.1 - (a + 1)) (a + 1) w = (S.descendantNode (S.child q.2.val.ty w.1).ty (q.1 - (a + 1)) a w.2).move (S.placeChild (q.1 - (a + 1) + a) w.1) := rfl
+    rw [h_desc]
+    have h_move : ((S.descendantNode (S.child q.2.val.ty w.1).ty (q.1 - (a + 1)) a w.2).move (S.placeChild (q.1 - (a + 1) + a) w.1)).move q.2.val.frame = (S.descendantNode (S.child q.2.val.ty w.1).ty (q.1 - (a + 1)) a w.2).move ((S.placeChild (q.1 - (a + 1) + a) w.1).trans q.2.val.frame) := by
+      rfl
+    rw [h_move]
+    have h_child_height : q.1 - (a + 1) + a = q.1 - 1 := by omega
+    have h_frame : (S.placeChild (q.1 - (a + 1) + a) w.1).trans q.2.val.frame = (q.2.val.child (q.1 - 1) w.1).frame := by
+      rw [h_child_height]
+      rfl
+    rw [h_frame]
+    have h_child_ty : (S.child q.2.val.ty w.1).ty = (q.2.val.child (q.1 - 1) w.1).ty := rfl
+    have h_q_mem : q.2.val ∈ U.hierarchy.nodes (q.1 - 1 + 1) := by
+      have hh : q.1 - 1 + 1 = q.1 := by omega
+      rw [hh]
+      exact q.2.property
+    have h_mem := U.hierarchy.children_mem (q.1 - 1) q.2.val h_q_mem w.1
+    let q_child : U.Node := ⟨q.1 - 1, ⟨q.2.val.child (q.1 - 1) w.1, h_mem⟩⟩
+    have h_q_child_height : q_child.1 = q.1 - 1 := rfl
+    have h_child_ha : a ≤ q_child.1 := by
+      rw [h_q_child_height]
+      omega
+    have h_height : q.1 - (a + 1) = q_child.1 - a := by
+      rw [h_q_child_height]
+      omega
+    have ih_app := ih q_child h_child_ha (by rw [← h_child_ty]; exact w.2)
+    have h_rw : (S.descendantNode (S.child q.2.val.ty w.1).ty (q.1 - (a + 1)) a w.2).move (q.2.val.child (q.1 - 1) w.1).frame = (S.descendantNode q_child.2.val.ty (q_child.1 - a) a (by rw [← h_child_ty]; exact w.2)).move q_child.2.val.frame := by
+      dsimp [q_child]
+      rw [h_height]
+      congr
+    rw [h_rw]
+    rw [h_height]
+    exact ih_app
 
 /-- Q11, V4 2.7: the actual source node at an exact downward address. -/
 def descendant (q : U.Node) (a : ℕ) (ha : a ≤ q.1) (w : S.RoleWord q.2.val.ty a) :

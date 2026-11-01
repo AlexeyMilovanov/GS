@@ -1601,11 +1601,26 @@ theorem internal_facet_pairing (P : FramedNode S) (n : ℕ) (i : S.I P.ty)
   · rintro k ⟨hki, g_k, hgk, -⟩
     exact internal_facet_pairing_step2c_uniqueness P n i f k j hki hj g_k hgk g hg
 
+
+/-- Step 1 of the V4 proof of `vertex_inherited` (V4 1.5a): By (H5) with j=0, sigma v is a vertex of some child B. -/
+private lemma vertex_inherited_step1_H5 {d : ℕ} [Fact (2 ≤ d)] {S : SubstSystem d} (P : FramedNode S) (n : ℕ) (p : E d)
+    (hp : P.Lists (n + 1) p) :
+    ∃ j : S.I P.ty, (P.child n j).Lists n p := by
+  sorry
+
+/-- Step 2 of the V4 proof of `vertex_inherited` (V4 1.5a): For another child C ni sigma v, (H6) with mc_B(sigma v) = {sigma v} makes {sigma v} a cell of C. -/
+private lemma vertex_inherited_step2_H6 {d : ℕ} [Fact (2 ≤ d)] {S : SubstSystem d} (P : FramedNode S) (n : ℕ) (p : E d)
+    (j : S.I P.ty) (hpj : (P.child n j).Lists n p)
+    (i : S.I P.ty) (hi : p ∈ (P.child n i).carrier n) :
+    (P.child n i).Lists n p := by
+  sorry
+
 /-- P5, V4 1.5(a): listed vertices pass to every containing child. -/
 theorem vertex_inherited (P : FramedNode S) (n : ℕ) (p : E d)
     (hp : P.Lists (n + 1) p) (i : S.I P.ty)
     (hi : p ∈ (P.child n i).carrier n) : (P.child n i).Lists n p := by
-  sorry
+  obtain ⟨j, hpj⟩ := vertex_inherited_step1_H5 P n p hp
+  exact vertex_inherited_step2_H6 P n p j hpj i hi
 
 /-- P5, V4 1.5(b): listedness passes to all containing descendants.
 This node form also applies separately to every member of a compatible patch. -/

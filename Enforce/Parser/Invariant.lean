@@ -1149,10 +1149,240 @@ private lemma base_level_step3_I2 (Y : MarkedTiling (systemM S P C)) (hY : MProp
     rw [state_eq B P.K le_rfl w 0 N hN (Nat.sub_self _) hnode, htleaf]
     exact (B.leaf_state w).symm
 
+open private leafTypeOf_move_step4_cert from Enforce.Compiler.System in
+/-- Step 1 of the V4 proof of `base_level_step4_I4` (V4 3.2, 2.7):
+"the certificate is the S-table of an honest node". Move its honest witness
+to the actual certificate frame; its joint certificate is unchanged. -/
+private lemma base_level_step4_I4_step1_source
+    {Y : MarkedTiling (systemM S P C)} (B : KBlock Y) :
+    ∃ (U : HonestSource S) (hB : B.node ∈ U.hierarchy.nodes P.K),
+      certOf U P B.node hB = B.certificate.val := by
+  obtain ⟨U, N, hN, hcert⟩ := B.honest_table
+  let γ := N.frame.symm.trans B.frame
+  have hmove : N.move γ = B.node := by
+    apply FramedNode.ext
+    · exact congrArg Certificate.ty hcert
+    · apply AffineIsometryEquiv.ext
+      intro x
+      exact congrArg B.frame (N.frame.symm_apply_apply x)
+  have hB : B.node ∈ (U.move γ).hierarchy.nodes P.K := by
+    rw [(U.move_spec γ).nodes]
+    exact ⟨N, hN, hmove⟩
+  exact ⟨U.move γ, hB,
+    (leafTypeOf_move_step4_cert U γ N hN B.node hB hmove.symm).trans hcert⟩
+
+/-- Step 2 of the V4 proof of `base_level_step4_I4` (V4 3.2, 2.5):
+"the slot of N" is the ancestor at its exact birth-to-node distance.
+An exact standard descendant address in a coherent hierarchy inverts ancestry. -/
+private lemma base_level_step4_I4_step2_ancestor
+    {T : Tiling S} (H : CoherentHierarchy S T) (m r : ℕ)
+    (N : FramedNode S) (hN : N ∈ H.nodes (m + r))
+    (w : S.RoleWord N.ty r)
+    (hc : (S.descendantNode N.ty m r w).move N.frame ∈ H.nodes m) :
+    H.ancestor ⟨m, ⟨(S.descendantNode N.ty m r w).move N.frame, hc⟩⟩ r =
+      ⟨m + r, ⟨N, hN⟩⟩ := by
+  induction r generalizing N with
+  | zero =>
+    simp [CoherentHierarchy.ancestor, SubstSystem.descendantNode, FramedNode.move]
+  | succ r ih =>
+    have hchild := H.children_mem (m + r) N (by simpa [Nat.add_assoc] using hN) w.1
+    have hc' : (S.descendantNode (N.child (m + r) w.1).ty m r w.2).move
+        (N.child (m + r) w.1).frame ∈ H.nodes m := hc
+    have hi := ih (N.child (m + r) w.1) hchild w.2 hc'
+    rw [← H.ancestor_add]
+    change H.parentNode (H.ancestor _ r) = _
+    have he : (⟨m, ⟨(S.descendantNode N.ty m (r + 1) w).move N.frame, hc⟩⟩ :
+        H.Node) = ⟨m, ⟨(S.descendantNode (N.child (m + r) w.1).ty m r w.2).move
+          (N.child (m + r) w.1).frame, hc'⟩⟩ := rfl
+    rw [he, hi]
+    apply Sigma.ext
+    · rfl
+    · apply heq_of_eq
+      apply Subtype.ext
+      exact (H.parent_unique (m + r) ⟨N.child (m + r) w.1, hchild⟩ N
+        (by simpa [Nat.add_assoc] using hN) ⟨w.1, rfl⟩).symm
+
+/-- Step 2 of the V4 proof of `base_level_step4_I4` (V4 3.2, 2.5):
+"the slot of N". Reindex exact descendant ancestry by the difference
+of the two node heights. -/
+private lemma base_level_step4_I4_step2_ancestor_node
+    {T : Tiling S} (H : CoherentHierarchy S T) (q N : H.Node)
+    (h : q.2.val.IsDescendant q.1 N.2.val N.1) :
+    H.ancestor q (N.1 - q.1) = N := by
+  rcases q with ⟨m, M, hM⟩
+  rcases N with ⟨n, N, hN⟩
+  obtain ⟨r, hr, w, hw⟩ := h
+  dsimp only at hr hw ⊢
+  subst n
+  rw [show m + r - m = r by omega]
+  cases hw
+  exact base_level_step4_I4_step2_ancestor H m r N hN w hM
+
+/-- Step 3 of the V4 proof of `base_level_step4_I4` (V4 3.2, 2.7):
+"with slot value S(N)". The certificate table is the state of the
+same-address descendant of its honest source witness. -/
+private lemma base_level_step4_I4_step3_table
+    {Y : MarkedTiling (systemM S P C)} (B : KBlock Y)
+    (U : HonestSource S) (hB : B.node ∈ U.hierarchy.nodes P.K)
+    (hcert : certOf U P B.node hB = B.certificate.val)
+    (a : ℕ) (ha : a ≤ P.K) (w : S.RoleWord B.certificate.val.ty a) :
+    B.table a ha w =
+      stateOf U P (U.descendant ⟨P.K, ⟨B.node, hB⟩⟩ a ha w) := by
+  have aux : ∀ X Z : Certificate P, X = Z → ∀ (h : X.ty = Z.ty)
+      (a : ℕ) (ha : a ≤ P.K) (w : S.RoleWord X.ty a),
+      X.table a ha w = Z.table a ha (h ▸ w) := by
+    intro X Z he h a ha w
+    subst he
+    rfl
+  exact (aux _ _ hcert rfl a ha w).symm
+
+/-- Step 4 of the V4 proof of `base_level_step4_I4` (V4 3.2, 2.7):
+"these packets are the ones in the leaves' pre-patterns inside D".
+An actual ground descendant of a certificate has exactly the facet readout
+of the same framed ground node in its honest source, including NULL. -/
+private lemma base_level_step4_I4_step4_leaf
+    {Y : MarkedTiling (systemM S P C)} (B : KBlock Y)
+    (U : HonestSource S) (hB : B.node ∈ U.hierarchy.nodes P.K)
+    (hcert : certOf U P B.node hB = B.certificate.val)
+    (t : PlacedMarkedTile (systemM S P C)) (ht : t ∈ Y.tiles)
+    (htd : (tileNode t).IsDescendant 0 B.node P.K)
+    (f : FacetName S (tileNode t).ty)
+    (htU : tileNode t ∈ U.hierarchy.nodes 0) :
+    leafPacket (compilerLeaf C t) f.val =
+      U.facetPacket P ⟨0, ⟨tileNode t, htU⟩⟩ f := by
+  obtain ⟨r, hr, v, hv⟩ := htd
+  have hrK : r = P.K := by omega
+  subst r
+  have hleaf : tileNode (B.leaf v) =
+      (S.nativeTile B.certificate.val.ty P.K v).move B.frame := by
+    apply FramedNode.ext
+    · change (compilerLeaf C (B.leaf v)).prototype = _
+      rw [(B.leaf_data v).1]
+      rfl
+    · exact (B.leaf_data v).2
+  have htleaf : t = B.leaf v :=
+    base_level_step3_I2_step3_tile_unique t (B.leaf v) ht (B.leaf_mem v)
+      (hv.trans hleaf.symm)
+  subst t
+  have aux : ∀ X Z : Certificate P, X = Z → ∀ (h : X.ty = Z.ty)
+      (v : S.RoleWord X.ty P.K), X.leaves v = Z.leaves (h ▸ v) := by
+    intro X Z he h v
+    subst he
+    rfl
+  have hpre : B.certificate.val.leaves v =
+      prePatternOf U P (U.descendant ⟨P.K, ⟨B.node, hB⟩⟩ P.K le_rfl v)
+        (Nat.sub_self P.K) := (aux _ _ hcert rfl v).symm
+  have he : U.descendant ⟨P.K, ⟨B.node, hB⟩⟩ P.K le_rfl v =
+      ⟨0, ⟨tileNode (B.leaf v), htU⟩⟩ := by
+    apply Sigma.subtype_ext
+    · exact Nat.sub_self P.K
+    · change (S.descendantNode B.certificate.val.ty (P.K - P.K) P.K v).move
+        B.frame = tileNode (B.leaf v)
+      simpa only [Nat.sub_self] using hleaf.symm
+  rw [(B.leaf_data v).1]
+  unfold leafPacket LeafType.prePattern
+  rw [hpre]
+  simp only [prePatternOf]
+  have hfacet : f.val ∈ (S.cx
+      (U.descendant ⟨P.K, ⟨B.node, hB⟩⟩ P.K le_rfl v).2.val.ty).facets := by
+    rw [he]
+    exact f.property
+  rw [dif_pos hfacet]
+  have hcongr : ∀ (q q' : U.Node) (h : q = q')
+      (F : FacetName S q.2.val.ty) (F' : FacetName S q'.2.val.ty),
+      F.val = F'.val → U.facetPacket P q F = U.facetPacket P q' F' := by
+    intro q q' h F F' hF
+    subst q'
+    exact congrArg (U.facetPacket P q) (Subtype.ext hF)
+  exact hcongr _ _ he _ f rfl
+
+/-- Step 5 of the V4 proof of `base_level_step4_I4` (V4 3.2, 2.6(d)):
+"these packets are the ones in the leaves' pre-patterns inside D".
+Honest inherited facet packets give the constant readout on every side of
+an inner certificate node. -/
+private lemma base_level_step4_I4_step5_boundary
+    {Y : MarkedTiling (systemM S P C)} (B : KBlock Y)
+    (U : HonestSource S) (hB : B.node ∈ U.hierarchy.nodes P.K)
+    (hcert : certOf U P B.node hB = B.certificate.val)
+    (m : ℕ) (N : FramedNode S) (hdesc : N.IsDescendant m B.node P.K) :
+    Parser.BoundaryPackets Y m N := by
+  have hNU := Parser.hierarchy_descendant_mem U.hierarchy P.K m B.node N hB hdesc
+  have hactual : IsBlock Y m N :=
+    (base_level_step1_decoded_step0_toBlock B).inner_actual m N hdesc
+  intro F
+  let q := U.facetPacket P ⟨m, ⟨N, hNU⟩⟩ F
+  have hq : Parser.ConstantPacket Y m N F q := by
+    intro t f ht
+    have htB := Parser.descendant_trans (tileNode t) N B.node 0 m P.K ht.2.1 hdesc
+    have htU := Parser.hierarchy_descendant_mem U.hierarchy P.K 0 B.node (tileNode t) hB htB
+    rw [base_level_step4_I4_step4_leaf B U hB hcert t ht.1 htB f htU]
+    have hanc := base_level_step4_I4_step2_ancestor_node U.hierarchy
+      ⟨0, ⟨tileNode t, htU⟩⟩ ⟨m, ⟨N, hNU⟩⟩ ht.2.1
+    exact packet_inherited U P ⟨m, ⟨N, hNU⟩⟩ ⟨0, ⟨tileNode t, htU⟩⟩ m
+      hanc F f ht.2.2
+  exact ⟨q, hq, fun q' hq' => Parser.constantPacket_unique Y m N hactual F q' q hq' hq⟩
+
+/-- Step 6 of the V4 proof of `base_level_step4_I4` (V4 3.2, 2.5):
+"in the honest source mu_{slot of N} = PRESENT with slot value S(N)".
+This is solely the honest-source slot semantics; it involves no output tiles
+or certificate readout. -/
+private lemma base_level_step4_I4_step6_slot
+    (U : HonestSource S) (N : U.Node) (g : PrimitiveOccurrence U P)
+    (hg : g.birth.2.val.IsDescendant g.birth.1 N.2.val N.1)
+    (hd : N.1 - g.birth.1 < P.k)
+    (hp : P.InPrincipal N.2.val N.1 g.carrier) :
+    decode (packetOf U P g) ⟨N.1 - g.birth.1, hd⟩ = some (stateOf U P N) := by
+  classical
+  have hanc := base_level_step4_I4_step2_ancestor_node U.hierarchy g.birth N hg
+  have hm : mask U P g ⟨N.1 - g.birth.1, hd⟩ := by
+    unfold mask
+    rw [hanc]
+    exact hp
+  simpa only [if_pos hm, hanc] using
+    decode_spec U P g ⟨N.1 - g.birth.1, hd⟩
+
 /-- Step 4 of the V4 proof of `base_level` (V4 3.2): (I4): for every node N inside the certificate and f in E_N born inside N, in the honest source mu_{slot of N} = PRESENT with slot value S(N), and these packets are the ones in the leaves' pre-patterns inside D. -/
 private lemma base_level_step4_I4 (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (D : DecodedLevel Y P.K) (hbase : Parser.CertificateBase D) : Parser.I4 D := by
-  sorry
+  intro m N hN g hg hd hp
+  obtain ⟨B, a, ha, w, hm, hnode⟩ :=
+    base_level_step3_I2_step1_certificate_node D.geometry hbase.1 m N hN
+  obtain ⟨U, hB, hcert⟩ := base_level_step4_I4_step1_source B
+  have hNB : N.IsDescendant m B.node P.K := by
+    rw [← hnode, ← hm]
+    exact ⟨a, by omega, w, rfl⟩
+  have hNU := Parser.hierarchy_descendant_mem U.hierarchy P.K m B.node N hB hNB
+  have hbirthB := Parser.descendant_trans g.birth N B.node g.height m P.K hg hNB
+  have hbirthU := Parser.hierarchy_descendant_mem U.hierarchy P.K g.height B.node
+    g.birth hB hbirthB
+  let gU : PrimitiveOccurrence U P :=
+    ⟨⟨g.height, ⟨g.birth, hbirthU⟩⟩, g.positive, g.incidence, g.parent_type⟩
+  have hleftB := Parser.descendant_trans g.leftNode g.birth B.node (g.height - 1)
+    g.height P.K g.sides_descendant.1 hbirthB
+  have hboundary := base_level_step4_I4_step5_boundary B U hB hcert
+    (g.height - 1) g.leftNode hleftB
+  refine ⟨hboundary, packetOf U P gU, ?_, ?_⟩
+  · have hactual : IsBlock Y (g.height - 1) g.leftNode :=
+      (base_level_step1_decoded_step0_toBlock B).inner_actual _ _ hleftB
+    obtain ⟨t, f, ht⟩ := Parser.facet_piece_exists Y (g.height - 1) g.leftNode hactual
+      g.incidence.val.leftFacet
+    have htB := Parser.descendant_trans (tileNode t) g.leftNode B.node 0
+      (g.height - 1) P.K ht.2.1 hleftB
+    have htU := Parser.hierarchy_descendant_mem U.hierarchy P.K 0 B.node (tileNode t) hB htB
+    change attachedPacket hboundary g.incidence.val.leftFacet = _
+    rw [attachedPacket_eq_leaf hboundary g.incidence.val.leftFacet t f ht,
+      base_level_step4_I4_step4_leaf B U hB hcert t ht.1 htB f htU]
+    apply (packet_attached U P gU ⟨0, ⟨tileNode t, htU⟩⟩ rfl f ?_).2
+    change (tileNode t).cell 0 f.val ⊆ g.carrier
+    rw [← g.sides_carrier.1]
+    exact ht.2.2
+  · have hstate : D.stateAt m N hN = stateOf U P ⟨m, ⟨N, hNU⟩⟩ := by
+      subst m
+      subst N
+      exact (hbase.2 B a ha w).choose_spec.trans
+        (base_level_step4_I4_step3_table B U hB hcert a ha w)
+    rw [hstate]
+    exact base_level_step4_I4_step6_slot U ⟨m, ⟨N, hNU⟩⟩ gU hg hd hp
 
 /-- Step 2 of the V4 proof of `base_level_step5_I5_step1_boundary` (V4 3.2): unpack node membership to identify its root with a K-certificate. -/
 private lemma base_level_step5_I5_step1_boundary_step2_certificate

@@ -252,7 +252,56 @@ private lemma native_disjoint_step1_diff_child {d : ℕ} [Fact (2 ≤ d)] (S : S
     (hij : i ≠ j) :
     Disjoint (interior ((S.nativeTile A (n + 1) ⟨i, v'⟩).carrier 0))
              (interior ((S.nativeTile A (n + 1) ⟨j, w'⟩).carrier 0)) := by
-  sorry
+  let H : E d ≃ₜ E d :=
+    (S.σ ^ n).toContinuousLinearEquiv.toHomeomorph
+  have hsub (k : S.I A)
+      (u : S.RoleWord (S.child A k).ty n) :
+      (S.nativeTile A (n + 1) ⟨k, u⟩).carrier 0 ⊆
+        (S.σ ^ n) '' placedSet (S.child A k).frame
+          (S.proto (S.child A k).ty).carrier := by
+    have hc :
+        (S.nativeTile A (n + 1) ⟨k, u⟩).carrier 0 =
+          (S.placeChild n k) ''
+            ((S.nativeTile (S.child A k).ty n u).carrier 0) := by
+      dsimp [SubstSystem.nativeTile, SubstSystem.descendantNode, FramedNode.carrier,
+        placedSet, FramedNode.move]
+      rw [← Set.image_comp]
+      have hz : 0 + n = n := by omega
+      rw [hz]
+    have hu :
+        (S.nativeTile (S.child A k).ty n u).carrier 0 ⊆
+          S.supertile n (S.child A k).ty := by
+      rw [← S.native_cover (S.child A k).ty n]
+      intro x hx
+      exact Set.mem_iUnion.mpr ⟨u, hx⟩
+    have ht :
+        (S.placeChild n k) '' S.supertile n (S.child A k).ty =
+          (S.σ ^ n) '' placedSet (S.child A k).frame
+            (S.proto (S.child A k).ty).carrier := by
+      dsimp [SubstSystem.supertile, placedSet]
+      rw [← Set.image_comp]
+      rw [← Set.image_comp]
+      congr 1
+      ext x
+      dsimp
+      rw [SubstSystem.placeChild_apply]
+      have hz : (S.child A k).frame = S.placeChild 0 k := rfl
+      rw [hz, SubstSystem.placeChild_apply]
+      simp
+      dsimp [linearConj]
+      simp
+    rw [hc, ← ht]
+    exact Set.image_mono hu
+  have hsubI (k : S.I A)
+      (u : S.RoleWord (S.child A k).ty n) :
+      interior ((S.nativeTile A (n + 1) ⟨k, u⟩).carrier 0) ⊆
+        H '' interior (placedSet (S.child A k).frame
+          (S.proto (S.child A k).ty).carrier) := by
+    rw [H.image_interior]
+    exact interior_mono (hsub k u)
+  have hd := Set.disjoint_image_of_injective (f := H) H.injective
+    (S.children_disjoint A hij)
+  exact hd.mono (hsubI i v') (hsubI j w')
 
 /-- Step 2 of the V4 proof of `native_disjoint` (V4 §1.0): equal first roles reduce by induction through an isometry. -/
 private lemma native_disjoint_step2_same_child {d : ℕ} [Fact (2 ≤ d)] (S : SubstSystem d) (A : S.ι) (n : ℕ)

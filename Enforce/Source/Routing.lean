@@ -11510,6 +11510,244 @@ private theorem birth_ascent_top_step4_exit_facet_step2_other_node
     exact hwN (heq ▸ hwM)
   · exact birth_ascent_top_step3_desc_subset _ M 0 n hwM hpw
 
+/-- Step 1 of the V4 proof of `birth_ascent_top_step4_exit_facet_step3_boundary_neighborhood`
+(V4 §1.0, (H2), used in 1.25): "flat compact connected polyhedral manifold".
+A nonempty compact convex set has a manifold relative boundary: in its affine
+span, a radial homeomorphism carries the boundary to a unit sphere. The sphere
+charts also handle dimension one; in dimension zero the boundary is empty. -/
+private theorem birth_ascent_top_step4_exit_facet_step3_boundary_neighborhood_step1_convex_boundary_charts {K : Set (E d)} (hc : Convex ℝ K)
+    (hk : IsCompact K) (hne : K.Nonempty) :
+    IsLocallyEuclidean (Module.finrank ℝ (cellDirection K) - 1) (relfrontier K) := by
+  let H := affineSpan ℝ K
+  obtain ⟨a, ha⟩ := hne
+  let aH : H := ⟨a, subset_affineSpan ℝ K ha⟩
+  letI : Nonempty H := ⟨aH⟩
+  let e := (AffineIsometryEquiv.constVSub ℝ aH).symm
+  let φ : H.direction →ᵃ[ℝ] E d := H.subtype.comp e.toAffineEquiv.toAffineMap
+  let T : Set H.direction := φ ⁻¹' K
+  have hT : Convex ℝ T := hc.affine_preimage φ
+  have hTk : IsCompact T := by
+    have hsub : IsCompact ((Subtype.val : H → E d) ⁻¹' K) :=
+      Topology.IsEmbedding.subtypeVal.isInducing.isCompact_preimage'
+        hk (by simpa using (subset_affineSpan ℝ K))
+    exact (e.toHomeomorph.isCompact_preimage).mpr hsub
+  have hrel : relint K = φ '' interior T := by
+    calc
+      relint K = (Subtype.val : H → E d) '' interior (Subtype.val ⁻¹' K) := rfl
+      _ = Subtype.val '' (e.toHomeomorph ''
+          (e.toHomeomorph ⁻¹' interior (Subtype.val ⁻¹' K))) := by
+        rw [e.toHomeomorph.image_preimage]
+      _ = φ '' interior T := by
+        rw [e.toHomeomorph.preimage_interior, Set.image_image]
+        rfl
+  have hneRel : (relint K).Nonempty := Set.Nonempty.intrinsicInterior hc ⟨a, ha⟩
+  have hneT : (interior T).Nonempty := Set.image_nonempty.mp (hrel ▸ hneRel)
+  obtain ⟨g, _, _, hgf⟩ :=
+    exists_homeomorph_image_interior_closure_frontier_eq_unitBall hT hneT hTk.isBounded
+  have hfront : relfrontier K = φ '' frontier T := by
+    calc
+      relfrontier K = (Subtype.val : H → E d) '' frontier (Subtype.val ⁻¹' K) := rfl
+      _ = Subtype.val '' (e.toHomeomorph ''
+          (e.toHomeomorph ⁻¹' frontier (Subtype.val ⁻¹' K))) := by
+        rw [e.toHomeomorph.image_preimage]
+      _ = φ '' frontier T := by
+        rw [e.toHomeomorph.preimage_frontier, Set.image_image]
+        rfl
+  have hφemb : Topology.IsEmbedding φ :=
+    Topology.IsEmbedding.subtypeVal.comp e.toHomeomorph.isEmbedding
+  let f : relfrontier K ≃ₜ Metric.sphere (0 : H.direction) 1 :=
+    (Homeomorph.setCongr hfront).trans
+      ((hφemb.homeomorphImage (frontier T)).symm.trans
+        ((g.image (frontier T)).trans (Homeomorph.setCongr hgf)))
+  intro p
+  have hn : 0 < Module.finrank ℝ H.direction :=
+    Module.finrank_pos_iff_exists_ne_zero.mpr
+      ⟨(f p).val, ne_zero_of_mem_unit_sphere (f p)⟩
+  letI : Fact (Module.finrank ℝ H.direction =
+      (Module.finrank ℝ H.direction - 1) + 1) := ⟨by omega⟩
+  let c := chartAt (E (Module.finrank ℝ H.direction - 1)) (f p)
+  refine ⟨f.symm '' c.source, f.symm.isOpenMap _ c.open_source, ?_,
+    c.target, c.open_target, ⟨(f.symm.image c.source).symm.trans c.toHomeomorphSourceTarget⟩⟩
+  exact ⟨f p, mem_chart_source _ _, f.symm_apply_apply p⟩
+
+/-- Step 2 of the V4 proof of `birth_ascent_top_step4_exit_facet_step3_boundary_neighborhood`
+(V4 §1.0, (H2), used in 1.25): "dim aff e = dim e".
+The affine dimension of a nonempty simplex is one less than its vertex count. -/
+private theorem birth_ascent_top_step4_exit_facet_step3_boundary_neighborhood_step2_simplex_dimension (s : Finset (E d))
+    (hi : AffineIndependent ℝ ((↑) : s → E d)) (hne : s.Nonempty) :
+    Module.finrank ℝ (cellDirection (convexHull ℝ (s : Set (E d)))) = s.card - 1 := by
+  letI : Nonempty s := hne.to_subtype
+  have hrange : Set.range ((↑) : s → E d) = (s : Set (E d)) := Subtype.range_val
+  have hspan := congrArg (fun t : Set (E d) => Module.finrank ℝ (vectorSpan ℝ t)) hrange
+  have hdim : Module.finrank ℝ (vectorSpan ℝ (s : Set (E d))) + 1 = s.card :=
+    (congrArg (fun n : ℕ => n + 1) hspan).symm.trans
+      (hi.finrank_vectorSpan_add_one.trans (Fintype.card_coe s))
+  have hdir : cellDirection (convexHull ℝ (s : Set (E d))) =
+      vectorSpan ℝ (s : Set (E d)) := by
+    rw [cellDirection, affineSpan_convexHull, direction_affineSpan]
+  have hrank := congrArg (fun V : Submodule ℝ (E d) => Module.finrank ℝ V) hdir
+  exact hrank.trans (Nat.eq_sub_of_add_eq hdim)
+
+/-- Step 3 of the V4 proof of `birth_ascent_top_step4_exit_facet_step3_boundary_neighborhood`
+(V4 §1.0, (H2), used in 1.25): "every cell is the closure of its relative interior".
+Package a nonempty simplex as a flat cell, using convexity for connectedness,
+density of its relative interior, and the relative-boundary charts of Step 1. -/
+private def birth_ascent_top_step4_exit_facet_step3_boundary_neighborhood_step3_simplex_cell (s : Finset (E d))
+    (hi : AffineIndependent ℝ ((↑) : s → E d)) (hne : s.Nonempty) : Cell d :=
+  { carrier := convexHull ℝ (s : Set (E d))
+    dim := s.card - 1
+    flat := by
+      have hrel :=
+        principal_component_step1_hull_geometry_step10_jordan_brouwer_step15_facet_samples_step3_relative_interior s hne
+      have hne' : (convexHull ℝ (s : Set (E d))).Nonempty :=
+        convexHull_nonempty_iff.mpr (by simpa using hne)
+      refine
+        { polyhedral := ⟨{s}, by simp⟩
+          dimension := birth_ascent_top_step4_exit_facet_step3_boundary_neighborhood_step2_simplex_dimension s hi hne
+          compact := s.finite_toSet.isCompact_convexHull
+          connected := (convex_convexHull ℝ _).isConnected hne'
+          regularClosed := hrel.2
+          relint_connected := hrel.1
+          relint_nonempty := hrel.1.1
+          boundary_manifold := ?_ }
+      simpa only [birth_ascent_top_step4_exit_facet_step3_boundary_neighborhood_step2_simplex_dimension s hi hne] using
+        birth_ascent_top_step4_exit_facet_step3_boundary_neighborhood_step1_convex_boundary_charts (convex_convexHull ℝ (s : Set (E d)))
+          s.finite_toSet.isCompact_convexHull hne' }
+
+/-- Step 4 of the V4 proof of `birth_ascent_top_step4_exit_facet_step3_boundary_neighborhood`
+(V4 §1.0, (H2), used in 1.25): "their union is ∂A".
+The relative interiors of all faces of a geometric simplicial complex cover its
+space: a point outside a simplex interior lies in a strictly smaller face. -/
+private theorem birth_ascent_top_step4_exit_facet_step3_boundary_neighborhood_step4_relint_cover (K : Geometry.SimplicialComplex ℝ (E d)) :
+    (⋃ s ∈ K.faces, relint (convexHull ℝ (s : Set (E d)))) = K.space := by
+  apply Set.Subset.antisymm
+  · rintro x hx
+    obtain ⟨s, hs, hxs⟩ := Set.mem_iUnion₂.mp hx
+    exact K.convexHull_subset_space hs (intrinsicInterior_subset hxs)
+  · suffices H : ∀ n : ℕ, ∀ s ∈ K.faces, s.card = n → ∀ x ∈ convexHull ℝ (s : Set (E d)),
+        ∃ t ∈ K.faces, x ∈ relint (convexHull ℝ (t : Set (E d))) by
+      intro x hx
+      obtain ⟨s, hs, hxs⟩ := K.mem_space_iff.mp hx
+      obtain ⟨t, ht, hxt⟩ := H s.card s hs rfl x hxs
+      exact Set.mem_iUnion₂.mpr ⟨t, ht, hxt⟩
+    intro n
+    induction n using Nat.strong_induction_on with
+    | _ n ih =>
+      intro s hs hcard x hx
+      by_cases hxi : x ∈ relint (convexHull ℝ (s : Set (E d)))
+      · exact ⟨s, hs, hxi⟩
+      · obtain ⟨t, hts, hxt⟩ :=
+          principal_component_step1_hull_geometry_step10_jordan_brouwer_step17_reaches_facet_step1_simplex_boundary
+            s (K.indep hs) hx hxi
+        have htne : t.Nonempty := by
+          exact Finset.coe_nonempty.mp (convexHull_nonempty_iff.mp ⟨x, hxt⟩)
+        exact ih t.card (by simpa [hcard] using Finset.card_lt_card hts)
+          t (K.down_closed hs hts.1 htne) rfl x hxt
+
+/-- Step 5 of the V4 proof of `birth_ascent_top_step4_exit_facet_step3_boundary_neighborhood`
+(V4 §1.0, (H2), used in 1.25): "the (relative) boundary of each cell is a union of cells".
+The relative boundary of a simplex is exactly the union of its nonempty proper
+faces. This includes the empty boundary of a singleton. -/
+private theorem birth_ascent_top_step4_exit_facet_step3_boundary_neighborhood_step5_simplex_boundary (s : Finset (E d))
+    (hi : AffineIndependent ℝ ((↑) : s → E d)) :
+    relfrontier (convexHull ℝ (s : Set (E d))) =
+      ⋃ t ∈ s.powerset.filter (fun t => t.Nonempty ∧ t ≠ s),
+        convexHull ℝ (t : Set (E d)) := by
+  classical
+  have hclosed := s.finite_toSet.isClosed_convexHull
+  rw [relfrontier, ← closure_diff_intrinsicInterior, hclosed.closure_eq]
+  change convexHull ℝ (s : Set (E d)) \ relint (convexHull ℝ (s : Set (E d))) = _
+  ext x
+  constructor
+  · rintro ⟨hxs, hxsi⟩
+    obtain ⟨t, hts, hxt⟩ :=
+      principal_component_step1_hull_geometry_step10_jordan_brouwer_step17_reaches_facet_step1_simplex_boundary
+        s hi hxs hxsi
+    have htne : t.Nonempty :=
+      Finset.coe_nonempty.mp (convexHull_nonempty_iff.mp ⟨x, hxt⟩)
+    exact Set.mem_iUnion₂.mpr ⟨t,
+      Finset.mem_filter.mpr ⟨Finset.mem_powerset.mpr hts.1, htne, hts.ne⟩, hxt⟩
+  · intro hx
+    obtain ⟨t, ht, hxt⟩ := Set.mem_iUnion₂.mp hx
+    obtain ⟨hts, _, hne⟩ := Finset.mem_filter.mp ht
+    have hts' : t ⊂ s := lt_of_le_of_ne (Finset.mem_powerset.mp hts) hne
+    refine ⟨convexHull_mono (Finset.mem_powerset.mp hts) hxt, ?_⟩
+    intro hxi
+    exact Set.disjoint_left.mp
+      (principal_component_step1_hull_geometry_step10_jordan_brouwer_step17_reaches_facet_step8_relint_disjoint_subface
+        s t hi hts') hxi hxt
+
+/-- Step 6 of the V4 proof of `birth_ascent_top_step4_exit_facet_step3_boundary_neighborhood`
+(V4 §1.0, (H2), used in 1.25): "a finite cell complex ... of ∂A".
+A finite pure triangulation of a domain frontier supplies a boundary complex.
+Face incidence gives disjoint relative interiors, and Steps 4–5 give the two
+covering properties. No local assertion about the domain interior is used. -/
+private theorem birth_ascent_top_step4_exit_facet_step3_boundary_neighborhood_step6_boundary_complex (D : PolyManifoldDomain d)
+    (K : Geometry.SimplicialComplex ℝ (E d)) (hfin : K.faces.Finite)
+    (hK : K.space = frontier D.carrier) (hpure : ∀ f ∈ K.facets, f.card = d) :
+    Nonempty (CellComplex D) := by
+  classical
+  letI : Fintype K.faces := hfin.fintype
+  let c : K.faces → Cell d := fun s =>
+    birth_ascent_top_step4_exit_facet_step3_boundary_neighborhood_step3_simplex_cell s.val (K.indep s.property) (K.nonempty_of_mem_faces s.property)
+  let cells := Finset.univ.image c
+  refine ⟨{ cells := cells, dim_lt := ?_, relint_disjoint := ?_, cover := ?_, boundary_union := ?_ }⟩
+  · intro e he
+    obtain ⟨s, _, rfl⟩ := Finset.mem_image.mp he
+    change s.val.card - 1 < d
+    obtain ⟨t, hst, ht⟩ := hfin.exists_le_maximal s.property
+    have ht' : t ∈ K.facets := ⟨ht.prop, fun u hu htu => ht.eq_of_le hu htu⟩
+    have hcard := Finset.card_le_card hst
+    have hd : 2 ≤ d := Fact.out
+    rw [hpure t ht'] at hcard
+    omega
+  · intro e he f hf hne
+    obtain ⟨s, _, rfl⟩ := Finset.mem_image.mp he
+    obtain ⟨t, _, rfl⟩ := Finset.mem_image.mp hf
+    apply Set.disjoint_left.mpr
+    intro x hxs hxt
+    have hst :=
+      principal_component_step1_hull_geometry_step10_jordan_brouwer_step16_ridge_transport_step1_interior_incidence
+        K s.property t.property hxs (intrinsicInterior_subset hxt)
+    have hts :=
+      principal_component_step1_hull_geometry_step10_jordan_brouwer_step16_ridge_transport_step1_interior_incidence
+        K t.property s.property hxt (intrinsicInterior_subset hxs)
+    exact hne (congrArg c (Subtype.ext (Finset.Subset.antisymm hst hts)))
+  · rw [← hK, ← birth_ascent_top_step4_exit_facet_step3_boundary_neighborhood_step4_relint_cover K]
+    ext x
+    constructor
+    · intro hx
+      obtain ⟨e, he, hxe⟩ := Set.mem_iUnion₂.mp hx
+      obtain ⟨s, _, rfl⟩ := Finset.mem_image.mp he
+      exact Set.mem_iUnion₂.mpr ⟨s.val, s.property, hxe⟩
+    · intro hx
+      obtain ⟨s, hs, hxs⟩ := Set.mem_iUnion₂.mp hx
+      exact Set.mem_iUnion₂.mpr ⟨c ⟨s, hs⟩, Finset.mem_image.mpr ⟨⟨s, hs⟩,
+        Finset.mem_univ _, rfl⟩, hxs⟩
+  · intro e he
+    obtain ⟨s, _, rfl⟩ := Finset.mem_image.mp he
+    let q := s.val.powerset.filter (fun t => t.Nonempty ∧ t ≠ s.val)
+    have hq (t : Finset (E d)) (ht : t ∈ q) : t ∈ K.faces :=
+      K.down_closed s.property (Finset.mem_powerset.mp (Finset.mem_filter.mp ht).1)
+        (Finset.mem_filter.mp ht).2.1
+    let b : Finset (Cell d) := q.attach.image fun t => c ⟨t.val, hq t.val t.property⟩
+    refine ⟨b, ?_, ?_⟩
+    · intro e he
+      obtain ⟨t, _, rfl⟩ := Finset.mem_image.mp he
+      exact Finset.mem_image.mpr ⟨_, Finset.mem_univ _, rfl⟩
+    · change relfrontier (convexHull ℝ (s.val : Set (E d))) = _
+      rw [birth_ascent_top_step4_exit_facet_step3_boundary_neighborhood_step5_simplex_boundary s.val (K.indep s.property)]
+      ext x
+      constructor
+      · intro hx
+        obtain ⟨t, ht, hxt⟩ := Set.mem_iUnion₂.mp hx
+        refine Set.mem_iUnion₂.mpr ⟨c ⟨t, hq t ht⟩, ?_, hxt⟩
+        exact Finset.mem_image.mpr ⟨⟨t, ht⟩, Finset.mem_attach _ _, rfl⟩
+      · intro hx
+        obtain ⟨e, he, hxe⟩ := Set.mem_iUnion₂.mp hx
+        obtain ⟨t, _, rfl⟩ := Finset.mem_image.mp he
+        exact Set.mem_iUnion₂.mpr ⟨t.val, t.property, hxe⟩
+
 /-- Step 3 of the V4 proof of `birth_ascent_top_step4_exit_facet` (V4 1.25):
 "near a boundary point the polyhedral boundary separates a small ball into
 two sides and `int P₀` is one of them". This is the local connectedness
@@ -11519,7 +11757,12 @@ private theorem birth_ascent_top_step4_exit_facet_step3_boundary_neighborhood
     (D : PolyManifoldDomain d) (p : E d) (hp : p ∈ frontier D.carrier) :
     ∃ ε : ℝ, 0 < ε ∧ ∀ r : ℝ, 0 < r → r < ε →
       IsPreconnected (interior D.carrier ∩ Metric.ball p r) := by
-  sorry
+  obtain ⟨K, hfin, hK, hpure⟩ :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation
+      (principal_component_step1_hull_geometry_step10_jordan_brouwer_step5_frontier_polyhedral
+        D.polyhedral) D.frontier_manifold
+  obtain ⟨C⟩ := birth_ascent_top_step4_exit_facet_step3_boundary_neighborhood_step6_boundary_complex D K hfin hK hpure
+  exact birth_ascent_routing_step4_boundary_neighborhood D C p hp
 
 /-- Step 4 of the V4 proof of `birth_ascent_top_step4_exit_facet` (V4 1.25):
 "`int P₀ ∩ B(p,ρ)` is connected for small `ρ` ... near an interior point

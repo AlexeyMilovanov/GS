@@ -1684,7 +1684,42 @@ private lemma internal_facet_pairing_step2b_nullity
     (l : S.I P.ty) (hl : l ≠ i)
     (hl' : ∀ g : FacetName S (P.child n l).ty, (P.child n l).cell n g.val ≠ (P.child n i).cell n f.val) :
     MeasureTheory.Measure.hausdorffMeasure (d - 1 : ℝ)
-      ((P.child n l).carrier n ∩ (P.child n i).cell n f.val) = 0 := by sorry
+      ((P.child n l).carrier n ∩ (P.child n i).cell n f.val) = 0 := by
+  classical
+  have hnull : ∀ e ∈ (S.cx (P.child n l).ty).cells,
+      MeasureTheory.Measure.hausdorffMeasure (d - 1 : ℝ)
+        ((P.child n l).cell n e ∩ (P.child n i).cell n f.val) = 0 := by
+    intro e he
+    by_cases hdim : e.dim = d - 1
+    · let g : FacetName S (P.child n l).ty := ⟨e, Finset.mem_filter.mpr ⟨he, hdim⟩⟩
+      by_contra hne
+      have hover : PositiveFacetOverlap ((P.child n l).cell n g.val)
+          ((P.child n i).cell n f.val) := lt_of_le_of_ne (zero_le _) (Ne.symm hne)
+      exact hl' g (sibling_facet_eq P n l i hl g f hover).1
+    · have hlt := (S.cx (P.child n l).ty).dim_lt e he
+      exact MeasureTheory.measure_mono_null inter_subset_left
+        (sibling_facet_eq_step1_lowcell_null (P.child n l) n e (by omega))
+  obtain ⟨-, hri⟩ := sibling_intersection_cells_step1_reg (P.child n i) n
+  obtain ⟨hcl, -⟩ := sibling_intersection_cells_step1_reg (P.child n l) n
+  have hdisj := (sibling_intersection_cells_step1_disjoint P n l i hl).closure_right
+    isOpen_interior
+  rw [hri] at hdisj
+  have hsub : (P.child n l).carrier n ∩ (P.child n i).cell n f.val ⊆
+      ⋃ e ∈ (S.cx (P.child n l).ty).cells,
+        (P.child n l).cell n e ∩ (P.child n i).cell n f.val := by
+    rintro p ⟨hpl, hpf⟩
+    have hpi : p ∈ (P.child n i).carrier n :=
+      hereditary_trace_step1_cell_subset (P.child n i) n f.val
+        (sibling_facet_eq_step0_facet f).1 hpf
+    have hfront : p ∈ frontier ((P.child n l).carrier n) := by
+      rw [hcl.frontier_eq]
+      exact ⟨hpl, fun hpint => Set.disjoint_left.mp hdisj hpint hpi⟩
+    obtain ⟨e, he, hpe⟩ :=
+      hereditary_trace_step1_frontier_relint (P.child n l) n p hfront
+    exact mem_iUnion₂.mpr ⟨e, he, intrinsicInterior_subset hpe, hpf⟩
+  apply MeasureTheory.measure_mono_null hsub
+  refine le_antisymm ((MeasureTheory.measure_biUnion_finset_le _ _).trans
+    (Finset.sum_eq_zero fun e he => hnull e he).le) (zero_le _)
 
 /-- Step 2c of the V4 proof of `internal_facet_pairing` (V4 1.4(c)): there is exactly one child (other than i) having F as a facet. -/
 private lemma internal_facet_pairing_step2c_uniqueness

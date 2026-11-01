@@ -678,7 +678,34 @@ theorem ancestralStratum_spec (P C : FramedNode S) (n h : ℕ)
     relint (C.cell h g.val) ⊆
         relint (P.cell n (ancestralStratum P C n h hC g hg).val) ∧
       g.val.dim ≤ (ancestralStratum P C n h hC g hg).val.dim := by
-  sorry
+  have H1 := Classical.choose_spec (ancestralStratum_exists_unique P C n h hC g hg)
+  have H2 : relint (C.cell h g.val) ⊆ relint (P.cell n (ancestralStratum P C n h hC g hg).val) := H1.1
+  refine ⟨H2, ?_⟩
+  have h_nonempty : (relint (C.cell h g.val)).Nonempty := by
+    obtain ⟨p, hp⟩ := g.val.flat.relint_nonempty
+    use C.prototypeFrame h p
+    have H_cell_def : C.cell h g.val = (C.prototypeFrame h : E d ≃ᵃ[ℝ] E d) '' g.val.carrier := rfl
+    rw [H_cell_def]
+    have h_eq := hereditary_trace_step1_relint_image (C.prototypeFrame h) g.val.carrier
+    rw [h_eq]
+    exact Set.mem_image_of_mem _ hp
+  have h_inter : (relint (C.cell h g.val) ∩ P.cell n (ancestralStratum P C n h hC g hg).val).Nonempty := by
+    obtain ⟨p, hp⟩ := h_nonempty
+    exact ⟨p, hp, intrinsicInterior_subset (H2 hp)⟩
+  have H3 := hereditary_trace P C n h hC (ancestralStratum P C n h hC g hg).val g.val (ancestralStratum P C n h hC g hg).property g.property h_inter
+  have H4 : C.cell h g.val ⊆ P.cell n (ancestralStratum P C n h hC g hg).val := H3
+  have h_dim1 : Module.finrank ℝ (affineSpan ℝ (C.cell h g.val)).direction = g.val.dim := by
+    dsimp [FramedNode.cell]
+    change Module.finrank ℝ (affineSpan ℝ ((C.prototypeFrame h).toAffineMap '' g.val.carrier)).direction = _
+    rw [← AffineSubspace.map_span, AffineSubspace.map_direction]
+    exact (LinearEquiv.finrank_map_eq (C.prototypeFrame h).linear _).trans g.val.flat.dimension
+  have h_dim2 : Module.finrank ℝ (affineSpan ℝ (P.cell n (ancestralStratum P C n h hC g hg).val)).direction = (ancestralStratum P C n h hC g hg).val.dim := by
+    dsimp [FramedNode.cell]
+    change Module.finrank ℝ (affineSpan ℝ ((P.prototypeFrame n).toAffineMap '' (ancestralStratum P C n h hC g hg).val.carrier)).direction = _
+    rw [← AffineSubspace.map_span, AffineSubspace.map_direction]
+    exact (LinearEquiv.finrank_map_eq (P.prototypeFrame n).linear _).trans (ancestralStratum P C n h hC g hg).val.flat.dimension
+  rw [← h_dim1, ← h_dim2]
+  exact Submodule.finrank_mono (AffineSubspace.direction_le (affineSpan_mono ℝ H4))
 
 /-- P2, V4 1.2: ancestral strata preserve inclusion of incident cells. -/
 theorem ancestralStratum_mono (P C : FramedNode S) (n h : ℕ)

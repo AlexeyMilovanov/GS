@@ -510,7 +510,56 @@ theorem colour_disjointness_ii (C : ClusterData S P) :
       (a : Fin (d + 1)) (x : (Compiler.eventRule C e).carrier),
       (Compiler.eventRule C e).mark x = Colour.trigger l j a →
         e.leaf = l ∧ HEq e.slot j ∧ x.val ∈ C.enclosing e.leaf (.trigger e.slot) := by
-  sorry
+  have hreadout (z : FramedNode S × LeafType P) (l : LeafType P)
+      (j : EventSlot l) (a : Fin (d + 1)) (x : E d)
+      (hx : x ∈ Compiler.readoutRegion C z) :
+      augmentedColour C z.2 (z.1.frame.symm x) ≠ Colour.trigger l j a := by
+    intro h
+    obtain ⟨hl, hm⟩ :=
+      (augmentedColour_micro_iff C l z.2 (.trigger j) a (z.1.frame.symm x)).mp h
+    subst l
+    have hc : z.1.frame.symm x ∈ C.cluster z.2 (.trigger j) :=
+      Set.mem_iUnion.mpr ⟨a, hm⟩
+    have hr : z.1.frame.symm x ∈ C.enclosing z.2 .readout := by
+      obtain ⟨y, hy, rfl⟩ := hx
+      simpa only [AffineIsometryEquiv.symm_apply_apply] using hy
+    exact Set.disjoint_left.mp
+      (C.cluster_disjoint_enclosing z.2 (.trigger j) .readout (by intro h; cases h))
+      hc hr
+  refine ⟨?_, ?_, ?_⟩
+  · intro D l j a x h
+    change Compiler.certificateColour C D x.val = Colour.trigger l j a at h
+    unfold Compiler.certificateColour at h
+    split_ifs at h with hex
+    · obtain ⟨hl, hm⟩ :=
+        (augmentedColour_micro_iff C l _ (.trigger j) a _).mp h
+      subst l
+      have hc : (LeafType.position (⟨D, Classical.choose hex⟩ : LeafType P)).symm x.val ∈
+          C.cluster (⟨D, Classical.choose hex⟩ : LeafType P) (.trigger j) :=
+        Set.mem_iUnion.mpr ⟨a, hm⟩
+      have ho := C.trigger_cluster_subset_open _ j hc
+      apply x.property.2
+      apply Set.mem_iUnion.mpr
+      refine ⟨Classical.choose hex, Set.mem_iUnion.mpr ⟨j, ?_⟩⟩
+      exact ⟨_, ho, AffineIsometryEquiv.apply_symm_apply _ _⟩
+  · intro e z hz l j a x hx
+    exact hreadout z l j a x hx
+  · intro e l j a x h
+    change Compiler.eventColour C e x.val = Colour.trigger l j a at h
+    unfold Compiler.eventColour at h
+    split_ifs at h with ht hr
+    · obtain ⟨hl, hm⟩ :=
+        (augmentedColour_micro_iff C l e.leaf (.trigger j) a x.val).mp h
+      subst l
+      have hc : x.val ∈ C.cluster e.leaf (.trigger j) := Set.mem_iUnion.mpr ⟨a, hm⟩
+      have hj : j = e.slot := by
+        by_contra hne
+        exact Set.disjoint_left.mp
+          (C.cluster_disjoint_enclosing e.leaf (.trigger j) (.trigger e.slot)
+            (fun hh => hne (ClusterKind.trigger.inj hh))) hc ht
+      exact ⟨rfl, heq_of_eq hj.symm, ht⟩
+    · exact False.elim (hreadout (Classical.choose hr) l j a x.val
+        (Classical.choose_spec hr).2 h)
 
 /-- M4, V4 2.12(iii): a microcolour's locus is precisely one radius-rho ball
 in each tile of that leaf type. Distinct tiles' corresponding centres are at

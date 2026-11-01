@@ -222,9 +222,20 @@ def honestPackets (S : SubstSystem d) (P : Params S) : Set (Packet P) :=
   {q | ∃ (U : HonestSource S) (g : PrimitiveOccurrence U P), packetOf U P g = q}
 
 /-- Q8, V4 2.5: the honest packet alphabet is finite. -/
+private theorem packets_finite_step1_subset (S : SubstSystem d) (P : Params S) :
+    honestPackets S P ⊆ ⋃ (g : P.Incidence), ⋃ (jstar : Fin P.k), ⋃ (sstar : State P) (_ : sstar ∈ honestStates S P), ⋃ (roles : Fin jstar.val → S.Role), {Packet.mk g jstar sstar roles} := by
+  rintro q ⟨U, g, rfl⟩
+  simp only [mem_iUnion, mem_singleton_iff]
+  exact ⟨g.incidence, topSlot U P g, stateOf U P (U.hierarchy.ancestor g.birth (topSlot U P g).val), ⟨U, U.hierarchy.ancestor g.birth (topSlot U P g).val, rfl⟩, fun j => U.hierarchy.nodeRole (U.hierarchy.ancestor g.birth j.val), rfl⟩
+
 theorem packets_finite (S : SubstSystem d) (P : Params S) :
     (honestPackets S P).Finite := by
-  sorry
+  apply (Set.Finite.subset (s := ⋃ (g : P.Incidence), ⋃ (jstar : Fin P.k), ⋃ (sstar : State P) (_ : sstar ∈ honestStates S P), ⋃ (roles : Fin jstar.val → S.Role), {Packet.mk g jstar sstar roles}) ?_ (packets_finite_step1_subset S P))
+  apply finite_iUnion; intro g
+  apply finite_iUnion; intro jstar
+  apply (states_finite S P).biUnion; intro sstar _
+  apply finite_iUnion; intro roles
+  exact finite_singleton _
 
 namespace HonestSource
 

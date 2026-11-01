@@ -270,6 +270,90 @@ def SourceRestrictionPath (U : HonestSource S) (B t : U.Node)
     path.IsChain (fun a b => (S.child a.role.1 a.role.2).ty = b.role.1 ∧
       a.target.val = b.source.val)
 
+open private hereditary_trace_step1_relint_image hereditary_trace_step1_cell_frontier
+  hereditary_trace_step2_relint_mono facet_dichotomy_step1c_unique_sub
+  from Enforce.Source.Trace in
+/-- Step 1 of the V4 proof of `sourceRestrictionPath_exists` (V4 1.7(c)):
+"where t is the unique cell of B". A boundary facet factors through a
+facet of its immediate parent, which is contained in the named ancestor facet. -/
+private theorem sourceRestrictionPath_exists_step1_parent_facet
+    (U : HonestSource S) (B t : U.Node) (n : ℕ) (hn : 1 ≤ n)
+    (hanc : U.hierarchy.ancestor t n = B)
+    (F : FacetName S B.2.val.ty) (f : FacetName S t.2.val.ty)
+    (hsub : t.2.val.cell t.1 f.val ⊆ B.2.val.cell B.1 F.val) :
+    ∃ G : FacetName S (U.hierarchy.parentNode t).2.val.ty,
+      t.2.val.cell t.1 f.val ⊆
+        (U.hierarchy.parentNode t).2.val.cell (U.hierarchy.parentNode t).1 G.val ∧
+      (U.hierarchy.parentNode t).2.val.cell (U.hierarchy.parentNode t).1 G.val ⊆
+        B.2.val.cell B.1 F.val := by
+  have hboundary : n ∈ U.hierarchy.boundaryOffsets t f := by
+    change t.2.val.cell t.1 f.val ⊆
+      frontier ((U.hierarchy.ancestor t n).2.val.carrier (U.hierarchy.ancestor t n).1)
+    rw [hanc]
+    exact hsub.trans (hereditary_trace_step1_cell_frontier _ _ _
+      (Finset.mem_filter.mp F.property).1)
+  have hparent := (U.hierarchy.boundaryOffsets_downward t f).2 1 n hn hboundary
+  have hne : (relint (t.2.val.cell t.1 f.val)).Nonempty := by
+    rw [FramedNode.cell, hereditary_trace_step1_relint_image]
+    exact f.val.flat.relint_nonempty.image _
+  have hd := U.hierarchy.ancestor_descendant t 1
+  change t.2.val.IsDescendant t.1 (U.hierarchy.parentNode t).2.val
+    (U.hierarchy.parentNode t).1 at hd
+  rcases facet_dichotomy _ _ _ _ hd f with ⟨G, htG, _⟩ | hint
+  · refine ⟨G, htG, ?_⟩
+    have hanc' : U.hierarchy.ancestor (U.hierarchy.parentNode t) (n - 1) = B := by
+      change U.hierarchy.ancestor (U.hierarchy.ancestor t 1) (n - 1) = B
+      rw [U.hierarchy.ancestor_add, Nat.add_sub_of_le hn]
+      exact hanc
+    have hd' := U.hierarchy.ancestor_descendant (U.hierarchy.parentNode t) (n - 1)
+    rw [hanc'] at hd'
+    obtain ⟨x, hx⟩ := hne
+    exact hereditary_trace _ _ _ _ hd' F.val G.val
+      (Finset.mem_filter.mp F.property).1 (Finset.mem_filter.mp G.property).1
+      ⟨x, hereditary_trace_step2_relint_mono _ _ htG
+        (facet_dichotomy_step1c_unique_sub _ _ _ _ f G htG) hx,
+        hsub (intrinsicInterior_subset hx)⟩
+  · obtain ⟨x, hx⟩ := hne
+    exact False.elim ((hparent (intrinsicInterior_subset hx)).2 (hint hx))
+
+open private hereditary_trace_step3_child_cell hereditary_trace_step3_parent_cell
+  from Enforce.Source.Trace in
+/-- Step 2 of the V4 proof of `sourceRestrictionPath_exists` (V4 1.7(c)):
+"C be the child of B of role i". Cancelling the common positioned frame
+turns actual one-step facet containment into an inherited restriction step. -/
+private theorem sourceRestrictionPath_exists_step2_actual_step
+    (U : HonestSource S) (t : U.Node)
+    (F : FacetName S (U.hierarchy.parentNode t).2.val.ty)
+    (f : FacetName S t.2.val.ty)
+    (hsub : t.2.val.cell t.1 f.val ⊆
+      (U.hierarchy.parentNode t).2.val.cell (U.hierarchy.parentNode t).1 F.val) :
+    ∃ a : RestrictionStep S, a.role = U.hierarchy.nodeRole t ∧
+      a.source.val = F.val ∧ a.target.val = f.val := by
+  let p := U.hierarchy.parentNode t
+  let i : S.I p.2.val.ty := U.hierarchy.role t.1 t.2
+  have hc : t.2.val = p.2.val.child t.1 i := U.hierarchy.child_eq t.1 t.2
+  have hty : t.2.val.ty = (S.child p.2.val.ty i).ty := congrArg FramedNode.ty hc
+  let g : FacetName S (S.child p.2.val.ty i).ty := ⟨f.val, hty ▸ f.property⟩
+  have hs : (p.2.val.child t.1 i).cell t.1 f.val ⊆
+      p.2.val.cell (t.1 + 1) F.val := by
+    rw [← hc]
+    exact hsub
+  rw [hereditary_trace_step3_child_cell, hereditary_trace_step3_parent_cell] at hs
+  have hinherited : placedSet (S.child p.2.val.ty i).frame g.val.carrier ⊆
+      S.σ '' F.val.carrier :=
+    (Set.image_subset_image_iff (p.2.val.frame.injective.comp (S.σ ^ t.1).injective)).mp hs
+  exact ⟨⟨U.hierarchy.nodeRole t, F, g, hinherited⟩, rfl, rfl, rfl⟩
+
+/-- Step 3 of the V4 proof of `sourceRestrictionPath_exists` (V4 2.5):
+"the ancestors". Reading the actual roles downward appends the immediate role. -/
+private theorem sourceRestrictionPath_exists_step3_downRoles
+    (U : HonestSource S) (t : U.Node) (n : ℕ) :
+    U.downRoles t (n + 1) =
+      U.downRoles (U.hierarchy.parentNode t) n ++ [U.hierarchy.nodeRole t] := by
+  simp only [HonestSource.downRoles, List.ofFn_succ, List.reverse_cons,
+    Fin.val_succ, Fin.val_zero, CoherentHierarchy.ancestor, Function.iterate_zero, id_eq,
+    Function.iterate_succ_apply]
+
 /-- Q13, V4 §2.5: the inherited facet path exists in every actual boundary track.
 Existence follows by iterating the existing V4 1.7(c) restriction geometry. -/
 theorem sourceRestrictionPath_exists (U : HonestSource S) (B t : U.Node)
@@ -277,7 +361,76 @@ theorem sourceRestrictionPath_exists (U : HonestSource S) (B t : U.Node)
     (F : FacetName S B.2.val.ty) (f : FacetName S t.2.val.ty)
     (hsub : t.2.val.cell t.1 f.val ⊆ B.2.val.cell B.1 F.val) :
     ∃ path : List (RestrictionStep S), SourceRestrictionPath U B t F f path := by
-  sorry
+  have build : ∀ (n : ℕ) (t : U.Node), B.1 - t.1 = n + 1 →
+      U.hierarchy.ancestor t (n + 1) = B →
+      ∀ f : FacetName S t.2.val.ty,
+        t.2.val.cell t.1 f.val ⊆ B.2.val.cell B.1 F.val →
+        ∃ path : List (RestrictionStep S), SourceRestrictionPath U B t F f path := by
+    intro n
+    induction n with
+    | zero =>
+      intro t hn hanc f hsub
+      have hp : U.hierarchy.parentNode t = B := hanc
+      subst B
+      obtain ⟨a, hr, hs, ht⟩ :=
+        sourceRestrictionPath_exists_step2_actual_step U t F f hsub
+      refine ⟨[a], ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+      · change t.1 < t.1 + 1
+        omega
+      · rw [hn]
+      · simpa using hn.symm
+      · rw [hn, sourceRestrictionPath_exists_step3_downRoles]
+        simp [HonestSource.downRoles, hr]
+      · simpa using congrArg some hs
+      · simpa using congrArg some ht
+      · simp
+    | succ n ih =>
+      intro t hn hanc f hsub
+      obtain ⟨G, htG, hGF⟩ := sourceRestrictionPath_exists_step1_parent_facet
+        U B t (n + 1 + 1) (by omega) hanc F f hsub
+      have hheight : (U.hierarchy.parentNode t).1 = t.1 + 1 := rfl
+      have hgap : B.1 - (U.hierarchy.parentNode t).1 = n + 1 := by omega
+      have hanc' : U.hierarchy.ancestor (U.hierarchy.parentNode t) (n + 1) = B := by
+        simpa only [CoherentHierarchy.ancestor, Function.iterate_succ_apply] using hanc
+      obtain ⟨path, hpath⟩ := ih (U.hierarchy.parentNode t) hgap hanc' G hGF
+      obtain ⟨a, hr, hs, ht⟩ :=
+        sourceRestrictionPath_exists_step2_actual_step U t G f htG
+      obtain ⟨hlt', ha', hlen, hroles, hhead, hlast, hchain⟩ := hpath
+      have hnil : path ≠ [] := by
+        intro he
+        simp [he, hgap] at hlen
+      have hlastRole : path.getLast?.map RestrictionStep.role =
+          some (U.hierarchy.nodeRole (U.hierarchy.parentNode t)) := by
+        rw [← List.getLast?_map, hroles, hgap,
+          sourceRestrictionPath_exists_step3_downRoles]
+        simp
+      refine ⟨path ++ [a], ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+      · omega
+      · rw [hn]
+        exact hanc
+      · simp only [List.length_append, List.length_singleton, hlen, hgap]
+        omega
+      · simp only [List.map_append, List.map_singleton, hroles, hgap, hn,
+          sourceRestrictionPath_exists_step3_downRoles, hr]
+      · simpa only [List.head?_append_of_ne_nil _ hnil] using hhead
+      · simp [ht]
+      · apply List.isChain_append.mpr
+        refine ⟨hchain, by simp, ?_⟩
+        intro b hb c hc
+        have hc' : a = c := by simpa using hc
+        subst c
+        have hb' : path.getLast? = some b := Option.mem_def.mp hb
+        have hbr : b.role = U.hierarchy.nodeRole (U.hierarchy.parentNode t) := by
+          simpa only [hb', Option.map_some, Option.some.injEq] using hlastRole
+        have hbt : b.target.val = G.val := by
+          simpa only [hb', Option.map_some, Option.some.injEq] using hlast
+        refine ⟨?_, hbt.trans hs.symm⟩
+        rw [hbr, hr]
+        exact (congrArg FramedNode.ty
+          (U.hierarchy.child_eq (U.hierarchy.parentNode t).1
+            (U.hierarchy.parentNode t).2)).symm
+  have hn : B.1 - t.1 = (B.1 - t.1 - 1) + 1 := by omega
+  exact build (B.1 - t.1 - 1) t hn (by simpa only [← hn] using hanc) f hsub
 
 /-- Step 1 of the V4 proof of `restrictionOp_source` (V4 2.3): (S6): "re-expressed in C's frame". The full child frame is the parent frame composed with the normalized role placement. -/
 private theorem restrictionOp_source_step1_frame (N : FramedNode S) (n : ℕ) (i : S.I N.ty) :

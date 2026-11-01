@@ -4005,7 +4005,58 @@ private theorem tangentCone_tile_isHPiCone_step2_assemble
       ⋃ (σ : Fin n → Bool) (_ : P σ),
         {v | ∀ i,
           0 ≤ (if σ i then (1 : ℝ) else -1) * ℓ i v}) := by
-  sorry
+  classical
+  set L := t.frame.toAffineEquiv.linear
+  have hmem : ∀ U : Submodule ℝ (E d), U ∈ S.cellDirections →
+      U.map L.toLinearMap ∈ S.hPi := by
+    intro U hU
+    exact ⟨U, hU, t.frame.linearIsometryEquiv, ht, rfl⟩
+  let fn : (Fin n → Bool) → Fin n → E d →ₗ[ℝ] ℝ := fun σ i =>
+    ((if σ i then (1 : ℝ) else -1) • ℓ i).comp L.symm.toLinearMap
+  have hfn : ∀ σ i v, fn σ i (L v) = (if σ i then (1 : ℝ) else -1) * ℓ i v := by
+    intro σ i v
+    simp only [fn, LinearMap.comp_apply, LinearMap.smul_apply, smul_eq_mul,
+      LinearEquiv.coe_coe, LinearEquiv.symm_apply_apply]
+  have hc : ∀ (σ : Fin n → Bool) i, (if σ i then (1 : ℝ) else -1) ≠ (0 : ℝ) := by
+    intro σ i
+    split_ifs <;> norm_num
+  let side : (Fin n → Bool) → Fin n → Set (E d) := fun σ i =>
+    {y | 0 ≤ fn σ i y}
+  let piece : (Fin n → Bool) → Finset (Set (E d)) := fun σ =>
+    insert (⊤ : Set (E d)) (Finset.univ.image (side σ))
+  refine ⟨(Finset.univ.filter P).image piece, ?_, ?_⟩
+  · rw [Finset.set_biUnion_finset_image]
+    ext y
+    simp only [piece, Finset.set_biInter_insert, Finset.set_biInter_finset_image,
+      Set.mem_image, Set.mem_iUnion, Set.mem_iInter, Finset.mem_filter, Finset.mem_univ,
+      true_and, exists_prop, Set.mem_setOf_eq, side,
+      forall_const, Set.top_eq_univ, Set.univ_inter]
+    constructor
+    · rintro ⟨v, ⟨σ, hσ, hv⟩, rfl⟩
+      refine ⟨σ, hσ, fun i => ?_⟩
+      exact by rw [hfn]; exact hv i
+    · rintro ⟨σ, hσ, hy⟩
+      obtain ⟨v, rfl⟩ := L.surjective y
+      refine ⟨v, ⟨σ, hσ, fun i => ?_⟩, rfl⟩
+      have := hy i
+      simpa only [LinearEquiv.coe_coe, hfn] using this
+  · intro pc hpc K hK
+    obtain ⟨σ, -, rfl⟩ := Finset.mem_image.mp hpc
+    rcases Finset.mem_insert.mp hK with hK | hK
+    · exact Or.inl ⟨⊤, Or.inr rfl, hK⟩
+    · obtain ⟨i, -, rfl⟩ := Finset.mem_image.mp hK
+      have H : side σ i = {x | x ∈ (⊤ : Submodule ℝ (E d)) ∧ 0 ≤ fn σ i x} := by
+        ext x
+        simp only [side, Set.mem_setOf_eq, Submodule.mem_top, true_and]
+      refine Or.inr ⟨⊤, (W i).map L.toLinearMap, Or.inr rfl,
+        Or.inl (hmem (W i) (hW i)), le_top, ?_, fn σ i, ?_, H⟩
+      · rw [LinearEquiv.finrank_map_eq, finrank_top ℝ (E d), finrank_euclideanSpace_fin, ← hdim i]
+      · ext y
+        have h := Set.ext_iff.mp (hℓ i) (L.symm y)
+        simp only [Set.mem_setOf_eq, SetLike.mem_coe, Submodule.mem_map_equiv]
+        simp only [fn, LinearMap.comp_apply, LinearMap.smul_apply, smul_eq_mul,
+          LinearEquiv.coe_coe, mul_eq_zero, hc σ i, false_or, Submodule.mem_top, true_and]
+        exact h
 
 /-- P11, V4 1.16(b'): cones of finite unions of compatible cells at a listed
 anchor are `HΠ`-cones, as are full tile cones at listed vertices. -/

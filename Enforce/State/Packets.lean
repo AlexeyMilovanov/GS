@@ -929,7 +929,8 @@ private theorem packet_inherited_step2_occurrence_step1_induction (U : HonestSou
     (hq : ¬ U.hierarchy.IsFault q f) (hc : ¬ U.hierarchy.IsFault c g) :
     U.hierarchy.providerCarrier c g hc = U.hierarchy.providerCarrier q f hq ∧
     U.hierarchy.birthParent c g hc = U.hierarchy.birthParent q f hq := by
-  sorry
+  obtain ⟨_, h1, h2⟩ := U.hierarchy.provider_inherited q c a hca f g hq hgf
+  exact ⟨h1, h2⟩
 
 /-- Step 2 of the V4 proof of `packet_inherited_step2_occurrence`: the carrier of the constructed
 provider occurrence is equal to the hierarchy's provider carrier. -/

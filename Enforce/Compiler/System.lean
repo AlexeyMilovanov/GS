@@ -738,7 +738,7 @@ structure MovedSource (U V : HonestSource S) (g : Iso d) : Prop where
 /-- Step 1 of the V4 proof of `honest_move_exists` (V4 1.11, 2.14(d)): the moved tiling belongs to the species. -/
 private lemma honest_move_exists_step1_species (U : HonestSource S) (g : Iso d) :
     U.tiling.move g ∈ S.Species :=
-  sorry
+  (species_move_iff U.tiling g).mpr U.mem_species
 
 /-- Step 2 of the V4 proof of `honest_move_exists` (V4 1.11, 2.14(d)): moving the entire coherent hierarchy preserves coherence. -/
 private lemma honest_move_exists_step2_hierarchy (U : HonestSource S) (g : Iso d) :

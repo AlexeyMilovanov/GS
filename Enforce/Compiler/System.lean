@@ -1803,7 +1803,37 @@ theorem compiler_tiles_locallyFinite (C : ClusterData S P)
       ∀ B : Set (E d), Bornology.IsBounded B →
         {t : PlacedMarkedTile (systemM S P C) |
           t ∈ Y.tiles ∧ (B ∩ t.carrier).Nonempty}.Finite := by
-  sorry
+classical
+  have hc : ∀ t : PlacedMarkedTile (systemM S P C),
+      placedSet (compilerFrame C t) (S.proto (compilerLeaf C t).prototype).carrier = t.carrier :=
+    fun t => (compilerFrame_carrier C t).symm
+  have hd : Pairwise (fun t u : {t // t ∈ Y.tiles} => Disjoint
+      (interior (placedSet (compilerFrame C t.val)
+        (S.proto (compilerLeaf C t.val).prototype).carrier))
+      (interior (placedSet (compilerFrame C u.val)
+        (S.proto (compilerLeaf C u.val).prototype).carrier))) := by
+    intro t u htu
+    rw [hc, hc]
+    exact Y.disjoint t.property u.property (fun h => htu (Subtype.ext h))
+  have h := locallyFinite_disjointInteriors S.proto
+    (fun t : {t // t ∈ Y.tiles} => (compilerLeaf C t.val).prototype)
+    (fun t : {t // t ∈ Y.tiles} => compilerFrame C t.val) hd
+  have e : (fun t : {t // t ∈ Y.tiles} =>
+      placedSet (compilerFrame C t.val) (S.proto (compilerLeaf C t.val).prototype).carrier)
+      = fun t => t.val.carrier := funext fun t => hc t.val
+  refine ⟨?_, ?_⟩
+  · have := h.1
+    rwa [e] at this
+  · intro B hB
+    have := h.2 B hB
+    have h_eq : {a : {t // t ∈ Y.tiles} | (B ∩ placedSet (compilerFrame C a.val) (S.proto (compilerLeaf C a.val).prototype).carrier).Nonempty} = {a : {t // t ∈ Y.tiles} | (B ∩ a.val.carrier).Nonempty} := by
+      ext a
+      change (B ∩ placedSet (compilerFrame C a.val) (S.proto (compilerLeaf C a.val).prototype).carrier).Nonempty ↔ (B ∩ a.val.carrier).Nonempty
+      have hc2 : placedSet (compilerFrame C a.val) (S.proto (compilerLeaf C a.val).prototype).carrier = a.val.carrier := (compilerFrame_carrier C a.val).symm
+      rw [hc2]
+    rw [h_eq] at this
+    exact this.image Subtype.val |>.subset (by
+      intro t ht; exact ⟨⟨t, ht.1⟩, ht.2, rfl⟩)
 
 namespace Compiler
 

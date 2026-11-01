@@ -181,7 +181,55 @@ private theorem species_eq_legal_step4_interior {S : SubstSystem d} {P P' : Patc
     {ε : ℝ} (hε : 0 < ε) (hsub : P.tiles ⊆ P'.tiles)
     (hcov : Metric.cthickening ε P.support ⊆ P'.support) (hl : IsLegal P') :
     InteriorLegal P := by
-  sorry
+  rcases hl with ⟨n, A, ψ, h1⟩
+  use n, A, ψ
+  constructor
+  · intro t ht
+    exact h1 t (hsub ht)
+  · have h2 : ψ '' P'.support ⊆ S.supertile n A := by
+      intro x hx
+      rcases hx with ⟨y, hy, rfl⟩
+      simp only [Patch.support, Set.mem_iUnion] at hy
+      rcases hy with ⟨t, ht, hy2⟩
+      rcases h1 t ht with ⟨w, hw⟩
+      have h4 : ψ y ∈ (t.move ψ).carrier := by
+        rw [PlacedTile.move_carrier]
+        exact ⟨y, hy2, rfl⟩
+      rw [hw] at h4
+      have h5 : (S.nativeTile A n w).toTile.carrier ⊆ S.supertile n A := by
+        have h_cover : ⋃ w : S.RoleWord A n, (S.nativeTile A n w).carrier 0 = S.supertile n A := S.native_cover A n
+        rw [← h_cover]
+        have h_eq : (S.nativeTile A n w).toTile.carrier = (S.nativeTile A n w).carrier 0 := by
+          simp [FramedNode.carrier, FramedNode.toTile,
+            PlacedTile.ofFrame, SubstSystem.supertile, placedSet]
+        rw [h_eq]
+        exact Set.subset_iUnion (fun w => (S.nativeTile A n w).carrier 0) w
+      exact h5 h4
+    have h3 : ψ '' P.support ⊆ interior (ψ '' P'.support) := by
+      intro x hx
+      rcases hx with ⟨y, hy, rfl⟩
+      rw [mem_interior]
+      use Metric.ball (ψ y) ε
+      constructor
+      · intro z hz
+        have hz3 : dist (ψ y) z < ε := by exact Metric.mem_ball'.mp hz
+        have hz2 : dist y (ψ.symm z) < ε := by
+          rw [← ψ.isometry.dist_eq y (ψ.symm z)]
+          have h_eq : ψ (ψ.symm z) = z := AffineIsometryEquiv.apply_symm_apply ψ z
+          rw [h_eq]
+          exact hz3
+        have h_thick : ψ.symm z ∈ Metric.cthickening ε P.support := by
+          exact Metric.mem_cthickening_of_dist_le
+            (ψ.symm z) y ε P.support hy
+            (by simpa only [dist_comm] using hz2.le)
+        have h_P' : ψ.symm z ∈ P'.support := hcov h_thick
+        exact ⟨ψ.symm z, h_P', AffineIsometryEquiv.apply_symm_apply ψ z⟩
+      · constructor
+        · exact Metric.isOpen_ball
+        · exact Metric.mem_ball_self hε
+    have h4 : interior (ψ '' P'.support) ⊆ interior (S.supertile n A) := by
+      exact interior_mono h2
+    exact h3.trans h4
 
 /-- T3, V4 7.4: ordinary legality and interior legality give exactly the
 same whole-space species. The equivalence is asserted for all finite patches of

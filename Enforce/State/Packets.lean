@@ -937,7 +937,22 @@ provider occurrence is equal to the hierarchy's provider carrier. -/
 private theorem packet_inherited_step2_occurrence_step2_carrier (U : HonestSource S) (P : Params S) (q : U.Node)
     (f : FacetName S q.2.val.ty) (hq : ¬ U.hierarchy.IsFault q f) :
     (U.providerOccurrence P q f hq).carrier = U.hierarchy.providerCarrier q f hq := by
-  sorry
+  dsimp [PrimitiveOccurrence.carrier]
+  dsimp [HonestSource.providerOccurrence, Params.incidencePlacement]
+  dsimp [HonestSource.recordIncidence]
+  have hc := U.hierarchy.providerIncidence_spec q f hq
+  have h1 : SameIncidence (U.hierarchy.providerIncidence q f hq) (P.canonical (U.hierarchy.providerIncidence q f hq)).val :=
+    (P.canonical_spec (U.hierarchy.providerIncidence q f hq))
+  have h2 := hc.2.2.2
+  dsimp [SameIncidence] at h1
+  have h3 : (P.canonical (U.hierarchy.providerIncidence q f hq)).val.positioned =
+      (U.hierarchy.providerIncidence q f hq).positioned := h1.2.symm
+  rw [h2]
+  have h_b_eq : U.hierarchy.birthHeight q f hq = (U.hierarchy.birthParent q f hq).1 := rfl
+  rw [h_b_eq]
+  dsimp [PrimitiveIncidence.positioned, placedSet] at h3
+  rw [Set.image_comp, Set.image_comp]
+  congr 2
 
 /-- Step 2 of the V4 proof of `packet_inherited` (V4 2.6(d)): the provider occurrence is unchanged along inherited facet tracks. -/
 private theorem packet_inherited_step2_occurrence (U : HonestSource S) (P : Params S) (q c : U.Node)

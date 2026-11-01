@@ -2126,7 +2126,27 @@ private lemma stratumMap_spec_step2_dim {d : ℕ} [Fact (2 ≤ d)] {S : SubstSys
     (hf : ¬ H.IsFault q f) (s : CellName S q.2.val.ty)
     (hs : q.2.val.cell q.1 s.val ⊆ q.2.val.cell q.1 f.val) :
     s.val.dim ≤ (H.stratumMap q f hf s hs).val.dim := by
-  sorry
+  have H_anc := H.ancestor_descendant q (H.firstProvider q f hf).1
+  have H_prov := H.firstProvider_spec q f hf
+  have H_boundary_eq : H.boundaryOffsets q f = {r | r < (H.firstProvider q f hf).1 + 1} := H_prov.1
+  have H_mem : (H.firstProvider q f hf).1 ∈ H.boundaryOffsets q f := by
+    rw [H_boundary_eq]
+    simp only [Set.mem_setOf_eq, lt_add_iff_pos_right, zero_lt_one]
+  have H_boundary : q.2.val.cell q.1 f.val ⊆ frontier ((H.servingChild q f hf).2.val.carrier (H.servingChild q f hf).1) := H_mem
+  have H_subset := Set.Subset.trans hs H_boundary
+  have H_spec := ancestralStratum_spec (H.servingChild q f hf).2.val q.2.val (H.servingChild q f hf).1 q.1 H_anc s H_subset
+  dsimp [CoherentHierarchy.stratumMap]
+  have hd := Classical.choose_spec (H.stratum_exists_unique q f hf s hs)
+  obtain ⟨hd1, hd2⟩ := hd
+  have heq : (Classical.choose (H.stratum_exists_unique q f hf s hs)).val = (ancestralStratum (H.servingChild q f hf).2.val q.2.val (H.servingChild q f hf).1 q.1 H_anc s H_subset).val := by
+    apply congrArg Subtype.val
+    symm
+    apply hd2
+    exact H_spec.1
+  have h_eq_dim : (Classical.choose (H.stratum_exists_unique q f hf s hs)).val.dim = (ancestralStratum (H.servingChild q f hf).2.val q.2.val (H.servingChild q f hf).1 q.1 H_anc s H_subset).val.dim := by
+    rw [heq]
+  rw [h_eq_dim]
+  exact H_spec.2
 
 /-- Step 3 of the V4 proof of `stratumMap_spec` (V4 1.7b): containment in provider. -/
 private lemma stratumMap_spec_step3_provider {d : ℕ} [Fact (2 ≤ d)] {S : SubstSystem d}

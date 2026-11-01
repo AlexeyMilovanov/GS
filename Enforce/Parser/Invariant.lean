@@ -1132,11 +1132,66 @@ private lemma base_level_step4_I4 (Y : MarkedTiling (systemM S P C)) (hY : MProp
     (D : DecodedLevel Y P.K) (hbase : Parser.CertificateBase D) : Parser.I4 D := by
   sorry
 
+/-- Step 2 of the V4 proof of `base_level_step5_I5_step1_boundary` (V4 3.2): unpack node membership to identify its root with a K-certificate. -/
+private lemma base_level_step5_I5_step1_boundary_step2_certificate
+    (Y : MarkedTiling (systemM S P C))
+    (D : DecodedLevel Y P.K) (hbase : Parser.CertificateBase D)
+    (m : ℕ) (N : FramedNode S) (hN : N ∈ D.geometry.nodes m) :
+    ∃ (B : KBlock Y) (a : ℕ) (ha : a ≤ P.K)
+      (w : S.RoleWord B.certificate.val.ty a),
+      P.K - a = m ∧ B.innerNode a ha w = N := by
+  sorry
+
+/-- Step 3 of the V4 proof of `base_level_step5_I5_step1_boundary` (V4 2.17(a)): actual tiles inside the block are prescribed leaves. -/
+private lemma base_level_step5_I5_step1_boundary_step3_leaf
+    (Y : MarkedTiling (systemM S P C)) (B : KBlock Y)
+    (a : ℕ) (ha : a ≤ P.K)
+    (w : S.RoleWord B.certificate.val.ty a)
+    (t : PlacedMarkedTile (systemM S P C)) (ht : t ∈ Y.tiles)
+    (hdesc : (tileNode t).IsDescendant 0
+      (B.innerNode a ha w) (P.K - a)) :
+    ∃ v : S.RoleWord B.certificate.val.ty P.K, B.leaf v = t := by
+  sorry
+
+/-- Step 4 of the V4 proof of `base_level_step5_I5_step1_boundary` (V4 2.6(c),(d)): honest packet constancy for prescribed leaves. -/
+private lemma base_level_step5_I5_step1_boundary_step4_honest
+    (Y : MarkedTiling (systemM S P C)) (B : KBlock Y)
+    (a : ℕ) (ha : a ≤ P.K)
+    (w : S.RoleWord B.certificate.val.ty a)
+    (F : FacetName S (B.innerNode a ha w).ty) :
+    ∃ q : Option (Packet P),
+      ∀ (v : S.RoleWord B.certificate.val.ty P.K)
+        (f : FacetName S (tileNode (B.leaf v)).ty),
+        Parser.IsFacetPiece Y (P.K - a) (B.innerNode a ha w)
+          F (B.leaf v) f →
+        leafPacket (compilerLeaf C (B.leaf v)) f.val = q := by
+  sorry
+
+/-- Step 1 of the V4 proof of `base_level_step5_I5_step1_boundary` (V4 3.2): a specific packet q exists and is constant along the facet F. -/
+private lemma base_level_step5_I5_step1_boundary_step1_packet (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (D : DecodedLevel Y P.K) (hbase : Parser.CertificateBase D) (m : ℕ) (N : FramedNode S) (hN : N ∈ D.geometry.nodes m)
+    (F : FacetName S N.ty) : ∃ q : Option (Packet P), Parser.ConstantPacket Y m N F q := by
+  obtain ⟨B, a, ha, w, hm, rfl⟩ := base_level_step5_I5_step1_boundary_step2_certificate Y D hbase m N hN
+  obtain ⟨q, hq⟩ := base_level_step5_I5_step1_boundary_step4_honest Y B a ha w F
+  use q
+  intro t f hpiece
+  obtain ⟨ht, hdesc, hsub⟩ := hpiece
+  have hdesc' : (tileNode t).IsDescendant 0 (B.innerNode a ha w) (P.K - a) := hm ▸ hdesc
+  obtain ⟨v, rfl⟩ := base_level_step5_I5_step1_boundary_step3_leaf Y B a ha w t ht hdesc'
+  have hpiece' : Parser.IsFacetPiece Y (P.K - a) (B.innerNode a ha w) F (B.leaf v) f := ⟨ht, hm ▸ hdesc, hm ▸ hsub⟩
+  exact hq v f hpiece'
+
 /-- Step 1 of the V4 proof of `base_level_step5_I5` (V4 3.2): constant packets existence for boundary packets. -/
 private lemma base_level_step5_I5_step1_boundary (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (D : DecodedLevel Y P.K) (hbase : Parser.CertificateBase D) (m : ℕ) (N : FramedNode S) (hN : N ∈ D.geometry.nodes m) :
     ∃ h : Parser.BoundaryPackets Y m N, True := by
-  sorry
+  have h_block : IsBlock Y m N := by
+    obtain ⟨B, _, hdesc⟩ := hN
+    exact B.inner_actual m N hdesc
+  have h_pack : Parser.BoundaryPackets Y m N := fun F =>
+    let ⟨q, hq⟩ := base_level_step5_I5_step1_boundary_step1_packet Y hY D hbase m N hN F
+    ⟨q, hq, fun q' hq' => Parser.constantPacket_unique Y m N h_block F q' q hq' hq⟩
+  exact ⟨h_pack, trivial⟩
 
 /-- Step 2 of the V4 proof of `base_level_step5_I5` (V4 3.2): equality of packets for E-related facets. -/
 private lemma base_level_step5_I5_step2_equality (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)

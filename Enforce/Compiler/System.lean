@@ -1663,10 +1663,166 @@ theorem honestLift_tiles (C : ClusterData S P) (U : HonestSource S) :
           exact Compiler.honestTile_carrier C U t
   exact key _ _ h_tiles
 
+open private actualCont_exists_step4_ancestor from Enforce.State.Rows in
+/-- Step 1 of the V4 proof of `honestLift_proper` (V4 2.14(b)):
+"the certificate of the K-ancestor of each is D". A prescribed native leaf
+has the root's certificate and its exact role-word address. -/
+private theorem honestLift_proper_step1_leaf_label (U : HonestSource S)
+    (B : FramedNode S) (hB : B ∈ U.hierarchy.nodes P.K)
+    (t : U.Node) (ht : t.1 = 0) (w : S.RoleWord B.ty P.K)
+    (hw : t.2.val = (S.nativeTile B.ty P.K w).move B.frame) :
+    leafTypeOf U P t ht =
+      (⟨⟨certOf U P B hB, ⟨U, B, hB, rfl⟩⟩, w⟩ : LeafType P) := by
+  have ha := actualCont_exists_step4_ancestor U t ht P.K B hB w hw
+  have hi := (Classical.choose_spec (U.leafIndex_exists P t ht)).1
+  change (S.nativeTile _ P.K (U.leafIndex P t ht)).move _ = _ at hi
+  unfold leafTypeOf
+  generalize hj : U.leafIndex P t ht = j at hi ⊢
+  have hunique := U.leafIndex_exists P t ht
+  rw [ha] at hunique
+  have aux (M : FramedNode S) (hM : M ∈ U.hierarchy.nodes P.K) (he : M = B)
+      (i : S.RoleWord M.ty P.K)
+      (hi : (S.nativeTile M.ty P.K i).move M.frame = t.2.val) :
+      (⟨⟨certOf U P M hM, ⟨U, M, hM, rfl⟩⟩, i⟩ : LeafType P) =
+        ⟨⟨certOf U P B hB, ⟨U, B, hB, rfl⟩⟩, w⟩ := by
+    subst M
+    have hiw : i = w := ExistsUnique.unique hunique hi hw.symm
+    subst i
+    rfl
+  exact aux _ _ (congrArg (fun q : U.Node => q.2.val) ha) j hi
+
+/-- Step 2 of the V4 proof of `honestLift_proper` (V4 2.14(b)):
+"the leaves of B are exactly the native tiles inside B with leaf types (D,i)".
+The marking on each native leaf therefore agrees with the glued CORE marking. -/
+private theorem honestLift_proper_step2_core (C : ClusterData S P) (U : HonestSource S)
+    (B : FramedNode S) (hB : B ∈ U.hierarchy.nodes P.K)
+    (x : (Compiler.coreRule C (⟨certOf U P B hB, ⟨U, B, hB, rfl⟩⟩ :
+      CertificateSymbol S P)).carrier) :
+    (honestLift C U).marking (B.frame x) =
+      (Compiler.coreRule C (⟨certOf U P B hB, ⟨U, B, hB, rfl⟩⟩ :
+        CertificateSymbol S P)).mark x := by
+  let D : CertificateSymbol S P := ⟨certOf U P B hB, ⟨U, B, hB, rfl⟩⟩
+  have hx : x.val ∈ S.supertile P.K B.ty := x.property.1
+  rw [← S.native_cover B.ty P.K] at hx
+  obtain ⟨w, hw⟩ := Set.mem_iUnion.mp hx
+  have hm : (S.nativeTile B.ty P.K w).move B.frame ∈ U.hierarchy.nodes 0 := by
+    simpa only [Nat.sub_self, SubstSystem.nativeTile] using
+      U.descendant_mem ⟨P.K, ⟨B, hB⟩⟩ P.K le_rfl w
+  let t : Compiler.GroundNode U := ⟨(S.nativeTile B.ty P.K w).move B.frame, hm⟩
+  have hl : leafTypeOf U P ⟨0, t⟩ rfl = (⟨D, w⟩ : LeafType P) :=
+    honestLift_proper_step1_leaf_label U B hB ⟨0, t⟩ rfl w rfl
+  have hw' : x.val ∈ placedSet (LeafType.position (⟨D, w⟩ : LeafType P))
+      (S.proto (LeafType.prototype (⟨D, w⟩ : LeafType P))).carrier := by
+    simpa [FramedNode.carrier, SubstSystem.supertile, placedSet,
+      LeafType.position, LeafType.prototype] using hw
+  have hxt : B.frame x.val ∈ (Compiler.honestTile C U t).carrier := by
+    change B.frame x.val ∈ placedSet t.val.frame
+      (S.proto (leafTypeOf U P ⟨0, t⟩ rfl).prototype).carrier
+    rw [hl]
+    obtain ⟨y, hy, he⟩ := hw'
+    exact ⟨y, hy, congrArg B.frame he⟩
+  rw [(honestLift C U).marking_eq_tile _ (honestLift_tile C U t) _ hxt]
+  change augmentedColour C (leafTypeOf U P ⟨0, t⟩ rfl)
+    (t.val.frame.symm (B.frame x.val)) = Compiler.certificateColour C D x.val
+  rw [hl, Compiler.certificateColour_leaf C D w x.val hw']
+  change augmentedColour C (⟨D, w⟩ : LeafType P)
+    ((LeafType.position (⟨D, w⟩ : LeafType P)).symm
+      (B.frame.symm (B.frame x.val))) = _
+  rw [B.frame.symm_apply_apply]
+
+/-- Step 3 of the V4 proof of `honestLift_proper` (V4 2.14(b)):
+"the template's tiles are the actual native tiles with their actual leaf types".
+Reading either the central trigger or a positioned readout gives the honest marking. -/
+private theorem honestLift_proper_step3_event (C : ClusterData S P) (U : HonestSource S)
+    (t : U.Node) (ht : t.1 = 0) (j : EventSlot (leafTypeOf U P t ht))
+    (θ : Template P) (hactual : IsActualTemplate U P t ht θ)
+    (hallowed : θ ∈ allowedTemplates j)
+    (x : (Compiler.eventRule C ⟨leafTypeOf U P t ht, j, θ, hallowed⟩).carrier) :
+    (honestLift C U).marking (t.2.val.frame x) =
+      (Compiler.eventRule C ⟨leafTypeOf U P t ht, j, θ, hallowed⟩).mark x := by
+  classical
+  let e : Compiler.EventIndex S P := ⟨leafTypeOf U P t ht, j, θ, hallowed⟩
+  have hmark (z : FramedNode S × LeafType P) (hz : z ∈ θ.tiles)
+      (y : E d) (hy : y ∈ placedSet z.1.frame (S.proto z.2.prototype).carrier) :
+      (honestLift C U).marking (t.2.val.frame y) =
+        augmentedColour C z.2 (z.1.frame.symm y) := by
+    obtain ⟨⟨qn, qN⟩, hq, hframe, hleaf⟩ := hactual.2 z hz
+    obtain rfl : qn = 0 := hq
+    have hyt : t.2.val.frame y ∈ (Compiler.honestTile C U qN).carrier := by
+      change t.2.val.frame y ∈ placedSet qN.val.frame
+        (S.proto (leafTypeOf U P ⟨0, qN⟩ rfl).prototype).carrier
+      rw [← hleaf]
+      obtain ⟨v, hv, he⟩ := hy
+      refine ⟨v, hv, ?_⟩
+      rw [← he, hframe]
+      exact (t.2.val.frame.apply_symm_apply (qN.val.frame v)).symm
+    rw [(honestLift C U).marking_eq_tile _ (honestLift_tile C U qN) _ hyt]
+    change augmentedColour C (leafTypeOf U P ⟨0, qN⟩ rfl)
+      (qN.val.frame.symm (t.2.val.frame y)) = _
+    rw [← hleaf, hframe]
+    rfl
+  change (honestLift C U).marking (t.2.val.frame x.val) = Compiler.eventColour C e x.val
+  unfold Compiler.eventColour
+  split_ifs with hx hreadout
+  · have hc : Compiler.centralPair e.leaf ∈ θ.tiles := by
+      have hcentral := θ.central_mem
+      rw [hactual.1] at hcentral
+      exact hcentral
+    have hproto : x.val ∈ (S.proto e.leaf.prototype).carrier :=
+      interior_subset (C.enclosing_inside e.leaf (.trigger e.slot) hx)
+    simpa [Compiler.centralPair, placedSet] using
+      hmark (Compiler.centralPair e.leaf) hc x.val
+        (by simpa [Compiler.centralPair, placedSet] using hproto)
+  · let z := Classical.choose hreadout
+    have hz := (Classical.choose_spec hreadout).1
+    have hxz := (Classical.choose_spec hreadout).2
+    have hproto : x.val ∈ placedSet z.1.frame (S.proto z.2.prototype).carrier :=
+      Set.image_mono ((C.enclosing_inside z.2 .readout).trans interior_subset) hxz
+    exact hmark z (Finset.mem_filter.mp hz).1 x.val hproto
+  · exfalso
+    rcases x.property with htrigger | hreadouts
+    · exact hx htrigger
+    · exact hreadout (by simpa only [Set.mem_iUnion, exists_prop] using hreadouts)
+
 /-- M6, V4 2.14(b): the honest lift is proper, by CORE coverage and honest event rows. -/
 theorem honestLift_proper (C : ClusterData S P) (U : HonestSource S) :
     MProper (honestLift C U) := by
-  sorry
+  classical
+  intro x
+  obtain ⟨B, hB, hx⟩ := U.hierarchy.cover P.K x
+  obtain ⟨y, hy, rfl⟩ := hx
+  let D : CertificateSymbol S P := ⟨certOf U P B hB, ⟨U, B, hB, rfl⟩⟩
+  by_cases hc : y ∈ Compiler.coreCarrier C D
+  · refine ⟨Compiler.coreRule C D, ?_, B.frame, ⟨y, hc, rfl⟩, ?_⟩
+    · exact Finset.mem_union_left _ (Finset.mem_image.mpr ⟨D, Finset.mem_univ _, rfl⟩)
+    · exact honestLift_proper_step2_core C U B hB
+  · have htrigger : y ∈ ⋃ w : S.RoleWord B.ty P.K,
+        ⋃ j : EventSlot (⟨D, w⟩ : LeafType P),
+          placedSet (LeafType.position (⟨D, w⟩ : LeafType P))
+            (C.openTrigger (⟨D, w⟩ : LeafType P) j) := by
+      by_contra hn
+      exact hc ⟨hy, hn⟩
+    obtain ⟨w, hw⟩ := Set.mem_iUnion.mp htrigger
+    obtain ⟨j, hj⟩ := Set.mem_iUnion.mp hw
+    obtain ⟨z, hz, he⟩ := hj
+    have hm : (S.nativeTile B.ty P.K w).move B.frame ∈ U.hierarchy.nodes 0 := by
+      simpa only [Nat.sub_self, SubstSystem.nativeTile] using
+        U.descendant_mem ⟨P.K, ⟨B, hB⟩⟩ P.K le_rfl w
+    let t : Compiler.GroundNode U := ⟨(S.nativeTile B.ty P.K w).move B.frame, hm⟩
+    have hl : leafTypeOf U P ⟨0, t⟩ rfl = (⟨D, w⟩ : LeafType P) :=
+      honestLift_proper_step1_leaf_label U B hB ⟨0, t⟩ rfl w rfl
+    have hclosed : ∃ j' : EventSlot (leafTypeOf U P ⟨0, t⟩ rfl),
+        z ∈ C.enclosing (leafTypeOf U P ⟨0, t⟩ rfl) (.trigger j') := by
+      rw [hl]
+      exact ⟨j, Metric.ball_subset_closedBall hz⟩
+    obtain ⟨j', hz'⟩ := hclosed
+    obtain ⟨θ, hactual, hallowed⟩ := honest_rows U P ⟨0, t⟩ rfl j'
+    let e : Compiler.EventIndex S P := ⟨leafTypeOf U P ⟨0, t⟩ rfl, j', θ, hallowed⟩
+    refine ⟨Compiler.eventRule C e, ?_, t.val.frame, ?_, ?_⟩
+    · exact Finset.mem_union_right _ (Finset.mem_image.mpr ⟨e, Finset.mem_univ _, rfl⟩)
+    · refine ⟨z, Or.inl hz', ?_⟩
+      exact congrArg B.frame he
+    · exact honestLift_proper_step3_event C U ⟨0, t⟩ rfl j' θ hactual hallowed
 
 /-- M6, V4 2.14(c): exact old marking at every point, including the boundary skeleton. -/
 theorem honestLift_projection (C : ClusterData S P) (U : HonestSource S) (x : E d) :

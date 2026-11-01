@@ -219,11 +219,63 @@ structure TranslatedSource (U V : HonestSource S) (v : E d) : Prop where
     V.hierarchy.nodeRole ⟨n, ⟨N.val.move (translation v), hN⟩⟩ =
       U.hierarchy.nodeRole ⟨n, N⟩
 
+/-- Step 1 of the V4 proof of `honest_translate_exists` (V4 1.27):
+the translated physical tiling is legal. -/
+private lemma honest_translate_exists_step1_tiling_mem_species (U : HonestSource S) (v : E d) :
+    U.tiling.move (translation v) ∈ S.Species :=
+  sorry
+
+/-- Step 2 of the V4 proof of `honest_translate_exists` (V4 1.27):
+the translated hierarchy is coherent. We state this as the existence of a coherent hierarchy
+whose nodes, parents, and roles are exactly the translations of the original hierarchy's. -/
+private lemma honest_translate_exists_step2_translated_hierarchy (U : HonestSource S) (v : E d) :
+    ∃ H : CoherentHierarchy S (U.tiling.move (translation v)),
+      (∀ n, H.nodes n = (fun N : FramedNode S => N.move (translation v)) '' U.hierarchy.nodes n) ∧
+      (∀ n (N : {N // N ∈ U.hierarchy.nodes n}) (hN : N.val.move (translation v) ∈ H.nodes n),
+        (H.parent n ⟨N.val.move (translation v), hN⟩).val = (U.hierarchy.parent n N).val.move (translation v)) ∧
+      (∀ n (N : {N // N ∈ U.hierarchy.nodes n}) (hN : N.val.move (translation v) ∈ H.nodes n),
+        H.nodeRole ⟨n, ⟨N.val.move (translation v), hN⟩⟩ = U.hierarchy.nodeRole ⟨n, N⟩) :=
+  sorry
+
+/-- Step 3 of the V4 proof of `honest_translate_exists` (V4 1.27):
+the translated hierarchy has legal contexts for all finite sets of nodes. -/
+private lemma honest_translate_exists_step3_contexts (U : HonestSource S) (v : E d)
+    (H : CoherentHierarchy S (U.tiling.move (translation v)))
+    (hnodes : ∀ n, H.nodes n = (fun N : FramedNode S => N.move (translation v)) '' U.hierarchy.nodes n)
+    (hparents : ∀ n (N : {N // N ∈ U.hierarchy.nodes n}) (hN : N.val.move (translation v) ∈ H.nodes n),
+      (H.parent n ⟨N.val.move (translation v), hN⟩).val = (U.hierarchy.parent n N).val.move (translation v))
+    (hroles : ∀ n (N : {N // N ∈ U.hierarchy.nodes n}) (hN : N.val.move (translation v) ∈ H.nodes n),
+      H.nodeRole ⟨n, ⟨N.val.move (translation v), hN⟩⟩ = U.hierarchy.nodeRole ⟨n, N⟩) :
+    ∀ F : Finset H.Node, Nonempty (LegalContext H F) :=
+  sorry
+
+/-- Step 4 of the V4 proof of `honest_translate_exists` (V4 1.27):
+the translated nodes have frames in the same coset. -/
+private lemma honest_translate_exists_step4_coset (U : HonestSource S) (v : E d)
+    (H : CoherentHierarchy S (U.tiling.move (translation v)))
+    (hnodes : ∀ n, H.nodes n = (fun N : FramedNode S => N.move (translation v)) '' U.hierarchy.nodes n) :
+    ∀ n N, N ∈ H.nodes n → ∃ R ∈ S.rotGroup, N.frame.linearIsometryEquiv = U.coset * R :=
+  sorry
+
 /-- C2, V4 1.27, 1.11: honest sources are closed under translation.
 Existence follows by translating the actual hierarchy and every finite legal context. -/
+
 theorem honest_translate_exists (U : HonestSource S) (v : E d) :
     ∃ V : HonestSource S, TranslatedSource U V v := by
-  sorry
+  have h1 := honest_translate_exists_step1_tiling_mem_species U v
+  obtain ⟨H, hnodes, hparents, hroles⟩ := honest_translate_exists_step2_translated_hierarchy U v
+  have h3 := honest_translate_exists_step3_contexts U v H hnodes hparents hroles
+  have h4 := honest_translate_exists_step4_coset U v H hnodes
+  let V : HonestSource S := {
+    tiling := U.tiling.move (translation v)
+    mem_species := h1
+    hierarchy := H
+    contexts := h3
+    coset := U.coset
+    frames_in_coset := h4
+  }
+  use V
+  exact ⟨rfl, hnodes, rfl, hparents, hroles⟩
 
 /-- C2, V4 1.27: translate an honest source, using the exact transport lemma. -/
 def HonestSource.translate (U : HonestSource S) (v : E d) : HonestSource S :=

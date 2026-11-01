@@ -1765,7 +1765,33 @@ theorem compilerFrame_marking (C : ClusterData S P)
 theorem compiler_boundary (C : ClusterData S P) (Y : MarkedTiling (systemM S P C))
     (t : PlacedMarkedTile (systemM S P C)) (ht : t ∈ Y.tiles) (x : E d)
     (hx : x ∈ frontier t.carrier) : Y.marking x = Colour.boundary := by
-  sorry
+  have H1 : x ∈ t.carrier := by
+    obtain ⟨Q, _, φ, hQ2, _⟩ := t.realization
+    have H2 : IsCompact Q.carrier := Q.compact
+    have H4 : IsCompact t.carrier := by
+      rw [hQ2]
+      exact H2.image φ.continuous
+    have H5 : IsClosed t.carrier := H4.isClosed
+    exact H5.closure_eq ▸ frontier_subset_closure hx
+  have H2 := Y.marking_eq_tile t ht x H1
+  rw [H2]
+  have H3 := compilerFrame_marking C t ⟨x, H1⟩
+  rw [H3]
+  apply augmentedMarking_boundary C (compilerLeaf C t)
+  have h_frame := compilerFrame_carrier C t
+  have H4 : x ∈ frontier (placedSet (compilerFrame C t) (S.proto (compilerLeaf C t).prototype).carrier) := by
+    rw [← h_frame]
+    exact hx
+  let f := (compilerFrame C t).toHomeomorph
+  change x ∈ frontier (f '' (S.proto (compilerLeaf C t).prototype).carrier) at H4
+  rw [← f.image_frontier] at H4
+  obtain ⟨y, hy1, hy2⟩ := (Set.mem_image f _ _).mp H4
+  have H5 : y = (compilerFrame C t).symm x := by
+    calc y = (compilerFrame C t).symm ((compilerFrame C t) y) := by simp
+    _ = (compilerFrame C t).symm (f y) := rfl
+    _ = (compilerFrame C t).symm x := by rw [hy2]
+  rw [← H5]
+  exact hy1
 
 /-- M4, V4 2.12(iii): separation works for arbitrary cluster labels in distinct
 tiles, even different microball indices or kinds. This is the separation used

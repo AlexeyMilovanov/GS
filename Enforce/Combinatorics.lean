@@ -254,8 +254,23 @@ the translated nodes have frames in the same coset. -/
 private lemma honest_translate_exists_step4_coset (U : HonestSource S) (v : E d)
     (H : CoherentHierarchy S (U.tiling.move (translation v)))
     (hnodes : ∀ n, H.nodes n = (fun N : FramedNode S => N.move (translation v)) '' U.hierarchy.nodes n) :
-    ∀ n N, N ∈ H.nodes n → ∃ R ∈ S.rotGroup, N.frame.linearIsometryEquiv = U.coset * R :=
-  sorry
+    ∀ n N, N ∈ H.nodes n → ∃ R ∈ S.rotGroup, N.frame.linearIsometryEquiv = U.coset * R := by
+  intro n N hN
+  rw [hnodes n] at hN
+  obtain ⟨M, hM, rfl⟩ := hN
+  have H_coset := U.frames_in_coset n M hM
+  obtain ⟨R, hR, H'⟩ := H_coset
+  use R, hR
+  dsimp [FramedNode.move]
+  have H_trans : (AffineIsometryEquiv.trans M.frame (translation v)).linearIsometryEquiv = (translation v).linearIsometryEquiv * M.frame.linearIsometryEquiv := rfl
+  rw [H_trans]
+  have H_trans2 : (translation v).linearIsometryEquiv = 1 := by
+    dsimp [translation]
+    ext x
+    rfl
+  rw [H_trans2]
+  rw [one_mul]
+  exact H'
 
 /-- C2, V4 1.27, 1.11: honest sources are closed under translation.
 Existence follows by translating the actual hierarchy and every finite legal context. -/

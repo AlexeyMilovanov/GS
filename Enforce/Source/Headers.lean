@@ -118,7 +118,25 @@ theorem incident_listed_step (p : E d) (n : ℕ) (a : P.Incident p n)
 
 /-- Step 0 of the V4 proof of `incident_commonListed`: native identity at depth 0. -/
 private lemma incident_commonListed_step0_native_zero_eq (a : P.Address 0) : P.native 0 a = a.1.val := by
-  sorry
+  have H_frame : (P.native 0 a).frame = a.1.val.frame := by
+    dsimp [CompatiblePatch.native, SubstSystem.nativeTile, SubstSystem.descendantNode, FramedNode.move]
+    apply AffineIsometryEquiv.ext
+    intro x
+    dsimp [compatibleInflatedFrame]
+    have hc := (Classical.choose_spec (S.rotGroup_conj_zpow ((0 : ℕ) : ℤ) a.1.val.frame.linearIsometryEquiv (P.compatible a.1.val a.1.property))).2
+    have hy := congrArg (fun e : E d ≃ₗ[ℝ] E d => e x) hc
+    simp only [linearConj, Nat.cast_zero, zpow_zero, neg_zero, one_mul, mul_one] at hy
+    have hdec : a.1.val.frame x = a.1.val.frame.linearIsometryEquiv x + a.1.val.frame 0 := by
+      have h := a.1.val.frame.map_vadd (0 : E d) x
+      rw [vadd_eq_add, add_zero, vadd_eq_add] at h
+      exact h
+    show (Classical.choose (S.rotGroup_conj_zpow ((0 : ℕ) : ℤ) a.1.val.frame.linearIsometryEquiv (P.compatible a.1.val a.1.property))) ((S.σ ^ 0) x) + (S.σ ^ 0) (a.1.val.frame 0) = a.1.val.frame x
+    rw [pow_zero]
+    change (Classical.choose (S.rotGroup_conj_zpow ((0 : ℕ) : ℤ) a.1.val.frame.linearIsometryEquiv (P.compatible a.1.val a.1.property))) x + (a.1.val.frame 0) = a.1.val.frame x
+    rw [hdec]
+    exact congrArg (· + a.1.val.frame 0) hy
+  have H_ty : (P.native 0 a).ty = a.1.val.ty := rfl
+  exact FramedNode.ext H_ty H_frame
 
 /-- P9/P5, V4 1.14, 1.5(b): a common-listed point is listed at every depth. -/
 theorem incident_commonListed (p : E d) (hp : P.CommonListed p)

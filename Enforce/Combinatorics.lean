@@ -468,11 +468,62 @@ theorem translated_witness_section {X : Type} (ρ : HonestSource S → E d → X
     refine ⟨⟨(witness_trans i).tiling, (witness_trans i).mem_species⟩, node_trans i, hi.1, ?_⟩
     exact hi.2
 
+/-- Equality of nodes, parent values and full role pairs determines a hierarchy. -/
+private theorem unique_hierarchy_ext {T : Tiling S} {H K : CoherentHierarchy S T}
+    (hn : H.nodes = K.nodes)
+    (hp : ∀ n N (hH : N ∈ H.nodes n) (hK : N ∈ K.nodes n),
+      (H.parent n ⟨N, hH⟩).val = (K.parent n ⟨N, hK⟩).val)
+    (hr : ∀ n N (hH : N ∈ H.nodes n) (hK : N ∈ K.nodes n),
+      H.nodeRole ⟨n, ⟨N, hH⟩⟩ = K.nodeRole ⟨n, ⟨N, hK⟩⟩) : H = K := by
+  cases H with
+  | mk nodes ground cover disjoint parent role child_eq children_mem parent_unique native_tiles =>
+    cases K with
+    | mk nodes' ground' cover' disjoint' parent' role' child_eq' children_mem' parent_unique' native_tiles' =>
+      dsimp only [CoherentHierarchy.nodeRole] at hn hp hr
+      subst nodes'
+      have hparent : parent = parent' := by
+        funext n N
+        exact Subtype.ext (hp n N.val N.property N.property)
+      subst parent'
+      have hrole : role = role' := by
+        funext n N
+        exact eq_of_heq (Sigma.mk.inj_iff.mp (hr n N.val N.property N.property)).2
+      subst role'
+      rfl
+
 /-- C2, V4 1.27: exact translation data determine one honest source, including
 the hierarchy parents, child roles, and fixed orthogonal coset representative. -/
 theorem TranslatedSource.unique {U V W : HonestSource S} {v : E d}
     (hV : TranslatedSource U V v) (hW : TranslatedSource U W v) : V = W := by
-  sorry
+  have ht := hV.tiling.trans hW.tiling.symm
+  have hc := hV.coset.trans hW.coset.symm
+  have hn : V.hierarchy.nodes = W.hierarchy.nodes := by
+    funext n
+    exact (hV.nodes n).trans (hW.nodes n).symm
+  have hp : ∀ n N (hNV : N ∈ V.hierarchy.nodes n) (hNW : N ∈ W.hierarchy.nodes n),
+      (V.hierarchy.parent n ⟨N, hNV⟩).val =
+        (W.hierarchy.parent n ⟨N, hNW⟩).val := by
+    intro n N hNV hNW
+    have hN := hNV
+    rw [hV.nodes n] at hN
+    obtain ⟨M, hM, rfl⟩ := hN
+    exact (hV.parents n ⟨M, hM⟩ hNV).trans (hW.parents n ⟨M, hM⟩ hNW).symm
+  have hr : ∀ n N (hNV : N ∈ V.hierarchy.nodes n) (hNW : N ∈ W.hierarchy.nodes n),
+      V.hierarchy.nodeRole ⟨n, ⟨N, hNV⟩⟩ =
+        W.hierarchy.nodeRole ⟨n, ⟨N, hNW⟩⟩ := by
+    intro n N hNV hNW
+    have hN := hNV
+    rw [hV.nodes n] at hN
+    obtain ⟨M, hM, rfl⟩ := hN
+    exact (hV.roles n ⟨M, hM⟩ hNV).trans (hW.roles n ⟨M, hM⟩ hNW).symm
+  cases V
+  cases W
+  dsimp only at ht hc hn hp hr
+  subst ht
+  have hh := unique_hierarchy_ext hn hp hr
+  subst hh
+  subst hc
+  rfl
 
 private lemma translate_zero_identity {d : ℕ} [Fact (2 ≤ d)] :
     translation (0 : E d) = AffineIsometryEquiv.refl ℝ (E d) := by

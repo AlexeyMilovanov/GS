@@ -701,10 +701,49 @@ theorem HonestSource.move_refl (U : HonestSource S) :
     U.move (AffineIsometryEquiv.refl ℝ (E d)) = U :=
   MovedSource.unique (U.move_spec (AffineIsometryEquiv.refl ℝ (E d))) (move_refl_step6_movedSource U)
 
+/-- Step 1 of the V4 proof of `move_trans` (V4 2.14(d)): transported physical tiling. -/
+private lemma move_trans_step1_tiling (U : HonestSource S) (g h : Iso d) :
+    ((U.move g).move h).tiling = U.tiling.move (g.trans h) :=
+  sorry
+
+/-- Step 2 of the V4 proof of `move_trans` (V4 2.14(d)): transported framed nodes. -/
+private lemma move_trans_step2_nodes (U : HonestSource S) (g h : Iso d) :
+    ∀ n, ((U.move g).move h).hierarchy.nodes n =
+      (fun N : FramedNode S => N.move (g.trans h)) '' U.hierarchy.nodes n :=
+  sorry
+
+/-- Step 3 of the V4 proof of `move_trans` (V4 2.14(d)): correctly rotated common frame coset. -/
+private lemma move_trans_step3_coset (U : HonestSource S) (g h : Iso d) :
+    ((U.move g).move h).coset = (g.trans h).linearIsometryEquiv * U.coset :=
+  sorry
+
+/-- Step 4 of the V4 proof of `move_trans` (V4 2.14(d)): exact parent preservation. -/
+private lemma move_trans_step4_parents (U : HonestSource S) (g h : Iso d) :
+    ∀ n (N : {N // N ∈ U.hierarchy.nodes n})
+      (hN : N.val.move (g.trans h) ∈ ((U.move g).move h).hierarchy.nodes n),
+      (((U.move g).move h).hierarchy.parent n ⟨N.val.move (g.trans h), hN⟩).val =
+        (U.hierarchy.parent n N).val.move (g.trans h) :=
+  sorry
+
+/-- Step 5 of the V4 proof of `move_trans` (V4 2.14(d)): exact role preservation. -/
+private lemma move_trans_step5_roles (U : HonestSource S) (g h : Iso d) :
+    ∀ n (N : {N // N ∈ U.hierarchy.nodes n})
+      (hN : N.val.move (g.trans h) ∈ ((U.move g).move h).hierarchy.nodes n),
+      ((U.move g).move h).hierarchy.nodeRole ⟨n, ⟨N.val.move (g.trans h), hN⟩⟩ =
+        U.hierarchy.nodeRole ⟨n, N⟩ :=
+  sorry
+
+/-- Step 6 of the V4 proof of `move_trans` (V4 2.14(d)): bundled moved source. -/
+private lemma move_trans_step6_movedSource (U : HonestSource S) (g h : Iso d) :
+    MovedSource U ((U.move g).move h) (g.trans h) :=
+  ⟨move_trans_step1_tiling U g h, move_trans_step2_nodes U g h,
+   move_trans_step3_coset U g h, move_trans_step4_parents U g h,
+   move_trans_step5_roles U g h⟩
+
 /-- M6, V4 2.14(d): successive motions compose on full honest sources. -/
 theorem HonestSource.move_trans (U : HonestSource S) (g h : Iso d) :
     (U.move g).move h = U.move (g.trans h) := by
-  sorry
+  exact MovedSource.unique (move_trans_step6_movedSource U g h) (U.move_spec (g.trans h))
 
 /-- Step 1 of the V4 proof of `leafTypeOf_move` (V4 2.14(d), 1.11): moving a framed node
 by `g` and then by `g⁻¹` returns it. -/

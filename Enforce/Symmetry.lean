@@ -157,6 +157,7 @@ private lemma components_disjoint_step2_common_ancestor_step1_contain
     ∃ n : ℕ, t.carrier ⊆ ((parsedHierarchy Y hY).ancestor q n).2.val.carrier ((parsedHierarchy Y hY).ancestor q n).1 := by
   sorry
 
+open private WF_is_node_step1_descendant_subset from Enforce.Recognition in
 /-- Step 2 of the V4 proof of `components_disjoint_step2_common_ancestor` (V4 5.7):
 Two ancestors containing the same tile must coincide at their maximum height. -/
 private lemma components_disjoint_step2_common_ancestor_step2_coincide
@@ -167,7 +168,46 @@ private lemma components_disjoint_step2_common_ancestor_step2_coincide
     (nq : ℕ) (hnq : t.carrier ⊆ ((parsedHierarchy Y hY).ancestor q nq).2.val.carrier ((parsedHierarchy Y hY).ancestor q nq).1)
     (nr : ℕ) (hnr : t.carrier ⊆ ((parsedHierarchy Y hY).ancestor r nr).2.val.carrier ((parsedHierarchy Y hY).ancestor r nr).1) :
     ∃ n : ℕ, (parsedHierarchy Y hY).ancestor q n = (parsedHierarchy Y hY).ancestor r n := by
-  sorry
+  let H := parsedHierarchy Y hY
+  have nested (a : H.Node) :
+      Monotone (fun n => (H.ancestor a n).2.val.carrier (H.ancestor a n).1) := by
+    intro i j hij
+    have hd := H.ancestor_descendant (H.ancestor a i) (j - i)
+    rw [H.ancestor_add, Nat.add_sub_of_le hij] at hd
+    exact WF_is_node_step1_descendant_subset _ _ _ _ hd
+  let n := max nq nr
+  use n
+  have hqn : nq ≤ n := le_max_left nq nr
+  have hrn : nr ≤ n := le_max_right nq nr
+  have hq_sub : t.carrier ⊆ (H.ancestor q n).2.val.carrier (H.ancestor q n).1 := Set.Subset.trans hnq (nested q hqn)
+  have hr_sub : t.carrier ⊆ (H.ancestor r n).2.val.carrier (H.ancestor r n).1 := Set.Subset.trans hnr (nested r hrn)
+  
+  have hx_q : x ∈ interior ((H.ancestor q n).2.val.carrier (H.ancestor q n).1) := interior_mono hq_sub hx
+  have hx_r : x ∈ interior ((H.ancestor r n).2.val.carrier (H.ancestor r n).1) := interior_mono hr_sub hx
+  
+  have hQ_height : (H.ancestor q n).1 = n := by rw [H.ancestor_height, hq, zero_add]
+  have hR_height : (H.ancestor r n).1 = n := by rw [H.ancestor_height, hr, zero_add]
+  
+  generalize hAnQ : H.ancestor q n = AnQ
+  generalize hAnR : H.ancestor r n = AnR
+  rw [hAnQ] at hQ_height hx_q
+  rw [hAnR] at hR_height hx_r
+  
+  have hQ_mem : AnQ.2.val ∈ H.nodes n := hQ_height ▸ AnQ.2.property
+  have hR_mem : AnR.2.val ∈ H.nodes n := hR_height ▸ AnR.2.property
+  
+  by_cases h_eq : AnQ.2.val = AnR.2.val
+  · obtain ⟨q_n, q_sub⟩ := AnQ
+    obtain ⟨r_n, r_sub⟩ := AnR
+    subst hQ_height hR_height
+    congr
+    exact Subtype.ext h_eq
+  · have h_disj := H.disjoint n hQ_mem hR_mem h_eq
+    have hx_q_n : x ∈ interior (AnQ.2.val.carrier n) := hQ_height ▸ hx_q
+    have hx_r_n : x ∈ interior (AnR.2.val.carrier n) := hR_height ▸ hx_r
+    have hx_inter : x ∈ interior (AnQ.2.val.carrier n) ∩ interior (AnR.2.val.carrier n) := ⟨hx_q_n, hx_r_n⟩
+    have h_emp : interior (AnQ.2.val.carrier n) ∩ interior (AnR.2.val.carrier n) ⊆ ∅ := h_disj.le_bot
+    exact False.elim (h_emp hx_inter)
 
 /-- Step 1 of the V4 proof of `components_disjoint` (V4 5.7):
 "at the common height max(n,n') the two ancestors share a tile, hence coincide, so t,t' have a common ancestor." -/

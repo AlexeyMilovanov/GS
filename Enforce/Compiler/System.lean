@@ -587,6 +587,28 @@ private lemma cluster_rigidity_step1_microball_contained (C : ClusterData S P)
   have hx_cluster : x ∈ C.cluster l κ := Set.mem_iUnion_of_mem a hx
   exact (h x hx_cluster).trans (augmentedMarking_microball C l κ a x hx)
 
+/-- Step 1 of the V4 proof of `cluster_rigidity_step2_microball_eq` (V4 2.13):
+"a closed ball of radius ρ contained in a closed ball of radius ρ coincides with it".
+In a real normed space, nonempty equal-radius ball containment forces equal centres. -/
+private lemma cluster_rigidity_step2_microball_eq_step1_centres
+    {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V] {x y : V} {r : ℝ}
+    (hr : 0 ≤ r) (hsub : closedBall x r ⊆ closedBall y r) : x = y := by
+  by_contra hne
+  have hv : 0 < ‖x - y‖ := norm_pos_iff.mpr (sub_ne_zero.mpr hne)
+  let q : ℝ := r / ‖x - y‖
+  have hq : 0 ≤ q := div_nonneg hr hv.le
+  have hqr : q * ‖x - y‖ = r := div_mul_cancel₀ r hv.ne'
+  have hz : x + q • (x - y) ∈ closedBall x r := by
+    simpa only [mem_closedBall, dist_eq_norm, add_sub_cancel_left, norm_smul,
+      Real.norm_of_nonneg hq, hqr] using le_refl r
+  have hout := mem_closedBall.mp (hsub hz)
+  have heq : x + q • (x - y) - y = (1 + q) • (x - y) := by
+    rw [add_smul, one_smul]
+    abel
+  rw [dist_eq_norm, heq, norm_smul, Real.norm_of_nonneg (by linarith : 0 ≤ 1 + q),
+    add_mul, one_mul, hqr] at hout
+  linarith
+
 /-- Step 2 of the V4 proof of `cluster_rigidity` (V4 2.13): a connected set lies in one of the
 pairwise disjoint closed balls of radius ρ. A closed ball of radius ρ contained in a closed ball of
 radius ρ coincides with it. So ψ(c_a) = c'_a, the centre of the a-th microball of the κ-cluster
@@ -596,7 +618,37 @@ private lemma cluster_rigidity_step2_microball_eq (C : ClusterData S P)
     (a : Fin (d + 1)) (hsub : ψ '' (C.microball l κ a) ⊆ {x | Y.marking x = microColour l κ a}) :
     ∃ t ∈ Y.tiles, compilerLeaf C t = l ∧
       ψ (C.centre l κ a) = compilerFrame C t (C.centre l κ a) := by
-  sorry
+  obtain ⟨hlocus, hsep⟩ := colour_disjointness_iii C Y l κ a
+  have hcover : closedBall (ψ (C.centre l κ a)) C.ρ ⊆
+      ⋃ t : {t : PlacedMarkedTile (systemM S P C) //
+        t ∈ Y.tiles ∧ compilerLeaf C t = l},
+        closedBall (compilerFrame C t.val (C.centre l κ a)) C.ρ := by
+    change closedBall (ψ.toIsometryEquiv (C.centre l κ a)) C.ρ ⊆ _
+    rw [← ψ.toIsometryEquiv.image_closedBall, ← hlocus]
+    exact hsub
+  obtain ⟨t, ht⟩ := mem_iUnion.mp (hcover (mem_closedBall_self C.ρ_pos.le))
+  refine ⟨t.val, t.property.1, t.property.2, ?_⟩
+  apply cluster_rigidity_step2_microball_eq_step1_centres C.ρ_pos.le
+  intro x hx
+  obtain ⟨u, hu⟩ := mem_iUnion.mp (hcover hx)
+  -- Two such centres would be at most 3ρ apart, contradicting their 2δ separation.
+  have htu : t.val = u.val := by
+    by_contra hne
+    have hfar := hsep t.val t.property.1 u.val u.property.1
+      t.property.2 u.property.2 hne
+    have hnear := dist_triangle4
+      (compilerFrame C t.val (C.centre l κ a)) (ψ (C.centre l κ a)) x
+      (compilerFrame C u.val (C.centre l κ a))
+    have ht' := mem_closedBall.mp ht
+    have hx' := mem_closedBall.mp hx
+    have hu' := mem_closedBall.mp hu
+    rw [dist_comm (compilerFrame C t.val (C.centre l κ a)) (ψ (C.centre l κ a)),
+      dist_comm (ψ (C.centre l κ a)) x] at hnear
+    have hr := C.ρ_lt
+    have he := C.ε_lt
+    have hd := C.δ_pos
+    linarith
+  simpa only [htu] using hu
 
 /-- Step 1 of the V4 proof of `cluster_rigidity_step3_same_tile` (V4 2.13): The d+1 points ψ(c_a) are within ε < 2δ of each other. -/
 private lemma cluster_rigidity_step3_same_tile_step1_dist (C : ClusterData S P) (l : LeafType P) (κ : ClusterKind l) (a b : Fin (d + 1)) :

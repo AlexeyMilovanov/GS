@@ -2479,7 +2479,38 @@ theorem restriction_det_internal (c : H.Node) (f : FacetName S c.2.val.ty)
     ∃ hf : ¬ H.IsFault c f,
       H.providerCarrier c f hf = c.2.val.cell c.1 f.val ∧
         H.birthParent c f hf = H.parentNode c ∧ H.age c f hf = 1 := by
-  sorry
+  have hnotone : 1 ∉ H.boundaryOffsets c f := by
+    intro hboundary
+    have hne : (relint (c.2.val.cell c.1 f.val)).Nonempty := by
+      rw [FramedNode.cell, hereditary_trace_step1_relint_image]
+      exact f.val.flat.relint_nonempty.image _
+    obtain ⟨x, hx⟩ := hne
+    exact (hboundary (intrinsicInterior_subset hx)).2 (hint hx)
+  have hf : ¬ H.IsFault c f := fun h => hnotone (h 1)
+  have hboundary : H.boundaryOffsets c f = {r | r < 1} := by
+    ext r
+    constructor
+    · intro hr
+      by_contra h
+      have hr1 : 1 ≤ r := Nat.le_of_not_gt h
+      exact hnotone (boundaryOffsets_initial_step4_downward H c f hr1 hr)
+    · intro hr
+      have hr0 : r = 0 := Nat.lt_one_iff.mp hr
+      subst r
+      exact boundaryOffsets_initial_step3_zero_mem H c f
+  let v : H.ProviderCandidate c := ⟨0, f⟩
+  have hv : H.IsProvider c f v := ⟨hboundary, Subset.rfl, hint⟩
+  have heq : H.firstProvider c f hf = v :=
+    H.provider_unique c f _ _ (H.firstProvider_spec c f hf) hv
+  have hbirth : H.birthParent c f hf = H.parentNode c := by
+    unfold birthParent servingChild
+    rw [heq]
+    rfl
+  refine ⟨hf, ?_, hbirth, ?_⟩
+  · unfold providerCarrier servingChild
+    rw [heq]
+    rfl
+  · simp [age, birthHeight, hbirth, parentNode]
 
 /-- Step 1 of the V4 proof of `restriction_det_inherited` (V4 1.7(c)): "`f'` has provider
 `g`, birth parent `A_b`, age one more": once the birth parents agree, the age of the child

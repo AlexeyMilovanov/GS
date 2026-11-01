@@ -101,7 +101,30 @@ def primitiveFacetAtDepth (S : SubstSystem d) (A : S.ι) (j : ℕ) :
 /-- P19, V4 1.24: finitely many primitive facets through any fixed finite depth. -/
 theorem primitiveFacets_finite (S : SubstSystem d) (A : S.ι) (k : ℕ) :
     {f : PrimitiveFacet S A | f.depth < k}.Finite := by
-  sorry
+  classical
+  let φ : ∀ (j : ℕ) (w : S.RoleWord A j),
+      (Σ i : S.I (S.nativeTile A j w).ty,
+        FacetName S (S.child (S.nativeTile A j w).ty i).ty) → Set (E d) :=
+    fun j w p => placedSet (S.child (S.nativeTile A j w).ty p.1).frame p.2.val.carrier
+  haveI : ∀ j : Fin k, Finite (S.RoleWord A j.val) := fun j => S.roleWord_finite A j.val
+  haveI : ∀ (j : ℕ) (w : S.RoleWord A j), Finite (Set.range (φ j w)) :=
+    fun j w => (Set.finite_range _).to_subtype
+  let g : {f : PrimitiveFacet S A // f.depth < k} →
+      Σ j : Fin k, Σ w : S.RoleWord A j.val, Set.range (φ j.val w) :=
+    fun f => ⟨⟨f.1.depth, f.2⟩, f.1.word, ⟨f.1.localCarrier, by
+      obtain ⟨i, fn, h, -⟩ := f.1.realization
+      exact ⟨⟨i, fn⟩, h.symm⟩⟩⟩
+  have hg : Function.Injective g := by
+    rintro ⟨⟨d1, w1, c1, h1⟩, hd1⟩ ⟨⟨d2, w2, c2, h2⟩, hd2⟩ h
+    have hd : d1 = d2 := congrArg (fun p => p.1.val) h
+    subst d2
+    have h := eq_of_heq (Sigma.mk.inj h).2
+    have hw : w1 = w2 := congrArg Sigma.fst h
+    subst w2
+    have hc : c1 = c2 := congrArg Subtype.val (eq_of_heq (Sigma.mk.inj h).2)
+    subst c2
+    rfl
+  exact Set.finite_coe_iff.mp (Finite.of_injective g hg)
 
 /-- P19, V4 1.24, preceding definition: the depth-`k` internal skeleton,
 normalized in `A`; only native facets not contained in the root boundary enter it.

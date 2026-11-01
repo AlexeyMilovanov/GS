@@ -10037,7 +10037,68 @@ private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step3_reach_wal
     ∃ y ∈ frontier D.carrier ∩ Metric.ball p r,
       (∀ c ∈ C.cells, y ∈ c.carrier → d ≤ c.dim + 2) ∧
       y ∈ closure (connectedComponentIn (interior D.carrier ∩ Metric.ball p r) x) := by
-  sorry
+  classical
+  let I := interior D.carrier ∩ Metric.ball p r
+  let Q := connectedComponentIn I x
+  have hIopen : IsOpen I := isOpen_interior.inter Metric.isOpen_ball
+  have hQopen : IsOpen Q := hIopen.connectedComponentIn
+  have hQsub : Q ⊆ I := connectedComponentIn_subset _ _
+  -- An exterior endpoint exists inside the ball because its centre is on the frontier.
+  have hpcl : p ∈ closure D.carrierᶜ := by
+    rw [frontier_eq_closure_inter_closure] at hp
+    exact hp.2
+  obtain ⟨q, hqb, hqD⟩ := mem_closure_iff.mp hpcl (Metric.ball p r)
+    Metric.isOpen_ball (Metric.mem_ball_self hr)
+  -- Avoid the affine joins of the exterior endpoint with all low-dimensional cells.
+  let T : Set (Cell d) := {c | c ∈ C.cells ∧ c.dim + 2 < d}
+  let A (c : Cell d) := affineSpan ℝ (insert q c.carrier)
+  have hT : T.Finite := C.cells.finite_toSet.subset fun _ hc => hc.1
+  have hproper (c : Cell d) (hc : c ∈ T) : A c ≠ ⊤ := by
+    have hdim := finrank_vectorSpan_insert_le_set ℝ c.carrier q
+    have hdimc : Module.finrank ℝ (vectorSpan ℝ c.carrier) = c.dim := by
+      rw [← direction_affineSpan]
+      exact c.flat.dimension
+    intro htop
+    have hdir : vectorSpan ℝ (insert q c.carrier) = ⊤ := by
+      simpa only [A, direction_affineSpan, AffineSubspace.direction_top] using
+        congrArg AffineSubspace.direction htop
+    rw [hdir, finrank_top, finrank_euclideanSpace, Fintype.card_fin, hdimc] at hdim
+    have hcd := hc.2
+    omega
+  have hdense (c : Cell d) (hc : c ∈ T) : Dense (A c : Set (E d))ᶜ :=
+    (principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step2_dense_compl
+      (A c) (hproper c hc)).2
+  have hd : Dense (⋂ c ∈ T, (A c : Set (E d))ᶜ) :=
+    dense_biInter_of_isOpen (fun c _ => (A c).closed_of_finiteDimensional.isOpen_compl)
+      hT.countable hdense
+  obtain ⟨y, hyQ, hyavoid⟩ := hd.inter_open_nonempty Q hQopen
+    ⟨x, mem_connectedComponentIn hx⟩
+  have hyI : y ∈ I := hQsub hyQ
+  -- The first exit from I stays in the ball, and is adherent to the same component.
+  have hqIc : q ∈ Iᶜ := fun hqI => hqD (interior_subset hqI.1)
+  obtain ⟨z, hzIc, hzseg, hvis⟩ := hIopen.isClosed_compl.exists_wbtw_isVisible hqIc y
+  have hzb : z ∈ Metric.ball p r :=
+    (convex_ball p r).segment_subset hyI.2 hqb hzseg.mem_segment
+  have hzcl : z ∈ closure Q := by
+    change z ∈ closure (connectedComponentIn I x)
+    rw [connectedComponentIn_eq hyQ]
+    have hyIc : y ∉ Iᶜ := by simpa only [Set.notMem_compl_iff] using hyI
+    simpa only [compl_compl] using
+      principal_component_step1_hull_geometry_step10_jordan_brouwer_step17_reaches_facet_step4_visible_closure
+        hyIc hzIc hvis
+  have hzD : z ∈ D.carrier :=
+    closure_minimal (fun w hw => interior_subset (hQsub hw).1) D.compact.isClosed hzcl
+  refine ⟨z, ⟨⟨subset_closure hzD, fun hzint => hzIc ⟨hzint, hzb⟩⟩, hzb⟩, ?_, hzcl⟩
+  intro c hc hzc
+  by_contra hdim
+  have hcT : c ∈ T := ⟨hc, by omega⟩
+  have hyA : y ∉ A c := Set.mem_iInter₂.mp hyavoid c hcT
+  have hqA : q ∈ A c := subset_affineSpan ℝ _ (Set.mem_insert q _)
+  have hzA : z ∈ A c := subset_affineSpan ℝ _ (Set.mem_insert_of_mem q hzc)
+  have hzq : z = q :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step21_generic_fan_step4_segment_span
+      (A c) hqA hyA (by simpa only [segment_symm] using hzseg.mem_segment) hzA
+  exact hqD (hzq ▸ hzD)
 
 /-- Step 4 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood`
 (V4 1.25, using (H1) of V4 §1.0): "the polyhedral boundary ... a small ball".

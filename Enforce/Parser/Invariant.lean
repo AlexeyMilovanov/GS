@@ -124,7 +124,15 @@ def Contains (m : ℕ) (N : FramedNode S) : Prop := N.IsDescendant m B.node n
 /-- R1, V4 §3.0: every inner node has its prescribed actual native subdivision. -/
 theorem inner_actual (m : ℕ) (N : FramedNode S) (hN : B.Contains m N) :
     IsBlock Y m N := by
-  sorry
+  intro w
+  have hw : ((S.nativeTile N.ty m w).move N.frame).IsDescendant 0 N m :=
+    ⟨m, (Nat.zero_add m).symm, w, rfl⟩
+  obtain ⟨r, hr, v, hv⟩ :=
+    Parser.descendant_trans _ N B.node 0 m n hw hN
+  have hrn : r = n := by omega
+  subst r
+  obtain ⟨t, ht, htile⟩ := B.actual v
+  exact ⟨t, ht, htile.trans hv.symm⟩
 
 /-- R1, V4 §3.0: a node inside a block, regarded as a block at its own height. -/
 def innerBlock (m : ℕ) (N : FramedNode S) (hN : B.Contains m N) : Block Y m :=

@@ -3239,7 +3239,28 @@ private theorem honestLift_core_agree_step1_kblock
       B'.certificate =
         (⟨certOf U P B hB, ⟨U, B, hB, rfl⟩⟩ : CertificateSymbol S P) ∧
       B'.frame = B.frame := by
-  sorry
+  let D : CertificateSymbol S P :=
+    ⟨certOf U P B hB, ⟨U, B, hB, rfl⟩⟩
+  refine ⟨{ certificate := D, frame := B.frame,
+            leaves_actual := ?_ }, rfl, rfl⟩
+  intro w
+  have hm : (S.nativeTile B.ty P.K w).move B.frame ∈
+      U.hierarchy.nodes 0 := by
+    simpa only [Nat.sub_self, SubstSystem.nativeTile] using
+      U.descendant_mem ⟨P.K, ⟨B, hB⟩⟩ P.K le_rfl w
+  let t : GroundNode U :=
+    ⟨(S.nativeTile B.ty P.K w).move B.frame, hm⟩
+  have hl : leafTypeOf U P ⟨0, t⟩ rfl =
+      (⟨D, w⟩ : LeafType P) :=
+    honestLift_proper_step1_leaf_label U B hB ⟨0, t⟩ rfl w rfl
+  have he : honestTile C U t =
+      placedLeaf C (⟨D, w⟩ : LeafType P)
+        ((LeafType.position (⟨D, w⟩ : LeafType P)).trans B.frame) := by
+    unfold honestTile
+    rw [hl]
+    rfl
+  rw [← he]
+  exact honestLift_tile C U t
 
 /-- Step 2 of the V4 proof of `honestLift_core_agree` (V4 2.14(b)):
 actual prescribed leaves give the CORE marking throughout its carrier. -/

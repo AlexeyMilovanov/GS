@@ -3389,6 +3389,347 @@ theorem coarsen {S : SubstSystem d} (U : HonestSource S) (j : ℕ) (hj : 1 ≤ j
       Nonempty (ScaleTailEquiv U V j 0 (AffineIsometryEquiv.refl ℝ (E d))) := by
   exact ⟨coarsen_source U j, ⟨coarsen_tail U j⟩⟩
 
+/-- Step 1 of the V4 proof of `exactScaleTransfer` (V4 1.13(c)):
+"at the surviving levels"; restrict a tail bijection by the same number of levels. -/
+private def exactScaleTransfer_step1_restrictEquiv {S : SubstSystem d}
+    {U V : HonestSource S} {a b : ℕ} {J : Iso d}
+    (e : ScaleTailEquiv U V a b J) (k : ℕ) :
+    U.hierarchy.Tail (a + k) ≃ V.hierarchy.Tail (b + k) where
+  toFun q := ⟨(e.toEquiv ⟨q.val, by have := q.property; omega⟩).val, by
+    have h := e.heights ⟨q.val, by have := q.property; omega⟩
+    dsimp only at h
+    have := q.property
+    omega⟩
+  invFun r := ⟨(e.toEquiv.symm ⟨r.val, by have := r.property; omega⟩).val, by
+    have h := e.heights (e.toEquiv.symm ⟨r.val, by have := r.property; omega⟩)
+    simp only [Equiv.apply_symm_apply] at h
+    have := r.property
+    omega⟩
+  left_inv q := by
+    apply Subtype.ext
+    exact congrArg (fun r : U.hierarchy.Tail a => r.val) (e.toEquiv.symm_apply_apply
+      ⟨q.val, by have := q.property; omega⟩)
+  right_inv r := by
+    apply Subtype.ext
+    exact congrArg (fun q : V.hierarchy.Tail b => q.val) (e.toEquiv.apply_symm_apply
+      ⟨r.val, by have := r.property; omega⟩)
+
+/-- Step 1 of the V4 proof of `exactScaleTransfer` (V4 1.13(c)):
+"the descendants ... at the surviving levels" retain frames, roles and parents. -/
+private def exactScaleTransfer_step1_restrict {S : SubstSystem d}
+    {U V : HonestSource S} {a b : ℕ} {J : Iso d}
+    (e : ScaleTailEquiv U V a b J) (k : ℕ) :
+    ScaleTailEquiv U V (a + k) (b + k) J where
+  toEquiv := exactScaleTransfer_step1_restrictEquiv e k
+  heights q := by
+    have h := e.heights ⟨q.val, by have := q.property; omega⟩
+    dsimp only at h
+    change (e.toEquiv ⟨q.val, _⟩).val.1 + (a + k) = q.val.1 + (b + k)
+    omega
+  types q := e.types ⟨q.val, by have := q.property; omega⟩
+  frames q := by
+    have hz : ((b + k : ℕ) : ℤ) - ((a + k : ℕ) : ℤ) = (b : ℤ) - (a : ℤ) := by
+      omega
+    rw [hz]
+    exact e.frames ⟨q.val, by have := q.property; omega⟩
+  parents q := by
+    apply Subtype.ext
+    exact congrArg (fun r : V.hierarchy.Tail b => r.val)
+      (e.parents ⟨q.val, by have := q.property; omega⟩)
+  roles q := e.roles ⟨q.val, by have := q.property; omega⟩
+  prototype_sets q K := by
+    have hz : ((b + k : ℕ) : ℤ) - ((a + k : ℕ) : ℤ) = (b : ℤ) - (a : ℤ) := by
+      omega
+    rw [hz]
+    exact e.prototype_sets ⟨q.val, by have := q.property; omega⟩ K
+
+/-- Step 2 of the V4 proof of `exactScaleTransfer` (V4 1.13(c)):
+"inflate n-m times"; compose two transfers with the same ambient expansion. -/
+private def exactScaleTransfer_step2_comp {S : SubstSystem d}
+    {U V W : HonestSource S} {a b c : ℕ} {J : Iso d}
+    (e : ScaleTailEquiv U V a b (AffineIsometryEquiv.refl ℝ (E d)))
+    (f : ScaleTailEquiv V W b c J) (hV : V.expansion = U.expansion) :
+    ScaleTailEquiv U W a c J where
+  toEquiv := e.toEquiv.trans f.toEquiv
+  heights q := by
+    have he := e.heights q
+    have hf := f.heights (e.toEquiv q)
+    change (f.toEquiv (e.toEquiv q)).val.1 + a = q.val.1 + c
+    omega
+  types q := (f.types (e.toEquiv q)).trans (e.types q)
+  frames q := by
+    change (f.toEquiv (e.toEquiv q)).val.2.val.prototypeFrame
+      (f.toEquiv (e.toEquiv q)).val.1 = _
+    rw [f.frames, e.frames, hV]
+    apply AffineEquiv.ext
+    intro x
+    change J ((U.expansion ^ ((c : ℤ) - (b : ℤ)))
+      ((U.expansion ^ ((b : ℤ) - (a : ℤ))) (q.val.2.val.prototypeFrame q.val.1 x))) = _
+    rw [← LinearEquiv.mul_apply, ← zpow_add]
+    have hz : ((c : ℤ) - (b : ℤ)) + ((b : ℤ) - (a : ℤ)) = (c : ℤ) - (a : ℤ) := by
+      omega
+    rw [hz]
+    rfl
+  parents q := by
+    change f.toEquiv (e.toEquiv (U.hierarchy.tailParent a q)) = _
+    rw [e.parents, f.parents]
+    rfl
+  roles q := (f.roles (e.toEquiv q)).trans (e.roles q)
+  prototype_sets q K := by
+    refine coarsen_pullback _ _ _ _ (fun x => ?_) K
+    change (f.toEquiv (e.toEquiv q)).val.2.val.prototypeFrame
+      (f.toEquiv (e.toEquiv q)).val.1 x = _
+    rw [f.frames, e.frames, hV]
+    change J ((U.expansion ^ ((c : ℤ) - (b : ℤ)))
+      ((U.expansion ^ ((b : ℤ) - (a : ℤ))) (q.val.2.val.prototypeFrame q.val.1 x))) = _
+    rw [← LinearEquiv.mul_apply, ← zpow_add]
+    have hz : ((c : ℤ) - (b : ℤ)) + ((b : ℤ) - (a : ℤ)) = (c : ℤ) - (a : ℤ) := by
+      omega
+    rw [hz]
+
+/-- Step 3 of the V4 proof of `exactScaleTransfer` (V4 1.13(c)):
+"If n ≥ m inflate n-m times", keeping the coset from V4 1.13(a). -/
+private theorem exactScaleTransfer_step3_iterate {S : SubstSystem d}
+    (U : HonestSource S) (k : ℕ) :
+    ∃ V : HonestSource S, V.coset = U.coset ∧
+      Nonempty (ScaleTailEquiv U V 0 k (AffineIsometryEquiv.refl ℝ (E d))) := by
+  induction k with
+  | zero =>
+    refine ⟨U, rfl, ⟨{
+      toEquiv := Equiv.refl _
+      heights := fun _ => rfl
+      types := fun _ => rfl
+      frames := ?_
+      parents := fun _ => rfl
+      roles := fun _ => rfl
+      prototype_sets := ?_ }⟩⟩
+    · intro q
+      ext x
+      simp
+    · intro q K
+      simp
+  | succ k ih =>
+    obtain ⟨V, hV, ⟨e⟩⟩ := ih
+    obtain ⟨f⟩ := inflate_step9_tail V
+    have f' : ScaleTailEquiv V (inflate_step8_source V) k (k + 1)
+        (AffineIsometryEquiv.refl ℝ (E d)) := by
+      simpa only [Nat.zero_add, Nat.add_comm 1 k] using
+        exactScaleTransfer_step1_restrict f k
+    exact ⟨inflate_step8_source V, hV,
+      ⟨exactScaleTransfer_step2_comp e f' (by simp only [HonestSource.expansion, hV])⟩⟩
+
+/-- Step 4 of the V4 proof of `exactScaleTransfer` (V4 1.13(c)):
+"Finally apply an isometry"; the moved nodes are characterized by pulling back. -/
+private def exactScaleTransfer_step4_nodes {S : SubstSystem d}
+    (U : HonestSource S) (J : Iso d) (n : ℕ) : Set (FramedNode S) :=
+  {N | N.move J.symm ∈ U.hierarchy.nodes n}
+
+/-- Step 4 of the V4 proof of `exactScaleTransfer` (V4 1.13(c)):
+"an isometry ... of the whole tiling" moves every ground node with its tile. -/
+private theorem exactScaleTransfer_step4_ground {S : SubstSystem d}
+    (U : HonestSource S) (J : Iso d) (N : FramedNode S)
+    (hN : N ∈ exactScaleTransfer_step4_nodes U J 0) :
+    N.toTile ∈ (U.tiling.move J).tiles := by
+  refine ⟨(N.move J.symm).toTile, ?_, ?_⟩
+  · rw [← U.hierarchy.ground]
+    exact ⟨N.move J.symm, hN, rfl⟩
+  · change (N.move J.symm).toTile.move J = N.toTile
+    rw [← exists_honest_step7_move_toTile, exists_honest_step7_pullback_cancel]
+
+/-- Step 4 of the V4 proof of `exactScaleTransfer` (V4 1.13(c)):
+"all ... roles" are unchanged by the common isometry. -/
+private theorem exactScaleTransfer_step4_children {S : SubstSystem d}
+    (U : HonestSource S) (J : Iso d) (n : ℕ) (P : FramedNode S)
+    (hP : P ∈ exactScaleTransfer_step4_nodes U J (n + 1)) (i : S.I P.ty) :
+    P.child n i ∈ exactScaleTransfer_step4_nodes U J n :=
+  U.hierarchy.children_mem n (P.move J.symm) hP i
+
+/-- Step 4 of the V4 proof of `exactScaleTransfer` (V4 1.13(c)):
+"an isometry ... of the whole tiling" transports the coherent hierarchy. -/
+private def exactScaleTransfer_step4_hierarchy {S : SubstSystem d}
+    (U : HonestSource S) (J : Iso d) : CoherentHierarchy S (U.tiling.move J) where
+  nodes := exactScaleTransfer_step4_nodes U J
+  ground := by
+    ext t
+    constructor
+    · rintro ⟨N, hN, rfl⟩
+      exact exactScaleTransfer_step4_ground U J N hN
+    · rintro ⟨t, ht, rfl⟩
+      rw [← U.hierarchy.ground] at ht
+      obtain ⟨N, hN, rfl⟩ := ht
+      refine ⟨N.move J, ?_, exists_honest_step7_move_toTile N J⟩
+      change (N.move J).move J.symm ∈ U.hierarchy.nodes 0
+      rwa [exists_honest_step7_move_cancel]
+  cover n x := by
+    obtain ⟨N, hN, hx⟩ := U.hierarchy.cover n (J.symm x)
+    refine ⟨N.move J, ?_, ?_⟩
+    · change (N.move J).move J.symm ∈ U.hierarchy.nodes n
+      rwa [exists_honest_step7_move_cancel]
+    · rw [exists_honest_step7_node_move_carrier]
+      exact ⟨J.symm x, hx, J.apply_symm_apply x⟩
+  disjoint n := by
+    intro N hN P hP hne
+    have hne' : N.move J.symm ≠ P.move J.symm := by
+      intro h
+      have h' := congrArg (fun M : FramedNode S => M.move J) h
+      apply hne
+      simpa only [exists_honest_step7_pullback_cancel] using h'
+    have hd := U.hierarchy.disjoint n hN hP hne'
+    have hh := Set.disjoint_image_of_injective J.injective hd
+    change Disjoint (J.toHomeomorph '' interior ((N.move J.symm).carrier n))
+      (J.toHomeomorph '' interior ((P.move J.symm).carrier n)) at hh
+    rw [J.toHomeomorph.image_interior, J.toHomeomorph.image_interior] at hh
+    change Disjoint (interior (J '' (N.move J.symm).carrier n))
+      (interior (J '' (P.move J.symm).carrier n)) at hh
+    simpa only [← exists_honest_step7_node_move_carrier,
+      exists_honest_step7_pullback_cancel] using hh
+  parent n N := ⟨(U.hierarchy.parent n ⟨N.val.move J.symm, N.property⟩).val.move J, by
+    change ((U.hierarchy.parent n ⟨N.val.move J.symm, N.property⟩).val.move J).move J.symm ∈
+      U.hierarchy.nodes (n + 1)
+    rw [exists_honest_step7_move_cancel]
+    exact (U.hierarchy.parent n ⟨N.val.move J.symm, N.property⟩).property⟩
+  role n N := U.hierarchy.role n ⟨N.val.move J.symm, N.property⟩
+  child_eq n N := by
+    have h := congrArg (fun M : FramedNode S => M.move J)
+      (U.hierarchy.child_eq n ⟨N.val.move J.symm, N.property⟩)
+    simpa only [exists_honest_step7_pullback_cancel] using h
+  children_mem := exactScaleTransfer_step4_children U J
+  parent_unique n N P hP hi := by
+    obtain ⟨i, hi⟩ := hi
+    have h := U.hierarchy.parent_unique n ⟨N.val.move J.symm, N.property⟩
+      (P.move J.symm) hP ⟨i, congrArg (fun M : FramedNode S => M.move J.symm) hi⟩
+    have h' := congrArg (fun M : FramedNode S => M.move J) h
+    simpa only [exists_honest_step7_pullback_cancel] using h'
+  native_tiles := inflate_step6_native_tiles (U.tiling.move J)
+    (exactScaleTransfer_step4_nodes U J) (exactScaleTransfer_step4_ground U J)
+    (exactScaleTransfer_step4_children U J)
+
+/-- Step 5 of the V4 proof of `exactScaleTransfer` (V4 1.13(c)):
+"After an additional common isometry J"; pull finite contexts back by J⁻¹. -/
+private theorem exactScaleTransfer_step5_contexts {S : SubstSystem d}
+    (U : HonestSource S) (J : Iso d)
+    (F : Finset (exactScaleTransfer_step4_hierarchy U J).Node) :
+    Nonempty (LegalContext (exactScaleTransfer_step4_hierarchy U J) F) := by
+  classical
+  let f : (exactScaleTransfer_step4_hierarchy U J).Node → U.hierarchy.Node :=
+    fun q => ⟨q.1, ⟨q.2.val.move J.symm, q.2.property⟩⟩
+  obtain ⟨C⟩ := U.contexts (F.image f)
+  have hf (q) (hq : q ∈ F) : f q ∈ F.image f := Finset.mem_image_of_mem f hq
+  refine ⟨{
+    height := C.height
+    ty := C.ty
+    placement := J.symm.trans C.placement
+    standard := ?_
+    interior := ?_
+    edges := ?_ }⟩
+  · intro q hq
+    exact C.standard (f q) (hf q hq)
+  · intro q hq
+    have h := C.interior (f q) (hf q hq)
+    change (C.placement ∘ J.symm) '' q.2.val.carrier q.1 ⊆ _
+    rw [Set.image_comp, ← exists_honest_step7_node_move_carrier]
+    exact h
+  · intro q _ _
+    exact congrArg (fun M : FramedNode S => M.move (J.symm.trans C.placement))
+      ((exactScaleTransfer_step4_hierarchy U J).child_eq q.1 q.2)
+
+/-- Step 5 of the V4 proof of `exactScaleTransfer` (V4 1.13(c)):
+"an isometry ... of the whole tiling" preserves honesty and moves its frame coset. -/
+private def exactScaleTransfer_step5_source {S : SubstSystem d}
+    (U : HonestSource S) (J : Iso d) : HonestSource S where
+  tiling := U.tiling.move J
+  mem_species := species_move_mp U.tiling J U.mem_species
+  hierarchy := exactScaleTransfer_step4_hierarchy U J
+  contexts := exactScaleTransfer_step5_contexts U J
+  coset := J.linearIsometryEquiv * U.coset
+  frames_in_coset n N hN := by
+    obtain ⟨R, hR, hNR⟩ := U.frames_in_coset n (N.move J.symm) hN
+    refine ⟨R, hR, ?_⟩
+    have h := congrArg (fun M : FramedNode S => M.frame.linearIsometryEquiv)
+      (exists_honest_step7_pullback_cancel N J)
+    dsimp only at h
+    rw [← h]
+    change J.linearIsometryEquiv * (N.move J.symm).frame.linearIsometryEquiv = _
+    rw [hNR, mul_assoc]
+
+/-- Step 6 of the V4 proof of `exactScaleTransfer` (V4 1.13(c)):
+"all prototype-frame data are unchanged"; motion gives a bijection at every height. -/
+private def exactScaleTransfer_step6_moveEquiv {S : SubstSystem d}
+    (U : HonestSource S) (J : Iso d) (a : ℕ) :
+    U.hierarchy.Tail a ≃ (exactScaleTransfer_step5_source U J).hierarchy.Tail a where
+  toFun q := ⟨⟨q.val.1, ⟨q.val.2.val.move J, by
+    change (q.val.2.val.move J).move J.symm ∈ U.hierarchy.nodes q.val.1
+    rw [exists_honest_step7_move_cancel]
+    exact q.val.2.property⟩⟩, q.property⟩
+  invFun r := ⟨⟨r.val.1, ⟨r.val.2.val.move J.symm, r.val.2.property⟩⟩, r.property⟩
+  left_inv q := by
+    apply Subtype.ext
+    apply Sigma.subtype_ext
+    · rfl
+    · exact exists_honest_step7_move_cancel q.val.2.val J
+  right_inv r := by
+    apply Subtype.ext
+    apply Sigma.subtype_ext
+    · rfl
+    · exact exists_honest_step7_pullback_cancel r.val.2.val J
+
+/-- Step 6 of the V4 proof of `exactScaleTransfer` (V4 1.13(c)):
+"Finally apply an isometry to place N′", transporting the entire target hierarchy. -/
+private theorem exactScaleTransfer_step6_isometry {S : SubstSystem d}
+    {U V : HonestSource S} {a b : ℕ}
+    (e : ScaleTailEquiv U V a b (AffineIsometryEquiv.refl ℝ (E d))) (J : Iso d) :
+    ∃ W : HonestSource S, Nonempty (ScaleTailEquiv U W a b J) := by
+  let W := exactScaleTransfer_step5_source V J
+  let f := exactScaleTransfer_step6_moveEquiv V J b
+  have hf : ∀ q : V.hierarchy.Tail b,
+      W.hierarchy.nodeRole (f q).val = V.hierarchy.nodeRole q.val := by
+    intro q
+    change V.hierarchy.nodeRole ⟨q.val.1, ⟨(q.val.2.val.move J).move J.symm, _⟩⟩ = _
+    congr 1
+    apply Sigma.subtype_ext
+    · rfl
+    · exact exists_honest_step7_move_cancel q.val.2.val J
+  have hp : ∀ q : V.hierarchy.Tail b,
+      f (V.hierarchy.tailParent b q) = W.hierarchy.tailParent b (f q) := by
+    intro q
+    apply Subtype.ext
+    apply Sigma.subtype_ext
+    · rfl
+    · change (V.hierarchy.parentNode q.val).2.val.move J =
+        (V.hierarchy.parentNode ⟨q.val.1, ⟨(q.val.2.val.move J).move J.symm, _⟩⟩).2.val.move J
+      have h : (⟨q.val.1, ⟨(q.val.2.val.move J).move J.symm, by
+          rw [exists_honest_step7_move_cancel]
+          exact q.val.2.property⟩⟩ : V.hierarchy.Node) = q.val := by
+        apply Sigma.subtype_ext
+        · rfl
+        · exact exists_honest_step7_move_cancel q.val.2.val J
+      rw [h]
+  have hframe : ∀ q : U.hierarchy.Tail a,
+      (f (e.toEquiv q)).val.2.val.prototypeFrame (f (e.toEquiv q)).val.1 =
+        (q.val.2.val.prototypeFrame q.val.1).trans
+          (((U.expansion ^ ((b : ℤ) - (a : ℤ))).toAffineEquiv).trans J.toAffineEquiv) := by
+    intro q
+    change ((e.toEquiv q).val.2.val.prototypeFrame (e.toEquiv q).val.1).trans
+      J.toAffineEquiv = _
+    rw [e.frames]
+    ext x
+    rfl
+  refine ⟨W, ⟨{
+    toEquiv := e.toEquiv.trans f
+    heights := e.heights
+    types := e.types
+    frames := hframe
+    parents := ?_
+    roles := fun q => (hf (e.toEquiv q)).trans (e.roles q)
+    prototype_sets := ?_ }⟩⟩
+  · intro q
+    change f (e.toEquiv (U.hierarchy.tailParent a q)) = _
+    rw [e.parents, hp]
+    rfl
+  · intro q K
+    refine coarsen_pullback _ _ _ _ (fun x => ?_) K
+    exact congrArg (fun P : E d ≃ᵃ[ℝ] E d => P x) (hframe q)
+
 /-- T9, V4 1.13(c): transfer any node to any specified nonnegative height,
 preserving the entire surviving hierarchy and all prototype-frame data.
 An arbitrary common isometry `J` is included, so any congruent final placement
@@ -3400,7 +3741,29 @@ theorem exactScaleTransfer {S : SubstSystem d} (U : HonestSource S)
         ∃ N' : {N // N ∈ V.hierarchy.nodes n},
           e.toEquiv ⟨⟨m, ⟨N, hN⟩⟩, Nat.sub_le m n⟩ =
             ⟨⟨n, N'⟩, Nat.sub_le n m⟩ := by
-  sorry
+  have ht : ∃ V : HonestSource S,
+      Nonempty (ScaleTailEquiv U V (m - n) (n - m)
+        (AffineIsometryEquiv.refl ℝ (E d))) := by
+    by_cases h : m ≤ n
+    · obtain ⟨V, _, he⟩ := exactScaleTransfer_step3_iterate U (n - m)
+      exact ⟨V, by simpa only [Nat.sub_eq_zero_of_le h] using he⟩
+    · obtain ⟨V, he⟩ := coarsen U (m - n) (by omega)
+      exact ⟨V, by simpa only [Nat.sub_eq_zero_of_le (by omega : n ≤ m)] using he⟩
+  obtain ⟨V, ⟨e₀⟩⟩ := ht
+  obtain ⟨W, ⟨e⟩⟩ := exactScaleTransfer_step6_isometry e₀ J
+  refine ⟨W, e, ?_⟩
+  have hheight : (e.toEquiv ⟨⟨m, ⟨N, hN⟩⟩, Nat.sub_le m n⟩).val.1 = n := by
+    have h := e.heights ⟨⟨m, ⟨N, hN⟩⟩, Nat.sub_le m n⟩
+    dsimp at h
+    omega
+  have hnode : ∀ q : W.hierarchy.Tail (n - m), q.val.1 = n →
+      ∃ N' : {N // N ∈ W.hierarchy.nodes n},
+        q = ⟨⟨n, N'⟩, Nat.sub_le n m⟩ := by
+    rintro ⟨⟨l, P⟩, hl⟩ h
+    change l = n at h
+    subst l
+    exact ⟨P, rfl⟩
+  exact hnode _ hheight
 
 /-- T9, V4 1.13(c): congruent height shifts preserve all height residues.
 The same statement applies to every pair of corresponding nodes of a transfer. -/

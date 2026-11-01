@@ -680,6 +680,52 @@ private theorem two_sided_constancy_step7_right_approach
           ((fun v => p + v) '' tangentCone (g.birth.carrier g.height) p) := by
   sorry
 
+/-- Step 1 of the V4 proof of `two_sided_constancy_step8_e2` (V4 3.4):
+"Row (E2) equates the packets on all ports on g in θ" (left port). -/
+private theorem two_sided_constancy_step8_e2_step1_left_port
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (n : ℕ) (hn : P.K ≤ n) (D : DecodedLevel Y n) (hD : Inv D)
+    (g : Parser.BornFacet P) (hg : g.birth ∈ D.geometry.nodes g.height)
+    (p : E d) (hp : p ∈ g.carrier)
+    (t : PlacedMarkedTile (systemM S P C)) (j : EndSlot (compilerLeaf C t))
+    (hleft : Parser.IsFacetPiece Y (g.height - 1) g.leftNode
+      g.incidence.val.leftFacet t j.facet)
+    (hvertex : Compiler.endVertex (compilerFrame C t) j = p)
+    (hheader : j.header = two_sided_constancy_header g.birth g.height (compilerFrame C t) p)
+    (T : EndTemplate j) (hrow : endRow T)
+    (hocc : TemplateOccurs C Y (compilerFrame C t) T.configuration) :
+    ∃ a ∈ T.geometry.primitivePorts,
+      a.tile = (⟨(compilerLeaf C t).prototype,
+        AffineIsometryEquiv.refl ℝ (E d)⟩ : FramedNode S) ∧
+      a.facet.val = j.facet.val ∧
+      a.incidence = g.incidence ∧
+      (a.tile, compilerLeaf C t) ∈ T.configuration.tiles := by
+  sorry
+
+/-- Step 2 of the V4 proof of `two_sided_constancy_step8_e2` (V4 3.4):
+"Row (E2) equates the packets on all ports on g in θ" (right port). -/
+private theorem two_sided_constancy_step8_e2_step2_right_port
+    (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
+    (n : ℕ) (hn : P.K ≤ n) (D : DecodedLevel Y n) (hD : Inv D)
+    (g : Parser.BornFacet P) (hg : g.birth ∈ D.geometry.nodes g.height)
+    (p : E d) (hp : p ∈ g.carrier)
+    (t : PlacedMarkedTile (systemM S P C)) (j : EndSlot (compilerLeaf C t))
+    (hvertex : Compiler.endVertex (compilerFrame C t) j = p)
+    (hheader : j.header = two_sided_constancy_header g.birth g.height (compilerFrame C t) p)
+    (T : EndTemplate j) (hocc : TemplateOccurs C Y (compilerFrame C t) T.configuration)
+    (u : PlacedMarkedTile (systemM S P C)) (f' : FacetName S (tileNode u).ty)
+    (hright : Parser.IsFacetPiece Y (g.height - 1) g.rightNode
+      g.incidence.val.rightFacet u f')
+    (hpu : p ∈ (tileNode u).cell 0 f'.val)
+    (z : FramedNode S × LeafType P) (hz : z ∈ T.configuration.tiles)
+    (hu : u = placedLeaf C z.2 (z.1.frame.trans (compilerFrame C t))) :
+    ∃ b ∈ T.geometry.primitivePorts,
+      b.tile = z.1 ∧
+      b.facet.val = f'.val ∧
+      b.incidence = g.incidence ∧
+      (b.tile, z.2) ∈ T.configuration.tiles := by
+  sorry
+
 /-- Step 8 of the V4 proof of `two_sided_constancy` (V4 3.4, 2.5 (E2), 2.17(b)):
 "so by Lemma 3.3 they belong to `θ`, as do the tiles inside `C` with pieces in
 `g` at `q`. Row (E2) equates the packets on all ports on `g` in `θ`". Given the
@@ -705,7 +751,16 @@ private theorem two_sided_constancy_step8_e2
     (z : FramedNode S × LeafType P) (hz : z ∈ T.configuration.tiles)
     (hu : u = placedLeaf C z.2 (z.1.frame.trans (compilerFrame C t))) :
     leafPacket (compilerLeaf C u) f'.val = leafPacket (compilerLeaf C t) j.facet.val := by
-  sorry
+  obtain ⟨a, ha, hta, hfa, hia, hata⟩ := two_sided_constancy_step8_e2_step1_left_port Y hY n hn D hD g hg p hp t j hleft hvertex hheader T hrow hocc
+  obtain ⟨b, hb, htb, hfb, hib, hbtb⟩ := two_sided_constancy_step8_e2_step2_right_port Y hY n hn D hD g hg p hp t j hvertex hheader T hocc u f' hright hpu z hz hu
+  have e2 := hrow.2.1.1 a ha b hb
+    (hia.trans hib.symm) (compilerLeaf C t) z.2 hata hbtb
+  rw [hfa, hfb] at e2
+  have hleaf : compilerLeaf C u = z.2 := by
+    rw [hu]
+    exact (compiler_decode_unique C _ _).1
+  rw [hleaf]
+  exact e2.symm
 
 /-- Step 9 of the V4 proof of `two_sided_constancy` (V4 3.4): "Combined with
 (I5) for `C` and `C'` (constancy along `g` on each side) the two attached

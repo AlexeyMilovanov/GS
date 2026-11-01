@@ -715,7 +715,37 @@ theorem power_fixes_node (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (g : Iso d) (hg : Y.IsSymmetry g) :
     ∃ k : ℕ, 1 ≤ k ∧ ∃ (n : ℕ) (N : FramedNode S),
       N ∈ (parsedHierarchy Y hY).nodes n ∧ (g ^ k) '' N.carrier n = N.carrier n := by
-  sorry
+  have hground_cov := (parsedHierarchy Y hY).cover 0 0
+  obtain ⟨N0, hN0, _⟩ := hground_cov
+  let q : (parsedHierarchy Y hY).Node := ⟨0, ⟨N0, hN0⟩⟩
+  obtain ⟨k, hk, hfix⟩ := power_fixes_component Y hY g hg q rfl
+  refine ⟨k, hk, ?_⟩
+  set h := g ^ k
+  have hh : Y.IsSymmetry h := (Y.mem_symmetryGroup h).1 (Subgroup.pow_mem _ ((Y.mem_symmetryGroup g).2 hg) k)
+  let q' : (parsedHierarchy Y hY).Node := ⟨q.1, ⟨q.2.1.move h, parsed_node_move_mem Y hY h hh q.1 q.2.1 q.2.2⟩⟩
+  have hcomp : component Y hY q' = component Y hY q := by
+    have hc := power_fixes_component_step5_component_move Y hY h hh q q' rfl rfl
+    rw [hc, hfix]
+  obtain ⟨r, hr⟩ := (component_eq_iff Y hY q q' rfl rfl).1 hcomp.symm
+  have h_anc_q' := power_fixes_component_step4_ancestor_move Y hY h hh q q' rfl rfl r
+  have e2 : (((parsedHierarchy Y hY).ancestor q' r).2.1) = (((parsedHierarchy Y hY).ancestor q r).2.1).move h := h_anc_q'.2
+  have e3 : (((parsedHierarchy Y hY).ancestor q' r).2.1) = (((parsedHierarchy Y hY).ancestor q r).2.1) := hr.symm ▸ rfl
+  have hmove : (((parsedHierarchy Y hY).ancestor q r).2.1).move h = (((parsedHierarchy Y hY).ancestor q r).2.1) := e2.symm.trans e3
+  have key : ∀ (m : ℕ) (N : FramedNode S), N.move h = N → h '' N.carrier m = N.carrier m := by
+    intro m N hN
+    have hc : (N.move h).carrier m = h '' N.carrier m := by
+      dsimp [FramedNode.carrier, FramedNode.move, placedSet, SubstSystem.supertile]
+      ext x
+      simp only [Set.mem_image]
+      constructor
+      · rintro ⟨y, hy, rfl⟩
+        exact ⟨N.frame y, ⟨y, hy, rfl⟩, by simp⟩
+      · rintro ⟨_, ⟨y, hy, rfl⟩, rfl⟩
+        exact ⟨y, hy, by simp⟩
+    rw [← hc, hN]
+  refine ⟨((parsedHierarchy Y hY).ancestor q r).1, ((parsedHierarchy Y hY).ancestor q r).2.1, ((parsedHierarchy Y hY).ancestor q r).2.2, ?_⟩
+  exact key _ _ hmove
+
 
 omit [Fact (2 ≤ d)] in
 private lemma node_polyhedron_full_step1_polyhedron {K : Set (E d)} (hK : Polyhedron K) (f : E d ≃ᵃ[ℝ] E d) :

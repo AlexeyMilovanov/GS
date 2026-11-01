@@ -2137,7 +2137,49 @@ def IsProvider (q : H.Node) (f : FacetName S q.2.val.ty)
 Nonfaultness gives a finite endpoint of the initial segment. -/
 theorem provider_exists_unique (q : H.Node) (f : FacetName S q.2.val.ty)
     (hf : ¬ H.IsFault q f) : ∃! v : H.ProviderCandidate q, H.IsProvider q f v := by
-  sorry
+  rcases (H.boundaryOffsets_initial q f).resolve_right hf with ⟨b, hb, hb_eq⟩
+  obtain ⟨k, rfl⟩ := Nat.exists_eq_succ_of_ne_zero (show b ≠ 0 by omega)
+  have hk : k ∈ H.boundaryOffsets q f := by
+    rw [hb_eq]
+    exact Nat.lt_succ_self k
+  have hnext : k + 1 ∉ H.boundaryOffsets q f := by
+    rw [hb_eq]
+    exact Nat.lt_irrefl (k + 1)
+  have hne : (relint (q.2.val.cell q.1 f.val)).Nonempty := by
+    rw [FramedNode.cell, hereditary_trace_step1_relint_image]
+    exact f.val.flat.relint_nonempty.image _
+  rcases facet_dichotomy (H.ancestor q k).2.val q.2.val (H.ancestor q k).1 q.1
+      (H.ancestor_descendant q k) f with ⟨g, hg, hg_unique⟩ | hint
+  · have hanc : H.ancestor (H.ancestor q k) 1 = H.ancestor q (k + 1) := by
+      simp only [ancestor, Function.iterate_succ_apply', Function.iterate_zero_apply]
+    have hdesc := H.ancestor_descendant (H.ancestor q k) 1
+    rw [hanc] at hdesc
+    have hint : relint ((H.ancestor q k).2.val.cell (H.ancestor q k).1 g.val) ⊆
+        interior ((H.ancestor q (k + 1)).2.val.carrier (H.ancestor q (k + 1)).1) := by
+      rcases facet_dichotomy (H.ancestor q (k + 1)).2.val (H.ancestor q k).2.val
+          (H.ancestor q (k + 1)).1 (H.ancestor q k).1 hdesc g with
+          ⟨F, hF, _⟩ | hint
+      · exact (hnext (hg.trans (hF.trans
+          (hereditary_trace_step1_cell_frontier (H.ancestor q (k + 1)).2.val
+            (H.ancestor q (k + 1)).1 F.val (Finset.mem_filter.mp F.property).1)))).elim
+      · exact hint
+    refine ⟨⟨k, g⟩, ⟨hb_eq, hg, hint⟩, ?_⟩
+    rintro ⟨k', g'⟩ ⟨hk', hg', _⟩
+    have heq : k = k' := by
+      have h1 : k < k' + 1 := by
+        change k ∈ {r : ℕ | r < k' + 1}
+        rw [← hk']
+        exact hk
+      have h2 : k' < k + 1 := by
+        change k' ∈ {r : ℕ | r < k + 1}
+        rw [← hb_eq, hk']
+        exact Nat.lt_succ_self k'
+      omega
+    subst k'
+    exact congrArg (fun g => (⟨k, g⟩ : H.ProviderCandidate q)) (hg_unique g' hg')
+  · obtain ⟨p, hp⟩ := hne
+    exact (Set.disjoint_left.mp disjoint_interior_frontier
+      (hint hp) (hk (intrinsicInterior_subset hp))).elim
 
 /-- P6, V4 1.6: first provider, with the serving ancestor and its facet name. -/
 def firstProvider (q : H.Node) (f : FacetName S q.2.val.ty)

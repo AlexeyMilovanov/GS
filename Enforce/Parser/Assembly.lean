@@ -6088,6 +6088,430 @@ private theorem packet_E_equality_step2_boundary_neighborhood_step7g_local_at {C
   rw [packet_E_equality_step2_boundary_neighborhood_step7f_transfer hloc le_rfl, ← Homeomorph.image_symm]
   exact hball.image _ (Homeomorph.continuous _).continuousOn
 
+set_option maxHeartbeats 800000 in
+/-- Step 1 of the V4 proof of `packet_E_equality_step2_boundary_neighborhood_step5a_low_codim` (V4 3.12(b)):
+"the interior link of P at q is connected (P is a polyhedral manifold domain)".
+Split the ambient vector space along the translation lineality of the cone.
+The resulting continuous linear equivalence sends the entire cone to `univ ×ˢ D`,
+where `D` is polyhedral and the two factor dimensions add to `d`. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step1_cone_split
+    {C : Set (E d)} (hC : IsPolyhedralCone C) :
+    let L := packet_E_equality_step2_boundary_neighborhood_step7_lin C
+    ∃ (m : ℕ) (D : Set (E m))
+      (e : E d ≃L[ℝ] (E (Module.finrank ℝ L) × E m)),
+      Module.finrank ℝ L + m = d ∧ IsPolyhedralCone D ∧ e '' C = Set.univ ×ˢ D := by
+  classical
+  generalize hL : packet_E_equality_step2_boundary_neighborhood_step7_lin C = L
+  dsimp only
+  let r := Module.finrank ℝ L
+  let m := d - r
+  have hdim : Module.finrank ℝ Lᗮ = m := by
+    have h := L.finrank_add_finrank_orthogonal
+    rw [finrank_euclideanSpace_fin] at h
+    dsimp [m, r]
+    omega
+  let a : L ≃ₗ[ℝ] E r := LinearEquiv.ofFinrankEq _ _ (by simp [r])
+  let b : Lᗮ ≃ₗ[ℝ] E m := LinearEquiv.ofFinrankEq _ _ (by simp [hdim])
+  let p : (L × Lᗮ) ≃ₗ[ℝ] E d :=
+    L.prodEquivOfIsCompl Lᗮ L.isCompl_orthogonal_of_hasOrthogonalProjection
+  let e : E d ≃L[ℝ] (E r × E m) :=
+    (p.symm.trans (a.prodCongr b)).toContinuousLinearEquiv
+  let j : E m →ₗ[ℝ] E d := Lᗮ.subtype.comp b.symm.toLinearMap
+  let D : Set (E m) := j ⁻¹' C
+  refine ⟨m, D, e, ?_, ?_, ?_⟩
+  · have h := L.finrank_add_finrank_orthogonal
+    rw [finrank_euclideanSpace_fin, hdim] at h
+    exact h
+  · obtain ⟨s, hs⟩ := hC
+    refine ⟨s.image (fun q => q.image (fun f => f.comp j)), ?_⟩
+    ext x
+    simp only [D, Set.mem_preimage, hs, Set.mem_iUnion, Set.mem_setOf_eq]
+    constructor
+    · rintro ⟨q, hq, hx⟩
+      refine ⟨q.image (fun f => f.comp j), Finset.mem_image_of_mem _ hq, ?_⟩
+      intro g hg
+      obtain ⟨f, hf, rfl⟩ := Finset.mem_image.mp hg
+      exact hx f hf
+    · rintro ⟨q, hq, hx⟩
+      obtain ⟨q₀, hq₀, rfl⟩ := Finset.mem_image.mp hq
+      exact ⟨q₀, hq₀, fun f hf => hx (f.comp j) (Finset.mem_image_of_mem _ hf)⟩
+  · ext z
+    change z ∈ e.toEquiv '' C ↔ z ∈ Set.univ ×ˢ D
+    rw [e.toEquiv.image_eq_preimage_symm]
+    change e.symm z ∈ C ↔ z ∈ Set.univ ×ˢ D
+    have hsplit : e.symm z = (a.symm z.1 : E d) + j z.2 := rfl
+    rw [hsplit]
+    have hv0 : (a.symm z.1 : E d) ∈ packet_E_equality_step2_boundary_neighborhood_step7_lin C := by
+      rw [hL]
+      exact (a.symm z.1).property
+    have hv := (packet_E_equality_step2_boundary_neighborhood_step7_mem_lin.mp hv0) (j z.2) 1
+    change (a.symm z.1 : E d) + j z.2 ∈ C ↔ True ∧ j z.2 ∈ C
+    rw [true_and, add_comm]
+    rw [one_smul] at hv
+    exact hv
+
+/-- Step 2 of the V4 proof of `packet_E_equality_step2_boundary_neighborhood_step5a_low_codim` (V4 3.12(b)):
+"the interior link of P at q is connected (P is a polyhedral manifold domain)".
+The ambient splitting identifies both interior and frontier with the
+corresponding products. It also transfers the frontier regularity condition
+and the frontier point at the origin to the transverse cone. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step2_transverse_topology
+    {r m : ℕ} {C : Set (E d)} {D : Set (E m)}
+    (e : E d ≃L[ℝ] (E r × E m)) (he : e '' C = Set.univ ×ˢ D)
+    (hreg : frontier C ⊆ closure (interior C)) (h0 : (0 : E d) ∈ frontier C) :
+    e '' interior C = Set.univ ×ˢ interior D ∧
+      e '' frontier C = Set.univ ×ˢ frontier D ∧
+      frontier D ⊆ closure (interior D) ∧ (0 : E m) ∈ frontier D := by
+  have hi : e '' interior C = Set.univ ×ˢ interior D := by
+    have h := e.toHomeomorph.image_interior C
+    change e '' interior C = interior (e '' C) at h
+    rw [h, he, interior_prod_eq, interior_univ]
+  have hf : e '' frontier C = Set.univ ×ˢ frontier D := by
+    have h := e.toHomeomorph.image_frontier C
+    change e '' frontier C = frontier (e '' C) at h
+    rw [h, he, frontier_univ_prod_eq]
+  refine ⟨hi, hf, ?_, ?_⟩
+  · intro z hz
+    have hz' : ((0 : E r), z) ∈ e '' frontier C := by rw [hf]; exact ⟨Set.mem_univ _, hz⟩
+    obtain ⟨x, hx, hex⟩ := hz'
+    have hzcl : ((0 : E r), z) ∈ e '' closure (interior C) := ⟨x, hreg hx, hex⟩
+    have hc := e.toHomeomorph.image_closure (interior C)
+    change e '' closure (interior C) = closure (e '' interior C) at hc
+    rw [hc, hi, closure_prod_eq, closure_univ] at hzcl
+    exact hzcl.2
+  · have hz : (0 : E r × E m) ∈ e '' frontier C := ⟨0, h0, e.map_zero⟩
+    rw [hf] at hz
+    exact hz.2
+
+/-- Step 3 of the V4 proof of `packet_E_equality_step2_boundary_neighborhood_step5a_low_codim` (V4 3.12(b)):
+"the interior link of P at q is connected (P is a polyhedral manifold domain)".
+A polyhedral cone in a space of dimension zero or one is convex, so its
+interior is preconnected, including when that interior is empty. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step3_dimension_one
+    {m : ℕ} {D : Set (E m)} (hD : IsPolyhedralCone D) (hm : m ≤ 1) :
+    IsPreconnected (interior D) := by
+  have hsmul : ∀ (t : ℝ), 0 ≤ t → ∀ x ∈ D, t • x ∈ D := by
+    obtain ⟨s, rfl⟩ := hD
+    intro t ht x hx
+    simp only [Set.mem_iUnion, Set.mem_setOf_eq] at hx ⊢
+    obtain ⟨q, hq, hx⟩ := hx
+    exact ⟨q, hq, fun f hf => by simpa only [map_smul, smul_eq_mul] using mul_nonneg ht (hx f hf)⟩
+  have hconv : Convex ℝ D := by
+    rcases Nat.eq_zero_or_pos m with hm0 | hm0
+    · subst m
+      intro x hx y hy a b ha hb hab
+      have h : a • x + b • y = x := Subsingleton.elim _ _
+      rwa [h]
+    · have hm1 : m = 1 := by omega
+      subst m
+      let e : E 1 ≃L[ℝ] ℝ := ContinuousLinearEquiv.ofFinrankEq (by simp)
+      let A : Set ℝ := e.symm ⁻¹' D
+      have hA : Convex ℝ A := by
+        intro x hx y hy a b ha hb hab
+        change e.symm (a * x + b * y) ∈ D
+        let z := a * x + b * y
+        change e.symm z ∈ D
+        have hz0 : (0 : E 1) ∈ D := by simpa using hsmul 0 le_rfl (e.symm x) hx
+        have hneg : ∀ w : ℝ, w < 0 → e.symm w ∈ D → z < 0 → e.symm z ∈ D := by
+          intro w hw hwD hz
+          have h := hsmul (z / w) (le_of_lt (div_pos_of_neg_of_neg hz hw)) (e.symm w) hwD
+          have heq : (z / w) • e.symm w = e.symm z := by
+            rw [← map_smul, smul_eq_mul, div_mul_cancel₀ _ hw.ne]
+          rwa [heq] at h
+        have hpos : ∀ w : ℝ, 0 < w → e.symm w ∈ D → 0 < z → e.symm z ∈ D := by
+          intro w hw hwD hz
+          have h := hsmul (z / w) (le_of_lt (div_pos hz hw)) (e.symm w) hwD
+          have heq : (z / w) • e.symm w = e.symm z := by
+            rw [← map_smul, smul_eq_mul, div_mul_cancel₀ _ hw.ne']
+          rwa [heq] at h
+        rcases lt_trichotomy z 0 with hz | hz | hz
+        · by_cases hx0 : x < 0
+          · exact hneg x hx0 hx hz
+          · have hy0 : y < 0 := by
+              by_contra hy0
+              have : 0 ≤ z := add_nonneg (mul_nonneg ha (le_of_not_gt hx0))
+                (mul_nonneg hb (le_of_not_gt hy0))
+              linarith
+            exact hneg y hy0 hy hz
+        · simpa only [hz, map_zero] using hz0
+        · by_cases hy0 : 0 < y
+          · exact hpos y hy0 hy hz
+          · have hx0 : 0 < x := by
+              by_contra hx0
+              have : z ≤ 0 := add_nonpos (mul_nonpos_of_nonneg_of_nonpos ha (le_of_not_gt hx0))
+                (mul_nonpos_of_nonneg_of_nonpos hb (le_of_not_gt hy0))
+              linarith
+            exact hpos x hx0 hx hz
+      have hpre : D = e ⁻¹' A := by ext x; simp [A]
+      rw [hpre]
+      exact hA.linear_preimage e.toLinearMap
+  exact hconv.interior.isPreconnected
+
+/-- Step 4 of the V4 proof of `packet_E_equality_step2_boundary_neighborhood_step5a_low_codim` (V4 3.12(b)):
+"the interior link of P at q is connected (P is a polyhedral manifold domain)".
+In the planar transverse space, each boundary direction lies on the
+kernel of a nonzero defining form. Each such kernel has only two unit
+directions, giving a finite, normalized set of boundary rays. The separate
+origin also covers a cone whose frontier is just `{0}`. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step4_planar_boundary_rays
+    {D : Set (E 2)} (hD : IsPolyhedralCone D) (h0 : (0 : E 2) ∈ frontier D) :
+    ∃ R : Finset (E 2), (∀ v ∈ R, ‖v‖ = 1) ∧
+      frontier D = insert 0 (⋃ v ∈ R, {x | ∃ t : ℝ, 0 < t ∧ x = t • v}) := by
+  classical
+  have hkerfinite (f : E 2 →ₗ[ℝ] ℝ) :
+      {x : E 2 | f ≠ 0 ∧ f x = 0 ∧ ‖x‖ = 1}.Finite := by
+    by_cases hf : f = 0
+    · simp [hf]
+    have hkdim : Module.finrank ℝ (LinearMap.ker f) = 1 := by
+      have := Module.Dual.finrank_ker_add_one_of_ne_zero hf
+      rw [finrank_euclideanSpace_fin] at this
+      omega
+    haveI : Nontrivial (LinearMap.ker f) := Module.nontrivial_of_finrank_pos (R := ℝ) (M := LinearMap.ker f) (by omega)
+    obtain ⟨w, hw⟩ := exists_ne (0 : LinearMap.ker f)
+    let u : LinearMap.ker f := NormedSpace.normalize w
+    have hunorm : ‖u‖ = 1 := NormedSpace.norm_normalize hw
+    have huvalnorm : ‖(u : E 2)‖ = 1 := hunorm
+    have hu : u ≠ 0 := by intro h; simpa [h] using hunorm
+    refine (Set.toFinite ({(u : E 2), -(u : E 2)} : Set (E 2))).subset ?_
+    rintro x ⟨_, hx, hxn⟩
+    obtain ⟨t, ht⟩ := exists_smul_eq_of_finrank_eq_one hkdim hu
+      (⟨x, hx⟩ : LinearMap.ker f)
+    have htval : t • (u : E 2) = x := congrArg Subtype.val ht
+    have htabs : |t| = 1 := by
+      have := congrArg norm htval
+      simpa [norm_smul, huvalnorm, hxn] using this
+    rcases eq_or_eq_neg_of_abs_eq htabs with ht1 | ht1
+    · simp only [Set.mem_insert_iff, Set.mem_singleton_iff]
+      exact Or.inl (by simpa [ht1] using htval.symm)
+    · simp only [Set.mem_insert_iff, Set.mem_singleton_iff]
+      exact Or.inr (by simpa [ht1] using htval.symm)
+  let H : (E 2 →ₗ[ℝ] ℝ) → Set (E 2) := fun f => {x | 0 ≤ f x}
+  have hhalf (f : E 2 →ₗ[ℝ] ℝ) :
+      frontier (H f) ⊆ {x | f ≠ 0 ∧ f x = 0} := by
+    by_cases hf : f = 0
+    · simp [H, hf]
+    intro x hx
+    exact ⟨hf, (frontier_le_subset_eq continuous_const f.continuous_of_finiteDimensional hx).symm⟩
+  let Q : Finset (E 2 →ₗ[ℝ] ℝ) → Set (E 2) := fun q => {x | ∀ f ∈ q, 0 ≤ f x}
+  have hpiece (q : Finset (E 2 →ₗ[ℝ] ℝ)) :
+      frontier (Q q) ⊆ ⋃ f ∈ q, {x | f ≠ 0 ∧ f x = 0} := by
+    induction q using Finset.induction_on with
+    | empty => simp [Q]
+    | @insert f q hf ih =>
+      have heq : Q (insert f q) = H f ∩ Q q := by ext x; simp [Q, H]
+      rw [heq]
+      intro x hx
+      rcases frontier_inter_subset _ _ hx with hx | hx
+      · have hx' := hhalf f hx.1
+        simp only [Set.mem_iUnion, Set.mem_setOf_eq]
+        exact ⟨f, Finset.mem_insert_self _ _, hx'⟩
+      · obtain ⟨g, hg, hxg⟩ := Set.mem_iUnion₂.mp (ih hx.2)
+        exact Set.mem_iUnion₂.mpr ⟨g, Finset.mem_insert_of_mem hg, hxg⟩
+  have hDcone := hD
+  obtain ⟨s, hs⟩ := hDcone
+  have hbound (s : Finset (Finset (E 2 →ₗ[ℝ] ℝ))) :
+      frontier (⋃ q ∈ s, Q q) ⊆ ⋃ q ∈ s, ⋃ f ∈ q, {x | f ≠ 0 ∧ f x = 0} := by
+    induction s using Finset.induction_on with
+    | empty => simp
+    | @insert q s hq ih =>
+      simp only [Finset.set_biUnion_insert]
+      intro x hx
+      rcases frontier_union_subset _ _ hx with hx | hx
+      · exact Or.inl (hpiece q hx.1)
+      · exact Or.inr (ih hx.2)
+  have hfinite : {x : E 2 | x ∈ frontier D ∧ ‖x‖ = 1}.Finite := by
+    have hfin : (⋃ q ∈ s, ⋃ f ∈ q, {x : E 2 | f ≠ 0 ∧ f x = 0 ∧ ‖x‖ = 1}).Finite :=
+      s.finite_toSet.biUnion fun q _ => q.finite_toSet.biUnion fun f _ => hkerfinite f
+    refine hfin.subset ?_
+    rintro x ⟨hx, hxn⟩
+    rw [hs] at hx
+    obtain ⟨q, hq, hxq⟩ := Set.mem_iUnion₂.mp (hbound s hx)
+    obtain ⟨f, hf, hfx⟩ := Set.mem_iUnion₂.mp hxq
+    exact Set.mem_iUnion₂.mpr ⟨q, hq, Set.mem_iUnion₂.mpr ⟨f, hf, hfx.1, hfx.2, hxn⟩⟩
+  let R := hfinite.toFinset
+  have hR (x : E 2) : x ∈ R ↔ x ∈ frontier D ∧ ‖x‖ = 1 := by simp [R]
+  have hscale (t : ℝ) (ht : 0 < t) (x : E 2) :
+      t • x ∈ frontier D ↔ x ∈ frontier D := by
+    let e : E 2 ≃ₜ E 2 := Homeomorph.smulOfNeZero t ht.ne'
+    have he : e ⁻¹' D = D := by
+      ext y
+      simp [e, hs, map_smul, smul_eq_mul, mul_nonneg_iff_of_pos_left ht]
+    have hf := e.preimage_frontier D
+    rw [he] at hf
+    simpa [e] using Set.ext_iff.mp hf x
+  refine ⟨R, fun v hv => (hR v |>.mp hv).2, ?_⟩
+  ext x
+  constructor
+  · intro hx
+    by_cases hx0 : x = 0
+    · exact Set.mem_insert_iff.mpr (Or.inl hx0)
+    apply Set.mem_insert_iff.mpr
+    right
+    let v := NormedSpace.normalize x
+    have hn : ‖v‖ = 1 := NormedSpace.norm_normalize hx0
+    have hv : v ∈ frontier D :=
+      (hscale ‖x‖⁻¹ (inv_pos.mpr (norm_pos_iff.mpr hx0)) x).mpr hx
+    refine Set.mem_iUnion₂.mpr ⟨v, (hR v).mpr ⟨hv, hn⟩, ‖x‖, norm_pos_iff.mpr hx0, ?_⟩
+    exact (NormedSpace.norm_smul_normalize x).symm
+  · intro hx
+    rcases Set.mem_insert_iff.mp hx with hx | hx
+    · simpa only [hx] using h0
+    · obtain ⟨v, hv, t, ht, rfl⟩ := Set.mem_iUnion₂.mp hx
+      exact (hscale t ht v).mpr ((hR v).mp hv).1
+
+/-- Step 5 of the V4 proof of `packet_E_equality_step2_boundary_neighborhood_step5a_low_codim` (V4 3.12(b)):
+"the interior link of P at q is connected (P is a polyhedral manifold domain)".
+An `r`-dimensional spine times a finite union of distinct planar rays
+cannot have a Euclidean `(r + 1)`-chart at the spine when there are three or
+more rays. This is the book obstruction, stated entirely for the product
+space and a chart at its origin. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step5_book_pages
+    {r : ℕ} {B : Set (E 2)} (h0 : (0 : E 2) ∈ B)
+    (R : Finset (E 2)) (hR : ∀ v ∈ R, ‖v‖ = 1)
+    (hB : B = insert 0 (⋃ v ∈ R, {x | ∃ t : ℝ, 0 < t ∧ x = t • v}))
+    (hchart : ∃ U : Set (E r × B), IsOpen U ∧ (0, ⟨0, h0⟩) ∈ U ∧
+      ∃ V : Set (E (r + 1)), IsOpen V ∧ Nonempty (U ≃ₜ V)) :
+    R.card ≤ 2 := by
+  sorry
+
+/-- Step 6 of the V4 proof of `packet_E_equality_step2_boundary_neighborhood_step5a_low_codim` (V4 3.12(b)):
+"the interior link of P at q is connected (P is a polyhedral manifold domain)".
+Removing the origin and at most two distinct rays from the plane leaves
+at most two open preconnected pieces. An unused piece may be empty. This
+planar sector statement has no cone, regularity, or manifold hypothesis. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step6_planar_sectors
+    (R : Finset (E 2)) (hR : ∀ v ∈ R, ‖v‖ = 1) (hcard : R.card ≤ 2) :
+    ∃ U V : Set (E 2), IsOpen U ∧ IsOpen V ∧
+      IsPreconnected U ∧ IsPreconnected V ∧ Disjoint U V ∧
+      (insert 0 (⋃ v ∈ R, {x | ∃ t : ℝ, 0 < t ∧ x = t • v}))ᶜ = U ∪ V := by
+  classical
+  by_cases hR0 : R = ∅
+  · subst R
+    have hrank : 1 < Module.rank ℝ (E 2) := by
+      rw [← Module.finrank_eq_rank, finrank_euclideanSpace_fin]
+      norm_num
+    refine ⟨{0}ᶜ, ∅, isClosed_singleton.isOpen_compl, isOpen_empty,
+      (isConnected_compl_singleton_of_one_lt_rank hrank 0).isPreconnected,
+      isPreconnected_empty, Set.disjoint_empty _, ?_⟩
+    simp
+  · by_cases hR1 : R.card = 1
+    · obtain ⟨v, rfl⟩ := Finset.card_eq_one.mp hR1
+      have hvnorm : ‖v‖ = 1 := hR v (by simp)
+      have hv : v ≠ 0 := by intro hv0; simpa [hv0] using hvnorm
+      let A : Set (E 2) := (fun t : ℝ => t • v) '' Set.Ici 0
+      have hclosed : IsClosed A := isClosedMap_smul_left v _ isClosed_Ici
+      have hneg : -v ∈ Aᶜ := by
+        rintro ⟨t, ht, htv⟩
+        change t • v = -v at htv
+        have ht0 : (t + 1) • v = 0 := by rw [add_smul, one_smul, htv, neg_add_cancel]
+        rcases smul_eq_zero.mp ht0 with ht0 | hv0
+        · linarith [show 0 ≤ t from ht]
+        · exact hv hv0
+      have hstar : StarConvex ℝ (-v) Aᶜ := by
+        refine (starConvex_iff_forall_pos hneg).mpr ?_
+        intro x hx a b ha hb hab
+        rintro ⟨t, ht, htv⟩
+        change 0 ≤ t at ht
+        change t • v = a • (-v) + b • x at htv
+        apply hx
+        refine ⟨(t + a) / b, div_nonneg (add_nonneg ht ha.le) hb.le, ?_⟩
+        have hbx : b • x = (t + a) • v := by
+          calc
+            b • x = a • v + (a • (-v) + b • x) := by simp
+            _ = a • v + t • v := by rw [htv]
+            _ = (t + a) • v := by rw [add_smul]; abel
+        calc
+          ((t + a) / b) • v = b⁻¹ • ((t + a) • v) := by
+            rw [smul_smul]
+            congr 1
+            ring
+          _ = b⁻¹ • (b • x) := by rw [hbx]
+          _ = x := inv_smul_smul₀ hb.ne' x
+      have hB : insert 0 (⋃ w ∈ ({v} : Finset (E 2)),
+          {x | ∃ t : ℝ, 0 < t ∧ x = t • w}) = A := by
+        simp only [Finset.set_biUnion_singleton]
+        ext x
+        constructor
+        · rintro (rfl | ⟨t, ht, rfl⟩)
+          · exact ⟨0, by simp, by simp⟩
+          · exact ⟨t, ht.le, rfl⟩
+        · rintro ⟨t, ht, rfl⟩
+          change 0 ≤ t at ht
+          rcases ht.eq_or_lt with ht0 | ht0
+          · left
+            simp [← ht0]
+          · exact Or.inr ⟨t, ht0, rfl⟩
+      refine ⟨Aᶜ, ∅, hclosed.isOpen_compl, isOpen_empty,
+        (hstar.isPathConnected hneg).isConnected.isPreconnected,
+        isPreconnected_empty, Set.disjoint_empty _, ?_⟩
+      simp only [hB, Set.union_empty]
+    · sorry
+
+/-- Step 7 of the V4 proof of `packet_E_equality_step2_boundary_neighborhood_step5a_low_codim` (V4 3.12(b)):
+"the interior link of P at q is connected (P is a polyhedral manifold domain)".
+For a closed set with nonempty frontier, a cover of its frontier complement
+by two preconnected sets forces its interior to be preconnected. Each piece
+lies entirely in the interior or in the exterior; the nonempty exterior
+uses at least one piece, leaving at most one piece for the interior. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step7_two_sides
+    {X : Type*} [TopologicalSpace X] {D U V : Set X} (hD : IsClosed D)
+    (hfront : (frontier D).Nonempty) (hU : IsPreconnected U) (hV : IsPreconnected V)
+    (hcover : (frontier D)ᶜ = U ∪ V) : IsPreconnected (interior D) := by
+  classical
+  have hparts : ∀ W : Set X, IsPreconnected W → W ⊆ (frontier D)ᶜ →
+      W ⊆ interior D ∨ W ⊆ Dᶜ := by
+    intro W hW hWsub
+    refine hW.subset_or_subset isOpen_interior hD.isOpen_compl ?_ ?_
+    · exact Set.disjoint_left.mpr (fun x hx hxc => hxc (interior_subset hx))
+    · intro x hx
+      by_cases hxD : x ∈ D
+      · left
+        by_contra hxint
+        exact hWsub hx (by rw [hD.frontier_eq]; exact ⟨hxD, hxint⟩)
+      · exact Or.inr hxD
+  have hUc : U ⊆ (frontier D)ᶜ := by rw [hcover]; exact Set.subset_union_left
+  have hVc : V ⊆ (frontier D)ᶜ := by rw [hcover]; exact Set.subset_union_right
+  have hnone : ¬(U ⊆ interior D ∧ V ⊆ interior D) := by
+    rintro ⟨hUi, hVi⟩
+    have hfull : D = Set.univ := by
+      apply Set.eq_univ_of_forall
+      intro x
+      by_contra hxD
+      have hxf : x ∈ (frontier D)ᶜ := fun hxf => hxD (hD.frontier_subset hxf)
+      rw [hcover] at hxf
+      rcases hxf with hxU | hxV
+      · exact hxD (interior_subset (hUi hxU))
+      · exact hxD (interior_subset (hVi hxV))
+    simpa [hfull] using hfront
+  have hintsub : interior D ⊆ U ∪ V := by
+    rw [← hcover]
+    exact fun x hx hxf => hxf.2 hx
+  rcases hparts U hU hUc with hUi | hUe
+  · have hVe := (hparts V hV hVc).resolve_left (fun hVi => hnone ⟨hUi, hVi⟩)
+    have heq : interior D = U := by
+      apply Set.Subset.antisymm _ hUi
+      intro x hx
+      rcases hintsub hx with hxU | hxV
+      · exact hxU
+      · exact False.elim (hVe hxV (interior_subset hx))
+    rwa [heq]
+  · rcases hparts V hV hVc with hVi | hVe
+    · have heq : interior D = V := by
+        apply Set.Subset.antisymm _ hVi
+        intro x hx
+        rcases hintsub hx with hxU | hxV
+        · exact False.elim (hUe hxU (interior_subset hx))
+        · exact hxV
+      rwa [heq]
+    · have heq : interior D = ∅ := by
+        apply Set.eq_empty_iff_forall_notMem.mpr
+        intro x hx
+        rcases hintsub hx with hxU | hxV
+        · exact hUe hxU (interior_subset hx)
+        · exact hVe hxV (interior_subset hx)
+      rw [heq]
+      exact isPreconnected_empty
+
 /-- Step 5a of the V4 proof of `packet_E_equality_step2_boundary_neighborhood` (V4 3.12(b), base of the induction): "the
 interior link of P at q is connected (P is a polyhedral manifold domain)", for a
 cone whose lineality space `L` has codimension `≤ 2`. Then `C = L ⊕ C'` with `C'`
@@ -6101,7 +6525,63 @@ private theorem packet_E_equality_step2_boundary_neighborhood_step5a_low_codim {
     (hman : IsLocallyEuclidean (d - 1) (frontier C)) (h0 : (0 : E d) ∈ frontier C)
     (hcodim : d - Module.finrank ℝ (packet_E_equality_step2_boundary_neighborhood_step7_lin C) ≤ 2) :
     IsPreconnected (interior C) := by
-  sorry
+  let L := packet_E_equality_step2_boundary_neighborhood_step7_lin C
+  let r := Module.finrank ℝ L
+  obtain ⟨m, D, e, hdim, hD, he⟩ :=
+    packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step1_cone_split hC
+  obtain ⟨hi, hf, hDreg, hD0⟩ :=
+    packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step2_transverse_topology e he hreg h0
+  have hconn : IsPreconnected (interior D) := by
+    by_cases hm1 : m ≤ 1
+    · exact packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step3_dimension_one hD hm1
+    · change r + m = d at hdim
+      change d - r ≤ 2 at hcodim
+      have hm2 : m = 2 := by omega
+      have hd : d - 1 = r + 1 := by omega
+      subst m
+      obtain ⟨R, hR, hfront⟩ :=
+        packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step4_planar_boundary_rays hD hD0
+      let f : frontier C ≃ₜ E r × frontier D :=
+        ((e.toHomeomorph.image (frontier C)).trans (Homeomorph.setCongr hf)).trans
+          ((Homeomorph.Set.prod _ _).trans
+            ((Homeomorph.Set.univ (E r)).prodCongr (Homeomorph.refl _)))
+      have hf0 : f ⟨0, h0⟩ = (0, ⟨0, hD0⟩) := by
+        apply Prod.ext
+        · change (e 0).1 = 0
+          simp
+        · apply Subtype.ext
+          change (e 0).2 = 0
+          simp
+      rw [hd] at hman
+      obtain ⟨U, hU, hpU, V, hV, ⟨φ⟩⟩ := hman ⟨0, h0⟩
+      have hchart : ∃ W : Set (E r × frontier D), IsOpen W ∧ (0, ⟨0, hD0⟩) ∈ W ∧
+          ∃ V : Set (E (r + 1)), IsOpen V ∧ Nonempty (W ≃ₜ V) := by
+        refine ⟨f '' U, f.isOpenMap _ hU, ?_, ?_⟩
+        · exact ⟨⟨0, h0⟩, hpU, hf0⟩
+        · exact ⟨V, hV, ⟨(f.image U).symm.trans φ⟩⟩
+      have hcard := packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step5_book_pages
+        hD0 R hR hfront hchart
+      obtain ⟨U, V, _, _, hU, hV, _, hcover⟩ :=
+        packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step6_planar_sectors R hR hcard
+      rw [← hfront] at hcover
+      have hDclosed : IsClosed D := by
+        obtain ⟨s, hs⟩ := hD
+        rw [hs]
+        refine isClosed_biUnion_finset fun q _ => ?_
+        have hq : {v : E 2 | ∀ f ∈ q, 0 ≤ f v} = ⋂ f ∈ q, {v | 0 ≤ f v} := by
+          ext v; simp
+        rw [hq]
+        exact isClosed_biInter fun f _ =>
+          isClosed_le continuous_const f.continuous_of_finiteDimensional
+      exact packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step7_two_sides
+        hDclosed ⟨0, hD0⟩ hU hV hcover
+  have hprod : IsPreconnected ((Set.univ : Set (E r)) ×ˢ interior D) :=
+    isPreconnected_univ.prod hconn
+  have hpre : e.symm '' ((Set.univ : Set (E r)) ×ˢ interior D) = interior C := by
+    rw [← hi]
+    exact e.toEquiv.symm_image_image _
+  rw [← hpre]
+  exact hprod.image e.symm e.symm.continuous.continuousOn
 
 /-- Step 1 of the V4 proof of `packet_E_equality_step2_boundary_neighborhood_step5b_frontier_off_lineality`
 (V4 §1.0 (H1), used in 3.12(b)): "the boundary of P is a (d-1)-manifold".

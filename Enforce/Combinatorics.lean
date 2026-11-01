@@ -296,6 +296,22 @@ private lemma honest_translate_exists_step2_translated_hierarchy_step2_cover (U 
     rw [himg M₁, himg M₂]
     exact Set.disjoint_image_of_injective (translation v).injective h_disj
 
+private lemma honest_translate_exists_step2_translated_hierarchy_step3_tree_move_inj (g : Iso d) :
+    Function.Injective (fun N : FramedNode S => N.move g) := by
+  intro ⟨N_ty, N_frame⟩ ⟨M_ty, M_frame⟩ h
+  dsimp [FramedNode.move] at h
+  injection h with h1 h2
+  subst h1
+  congr
+  ext1 x
+  have hh : (N_frame.trans g) x = (M_frame.trans g) x := by rw [h2]
+  exact EquivLike.injective g hh
+
+private lemma honest_translate_exists_step2_translated_hierarchy_step3_tree_child_move (M : FramedNode S) (n : ℕ) (i : S.I M.ty) (g : Iso d) :
+    (M.child n i).move g = (M.move g).child n i := by
+  cases M
+  rfl
+
 /-- Step 3 of the V4 proof of `honest_translate_exists_step2_translated_hierarchy` (V4 1.27):
 translated tree structure is coherent. -/
 private lemma honest_translate_exists_step2_translated_hierarchy_step3_tree (U : HonestSource S) (v : E d) :
@@ -307,8 +323,64 @@ private lemma honest_translate_exists_step2_translated_hierarchy_step3_tree (U :
       (∀ n (N : {N // N ∈ U.hierarchy.nodes n}) (hN : N.val.move (translation v) ∈ (fun N : FramedNode S => N.move (translation v)) '' U.hierarchy.nodes n),
         (parent n ⟨N.val.move (translation v), hN⟩).val = (U.hierarchy.parent n N).val.move (translation v)) ∧
       (∀ n (N : {N // N ∈ U.hierarchy.nodes n}) (hN : N.val.move (translation v) ∈ (fun N : FramedNode S => N.move (translation v)) '' U.hierarchy.nodes n),
-        (⟨(parent n ⟨N.val.move (translation v), hN⟩).val.ty, role n ⟨N.val.move (translation v), hN⟩⟩ : S.Role) = U.hierarchy.nodeRole ⟨n, N⟩) :=
-  sorry
+        (⟨(parent n ⟨N.val.move (translation v), hN⟩).val.ty, role n ⟨N.val.move (translation v), hN⟩⟩ : S.Role) = U.hierarchy.nodeRole ⟨n, N⟩) := by
+  let g := translation v
+  let nodes' := fun n => (fun N : FramedNode S => N.move g) '' U.hierarchy.nodes n
+  have hpull : ∀ n (N' : {N // N ∈ nodes' n}), ∃! N, N ∈ U.hierarchy.nodes n ∧ N.move g = N'.val := by
+    intro n N'
+    rcases N'.2 with ⟨N, hN1, hN2⟩
+    use N
+    refine ⟨⟨hN1, hN2⟩, ?_⟩
+    intro M hM
+    exact honest_translate_exists_step2_translated_hierarchy_step3_tree_move_inj g (hM.2.trans hN2.symm)
+  let pull : ∀ n, {N // N ∈ nodes' n} → {N // N ∈ U.hierarchy.nodes n} := fun n N' =>
+    ⟨Classical.choose (hpull n N'), (Classical.choose_spec (hpull n N')).1.1⟩
+  have hpull_spec : ∀ n (N' : {N // N ∈ nodes' n}), (pull n N').val.move g = N'.val := fun n N' =>
+    (Classical.choose_spec (hpull n N')).1.2
+  let parent' : ∀ n, {N // N ∈ nodes' n} → {P // P ∈ nodes' (n + 1)} := fun n N' =>
+    ⟨(U.hierarchy.parent n (pull n N')).val.move g, Set.mem_image_of_mem _ (U.hierarchy.parent n (pull n N')).2⟩
+  let role' : ∀ n (N' : {N // N ∈ nodes' n}), S.I (parent' n N').val.ty := fun n N' =>
+    U.hierarchy.role n (pull n N')
+  use parent', role'
+  refine ⟨?_, ?_, ?_, ?_, ?_⟩
+  · intro n N'
+    have hN' : N'.val = (pull n N').val.move g := (hpull_spec n N').symm
+    rw [hN']
+    have hc := U.hierarchy.child_eq n (pull n N')
+    rw [hc, honest_translate_exists_step2_translated_hierarchy_step3_tree_child_move]
+  · intro n P' hP'
+    have hP'_eq : P' = (pull (n + 1) ⟨P', hP'⟩).val.move g := (hpull_spec (n + 1) ⟨P', hP'⟩).symm
+    rw [hP'_eq]
+    intro i
+    rw [← honest_translate_exists_step2_translated_hierarchy_step3_tree_child_move]
+    exact Set.mem_image_of_mem _ (U.hierarchy.children_mem n (pull (n + 1) ⟨P', hP'⟩) (pull (n + 1) ⟨P', hP'⟩).2 i)
+  · intro n N' P' hP'
+    have hP : P' = (pull (n + 1) ⟨P', hP'⟩).val.move g := (hpull_spec (n + 1) ⟨P', hP'⟩).symm
+    have hN : N'.val = (pull n N').val.move g := (hpull_spec n N').symm
+    rw [hP, hN]
+    rintro ⟨i, hi⟩
+    rw [← honest_translate_exists_step2_translated_hierarchy_step3_tree_child_move] at hi
+    have h_inj := honest_translate_exists_step2_translated_hierarchy_step3_tree_move_inj g hi
+    have h_parent := U.hierarchy.parent_unique n (pull n N') (pull (n + 1) ⟨P', hP'⟩) (pull (n + 1) ⟨P', hP'⟩).2 ⟨i, h_inj⟩
+    rw [h_parent]
+  · intro n N hN
+    have h_pull : (pull n ⟨N.val.move g, hN⟩).val = N.val := by
+      have h1 := hpull_spec n ⟨N.val.move g, hN⟩
+      exact honest_translate_exists_step2_translated_hierarchy_step3_tree_move_inj g h1
+    have h_eq : pull n ⟨N.val.move g, hN⟩ = N := Subtype.ext h_pull
+    dsimp [parent']
+    congr 1
+    rw [h_eq]
+  · intro n N hN
+    have h_pull : (pull n ⟨N.val.move g, hN⟩).val = N.val := by
+      have h1 := hpull_spec n ⟨N.val.move g, hN⟩
+      exact honest_translate_exists_step2_translated_hierarchy_step3_tree_move_inj g h1
+    have h_eq : pull n ⟨N.val.move g, hN⟩ = N := Subtype.ext h_pull
+    dsimp [role', parent']
+    have hr : U.hierarchy.nodeRole ⟨n, N⟩ = ⟨(U.hierarchy.parent n N).val.ty, U.hierarchy.role n N⟩ := rfl
+    rw [hr]
+    rw [h_eq]
+    rfl
 
 /-- Step 2 of the V4 proof of `honest_translate_exists` (V4 1.27):
 the translated hierarchy is coherent. We state this as the existence of a coherent hierarchy

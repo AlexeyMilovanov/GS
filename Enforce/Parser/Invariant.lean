@@ -233,12 +233,75 @@ theorem child_mem (m : ℕ) (N : FramedNode S) (hN : N ∈ G.nodes (m + 1))
     (i : S.I N.ty) : N.child m i ∈ G.nodes m :=
   G.descendant_mem (m + 1) m N (N.child m i) hN (Parser.child_descendant N m i)
 
+/-- At a fixed height, the expanded prototypes are again polyhedral manifold
+domains, as used in V4 1.0(d): "placed copies of the finitely many σ^n A". -/
+private def locallyFinite_supertileDomain (n : ℕ) (A : S.ι) : PolyManifoldDomain d := by
+  classical
+  let e := (S.σ ^ n).toContinuousLinearEquiv.toHomeomorph
+  refine {
+    carrier := S.supertile n A
+    polyhedral := ?_
+    compact := (S.proto A).compact.image e.continuous
+    regularClosed := ?_
+    interior_connected := ?_
+    interior_nonempty := ?_
+    frontier_manifold := ?_
+  }
+  · obtain ⟨s, hs⟩ := (S.proto A).polyhedral
+    refine ⟨s.image (fun p => p.image (S.σ ^ n)), ?_⟩
+    have himage (p : Finset (E d)) :
+        (S.σ ^ n) '' convexHull ℝ (p : Set (E d)) =
+          convexHull ℝ (p.image (S.σ ^ n) : Set (E d)) := by
+      rw [Finset.coe_image]
+      exact (S.σ ^ n).toLinearMap.image_convexHull _
+    change (S.σ ^ n) '' (S.proto A).carrier = _
+    rw [hs]
+    ext x
+    constructor
+    · rintro ⟨y, hy, rfl⟩
+      obtain ⟨p, hp, hyp⟩ := Set.mem_iUnion₂.mp hy
+      refine Set.mem_iUnion₂.mpr
+        ⟨p.image (S.σ ^ n), Finset.mem_image.mpr ⟨p, hp, rfl⟩, ?_⟩
+      rw [← himage]
+      exact Set.mem_image_of_mem _ hyp
+    · intro hx
+      obtain ⟨q, hq, hxq⟩ := Set.mem_iUnion₂.mp hx
+      obtain ⟨p, hp, rfl⟩ := Finset.mem_image.mp hq
+      rw [← himage] at hxq
+      obtain ⟨y, hy, rfl⟩ := hxq
+      exact ⟨y, Set.mem_iUnion₂.mpr ⟨p, hp, hy⟩, rfl⟩
+  · change closure (interior (e '' (S.proto A).carrier)) = e '' (S.proto A).carrier
+    rw [← e.image_interior, ← e.image_closure, (S.proto A).regularClosed]
+  · change IsConnected (interior (e '' (S.proto A).carrier))
+    rw [← e.image_interior]
+    exact (S.proto A).interior_connected.image e e.continuous.continuousOn
+  · change (interior (e '' (S.proto A).carrier)).Nonempty
+    rw [← e.image_interior]
+    exact (S.proto A).interior_nonempty.image e
+  · change IsLocallyEuclidean (d - 1) (frontier (e '' (S.proto A).carrier))
+    rw [← e.image_frontier]
+    intro p
+    let f := e.image (frontier (S.proto A).carrier)
+    obtain ⟨U, hU, hpU, V, hV, ⟨φ⟩⟩ := (S.proto A).frontier_manifold (f.symm p)
+    exact ⟨f '' U, f.isOpenMap U hU, ⟨f.symm p, hpU, f.apply_symm_apply p⟩,
+      V, hV, ⟨(f.image U).symm.trans φ⟩⟩
+
 /-- R1, V4 §3.0, 1.0(d): each fixed geometric level is locally finite. -/
 theorem locallyFinite :
     LocallyFinite (fun B : {B // B ∈ G.blocks} => B.val.carrier) ∧
       ∀ Q : Set (E d), Bornology.IsBounded Q →
         {B : Block Y n | B ∈ G.blocks ∧ (Q ∩ B.carrier).Nonempty}.Finite := by
-  sorry
+  have hd : Pairwise (fun B D : {B // B ∈ G.blocks} => Disjoint
+      (interior B.val.carrier) (interior D.val.carrier)) := by
+    intro B D hBD
+    exact G.disjoint B.property D.property (fun h => hBD (Subtype.ext h))
+  have h := locallyFinite_disjointInteriors (locallyFinite_supertileDomain (S := S) n)
+    (fun B : {B // B ∈ G.blocks} => B.val.node.ty)
+    (fun B : {B // B ∈ G.blocks} => B.val.node.frame) hd
+  refine ⟨h.1, fun Q hQ => ?_⟩
+  exact ((h.2 Q hQ).image Subtype.val).subset (by
+    intro B hB
+    exact ⟨⟨B, hB.1⟩, hB.2, rfl⟩)
 
 end GeometricLevel
 

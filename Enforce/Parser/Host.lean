@@ -1796,6 +1796,77 @@ negating its interior gives precisely the open j-side. No normal is chosen. -/
 def oppositeHalfBall (B : FramedNode S) (n : ℕ) (x : E d) (r : ℝ) : Set (E d) :=
   ball x r ∩ {y | -(y - x) ∈ interior (tangentCone (B.carrier n) x)}
 
+/-- Step 1 of the V4 proof of `oppositeHalfBall_geometry` (V4 1.0(b)):
+"the tangent cone" at a point of a local closed half-space is that half-space
+translated to the origin, by the positive-time radial germ definition. -/
+private theorem oppositeHalfBall_geometry_step1_tangent
+    (K : Set (E d)) (p v : E d) (r : ℝ) (hr : 0 < r)
+    (hlocal : K ∩ ball p r = {x | 0 ≤ inner ℝ v (x - p)} ∩ ball p r) :
+    tangentCone K p = {u | 0 ≤ inner ℝ v u} := by
+  ext u
+  let δ := r / (‖u‖ + 1)
+  have hden : 0 < ‖u‖ + 1 := by positivity
+  have hδ : 0 < δ := div_pos hr hden
+  have hnear (t : ℝ) (ht : 0 < t) (htδ : t < δ) : p + t • u ∈ ball p r := by
+    change dist (p + t • u) p < r
+    rw [dist_eq_norm, add_sub_cancel_left, norm_smul, Real.norm_eq_abs, abs_of_pos ht]
+    have := (lt_div_iff₀ hden).mp htδ
+    nlinarith [norm_nonneg u]
+  constructor
+  · rintro ⟨ε, hε, hmem⟩
+    let t := min ε δ / 2
+    have ht : 0 < t := div_pos (lt_min hε hδ) (by norm_num)
+    have htε : t < ε := lt_of_lt_of_le (by dsimp [t]; linarith [lt_min hε hδ])
+      (min_le_left ε δ)
+    have htδ : t < δ := lt_of_lt_of_le (by dsimp [t]; linarith [lt_min hε hδ])
+      (min_le_right ε δ)
+    have hm : p + t • u ∈ {x | 0 ≤ inner ℝ v (x - p)} ∩ ball p r :=
+      hlocal ▸ ⟨hmem t ht htε, hnear t ht htδ⟩
+    have hnonneg := hm.1
+    change 0 ≤ inner ℝ v (p + t • u - p) at hnonneg
+    rw [add_sub_cancel_left, inner_smul_right] at hnonneg
+    exact nonneg_of_mul_nonneg_right hnonneg ht
+  · intro hu
+    refine ⟨δ, hδ, fun t ht htδ => ?_⟩
+    have hm : p + t • u ∈ K ∩ ball p r := by
+      rw [hlocal]
+      refine ⟨?_, hnear t ht htδ⟩
+      change 0 ≤ inner ℝ v (p + t • u - p)
+      rw [add_sub_cancel_left, inner_smul_right]
+      exact mul_nonneg ht.le hu
+    exact hm.1
+
+/-- Step 2 of the V4 proof of `oppositeHalfBall_geometry` (V4 1.0(a)):
+"open half-balls" are cut out by a strict inequality: the interior of a
+closed half-space with a unit normal is the corresponding open half-space. -/
+private theorem oppositeHalfBall_geometry_step2_interior
+    (v : E d) (hv : ‖v‖ = 1) :
+    interior {w : E d | 0 ≤ inner ℝ v w} = {w | 0 < inner ℝ v w} := by
+  ext w
+  constructor
+  · intro hw
+    have hw0 : 0 ≤ inner ℝ v w :=
+      @interior_subset _ _ {w : E d | 0 ≤ inner ℝ v w} w hw
+    obtain ⟨ε, hε, hball⟩ := Metric.mem_nhds_iff.mp (mem_interior_iff_mem_nhds.mp hw)
+    by_contra h
+    have hz : inner ℝ v w = 0 := le_antisymm (not_lt.mp h) hw0
+    have hnear : w - (ε / 2) • v ∈ ball w ε := by
+      rw [mem_ball, dist_eq_norm, sub_sub_cancel_left, norm_neg, norm_smul,
+        Real.norm_eq_abs, abs_of_pos (half_pos hε), hv, mul_one]
+      exact half_lt_self hε
+    have hbad := hball hnear
+    have hvv : inner ℝ v v = 1 := by rw [real_inner_self_eq_norm_sq, hv]; norm_num
+    change 0 ≤ inner ℝ v (w - (ε / 2) • v) at hbad
+    rw [inner_sub_right, inner_smul_right, hz, hvv] at hbad
+    linarith
+  · intro hw
+    have hsub : {w : E d | 0 < inner ℝ v w} ⊆ {w | 0 ≤ inner ℝ v w} := by
+      intro z hz
+      change 0 ≤ inner ℝ v z
+      exact le_of_lt hz
+    exact interior_maximal hsub (isOpen_lt continuous_const (by fun_prop)) hw
+
+open private sibling_facet_eq_step3_halfball from Enforce.Source.Trace in
 /-- R6, V4 3.6, 1.0(a): opposite half-balls at relative-interior facet points
 are genuine nonempty open half-balls with the facet as wall, at sufficiently
 small radii. This provides a nonvacuous meaning of the j-side tile assertion. -/
@@ -1805,7 +1876,13 @@ theorem oppositeHalfBall_geometry (B : FramedNode S) (n : ℕ)
       (∀ ε : ℝ, 0 < ε → ε ≤ r →
         oppositeHalfBall B n x ε = ball x ε ∩ {y | inner ℝ v (y - x) < 0}) ∧
       B.carrier n ∩ ball x r = ball x r ∩ {y | 0 ≤ inner ℝ v (y - x)} := by
-  sorry
+  obtain ⟨r, hr, v, hv, hlocal, _⟩ := sibling_facet_eq_step3_halfball B n f x hx
+  have hcone := oppositeHalfBall_geometry_step1_tangent _ x v r hr hlocal
+  refine ⟨r, hr, v, hv, ?_, hlocal.trans (Set.inter_comm _ _)⟩
+  intro ε _ _
+  rw [oppositeHalfBall, hcone, oppositeHalfBall_geometry_step2_interior v hv]
+  ext y
+  simp only [mem_inter_iff, mem_setOf_eq, inner_neg_right, neg_pos]
 
 /-- R6, V4 3.6: all actual j-side tiles near every point of the relative-open
 facet belong to one specified block. The half-balls themselves are inside its

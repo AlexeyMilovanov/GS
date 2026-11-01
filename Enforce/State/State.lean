@@ -6897,6 +6897,46 @@ theorem honest_counter_endpoint_site (U : HonestSource S) (P : Params S) (q : U.
       ∃ a : Fin P.N, U.sitePoint P q f hf a = q.2.val.prototypeFrame q.1 (vertexPoint v) :=
   by sorry
 
+/-- Step 1 of the V4 proof of `honest_E_finite_providers` (V4 2.2 (S5)):
+"both have finite providers". An ancestor facet containing a nonfault facet
+cannot persist forever: before that ancestor use downward closure, and above it
+use containment and additivity of ancestor offsets. -/
+private theorem honest_E_finite_providers_step1_nonfault_ancestor
+    (U : HonestSource S) (q : U.Node) (f : FacetName S q.2.val.ty)
+    (hf : ¬ U.hierarchy.IsFault q f) (a : ℕ)
+    (F : FacetName S (U.hierarchy.ancestor q a).2.val.ty)
+    (hsub : q.2.val.cell q.1 f.val ⊆
+      (U.hierarchy.ancestor q a).2.val.cell (U.hierarchy.ancestor q a).1 F.val) :
+    ¬ U.hierarchy.IsFault (U.hierarchy.ancestor q a) F := by
+  intro hF
+  apply hf
+  intro j
+  by_cases hj : j ≤ a
+  · exact (U.hierarchy.boundaryOffsets_downward q f).2 j a hj
+      (hsub.trans (exists_childMap_step5_facet_boundary U _ F))
+  · have haj : a ≤ j := by omega
+    have hanc := U.hierarchy.ancestor_add q a (j - a)
+    rw [Nat.add_sub_of_le haj] at hanc
+    change q.2.val.cell q.1 f.val ⊆
+      frontier ((U.hierarchy.ancestor q j).2.val.carrier (U.hierarchy.ancestor q j).1)
+    rw [← hanc]
+    exact hsub.trans (hF (j - a))
+
+/-- Step 2 of the V4 proof of `honest_E_finite_providers` (V4 2.2 (S5)):
+"the same provider occurrence" has the same birth height, hence the same
+last boundary offset above the fixed original node. -/
+private theorem honest_E_finite_providers_step2_serving_offset
+    (U : HonestSource S) (q : U.Node) (f g : FacetName S q.2.val.ty)
+    (hf : ¬ U.hierarchy.IsFault q f) (hg : ¬ U.hierarchy.IsFault q g)
+    (hb : U.hierarchy.birthParent q f hf = U.hierarchy.birthParent q g hg) :
+    (U.hierarchy.firstProvider q f hf).1 =
+      (U.hierarchy.firstProvider q g hg).1 := by
+  have hheight := congrArg (fun p : U.Node => p.1) hb
+  change U.hierarchy.birthHeight q f hf = U.hierarchy.birthHeight q g hg at hheight
+  rw [(U.hierarchy.birthHeight_age_spec q f hf).1,
+    (U.hierarchy.birthHeight_age_spec q g hg).1] at hheight
+  omega
+
 /-- Q3, V4 §2.2 (S5): on finite tracks coalescence is equality of the exact
 provider occurrence, retaining both the birth node and its positioned facet. -/
 theorem honest_E_finite_providers (U : HonestSource S) (P : Params S) (q : U.Node)
@@ -6905,7 +6945,33 @@ theorem honest_E_finite_providers (U : HonestSource S) (P : Params S) (q : U.Nod
     (stateOf U P q).E f g ↔
       U.hierarchy.birthParent q f hf = U.hierarchy.birthParent q g hg ∧
         U.hierarchy.providerCarrier q f hf = U.hierarchy.providerCarrier q g hg := by
-  sorry
+  change (f, g) ∈ U.coalescenceTable q ↔ _
+  rw [U.mem_coalescenceTable q f g]
+  constructor
+  · rintro ⟨a, _, F, hfF, hgF⟩
+    have hF := honest_E_finite_providers_step1_nonfault_ancestor U q f hf a F hfF
+    obtain ⟨_, hpf, hbf⟩ := U.hierarchy.provider_inherited
+      (U.hierarchy.ancestor q a) q a rfl F f hF hfF
+    obtain ⟨_, hpg, hbg⟩ := U.hierarchy.provider_inherited
+      (U.hierarchy.ancestor q a) q a rfl F g hF hgF
+    exact ⟨hbf.trans hbg.symm, hpf.trans hpg.symm⟩
+  · rintro ⟨hb, hp⟩
+    have hoff := honest_E_finite_providers_step2_serving_offset U q f g hf hg hb
+    have hfs := U.hierarchy.firstProvider_spec q f hf
+    have hgs := U.hierarchy.firstProvider_spec q g hg
+    refine ⟨(U.hierarchy.firstProvider q f hf).1, ?_,
+      (U.hierarchy.firstProvider q f hf).2, hfs.2.1, ?_⟩
+    · intro j hj
+      constructor
+      · rw [hfs.1]
+        change j < (U.hierarchy.firstProvider q f hf).1 + 1
+        omega
+      · rw [hgs.1]
+        change j < (U.hierarchy.firstProvider q g hg).1 + 1
+        omega
+    · change q.2.val.cell q.1 g.val ⊆ U.hierarchy.providerCarrier q f hf
+      rw [hp]
+      exact hgs.2.1
 
 /-! Private decomposition of `state_scaleTransfer` (V4 1.13(c), 2.2--2.3). -/
 

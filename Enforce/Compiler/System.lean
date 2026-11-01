@@ -2676,6 +2676,40 @@ def TemplateOccurs (C : ClusterData S P) (Y : MarkedTiling (systemM S P C))
     (φ : Iso d) (θ : Template P) : Prop :=
   ∀ z ∈ θ.tiles, placedLeaf C z.2 (z.1.frame.trans φ) ∈ Y.tiles
 
+/-- Step 1 of the V4 proof of `compiler_events_step1_rule` (V4 2.17b): Let x be the centre of microball 0 of the trigger cluster of slot j of t. -/
+private lemma compiler_events_step1_rule_step1_center (C : ClusterData S P) (Y : MarkedTiling (systemM S P C))
+    (hY : MProper Y) (t : PlacedMarkedTile (systemM S P C)) (ht : t ∈ Y.tiles)
+    (j : EventSlot (compilerLeaf C t)) :
+    ∃ x : E d, x ∈ interior t.carrier ∧ Y.marking x = Colour.trigger (compilerLeaf C t) j 0 ∧
+      x ∈ (compilerFrame C t) '' C.enclosing (compilerLeaf C t) (.trigger j) := by
+  sorry
+
+/-- Step 2 of the V4 proof of `compiler_events_step1_rule` (V4 2.17b): The covering rule copy \psi(\Lambda, m) covers x. -/
+private lemma compiler_events_step1_rule_step2_covering (C : ClusterData S P) (Y : MarkedTiling (systemM S P C))
+    (hY : MProper Y) (l : LeafType P) (j : EventSlot l) (x : E d) (hx_mark : Y.marking x = Colour.trigger l j 0) :
+    ∃ (R : CompactRule d (Colour S P)) (hR : R ∈ (systemM S P C).rules) (ψ : Iso d) 
+      (y : R.carrier), ψ ↑y = x ∧ ∀ z : R.carrier, Y.marking (ψ ↑z) = R.mark z := by
+  sorry
+
+/-- Step 3 of the V4 proof of `compiler_events_step1_rule` (V4 2.17b): The covering rule copy is an EVENT rule. -/
+private lemma compiler_events_step1_rule_step3_event_rule (C : ClusterData S P)
+    (l : LeafType P) (j : EventSlot l) (R : CompactRule d (Colour S P)) (hR : R ∈ (systemM S P C).rules) 
+    (y : R.carrier) (hy_mark : R.mark y = Colour.trigger l j 0) :
+    ∃ (θ : Template P) (h_allowed : θ ∈ allowedTemplates j),
+      R = Compiler.eventRule C ⟨l, j, θ, h_allowed⟩ := by
+  sorry
+
+/-- Step 4 of the V4 proof of `compiler_events_step1_rule` (V4 2.17b): The central tile is pinned to t. -/
+private lemma compiler_events_step1_rule_step4_pinned (C : ClusterData S P) (Y : MarkedTiling (systemM S P C))
+    (hY : MProper Y) (t : PlacedMarkedTile (systemM S P C)) (ht : t ∈ Y.tiles)
+    (j : EventSlot (compilerLeaf C t)) (θ : Template P) (h_allowed : θ ∈ allowedTemplates j)
+    (ψ : Iso d) (x : E d) (hx_in : x ∈ interior t.carrier) 
+    (hx_rule : ∃ y : (Compiler.eventRule C ⟨compilerLeaf C t, j, θ, h_allowed⟩).carrier, ψ ↑y = x) 
+    (hx_encl : x ∈ (compilerFrame C t) '' C.enclosing (compilerLeaf C t) (.trigger j))
+    (hy_mark : ∀ z : (Compiler.eventRule C ⟨compilerLeaf C t, j, θ, h_allowed⟩).carrier, Y.marking (ψ ↑z) = (Compiler.eventRule C ⟨compilerLeaf C t, j, θ, h_allowed⟩).mark z) :
+    ψ = compilerFrame C t := by
+  sorry
+
 /-- Step 1 of the V4 proof of `compiler_events` (V4 2.17b): Let x be the centre of microball 0 of the trigger cluster of slot j of t... The covering rule copy is an EVENT rule pinned to t. -/
 private lemma compiler_events_step1_rule (C : ClusterData S P) (Y : MarkedTiling (systemM S P C))
     (hY : MProper Y) (t : PlacedMarkedTile (systemM S P C)) (ht : t ∈ Y.tiles)
@@ -2683,7 +2717,13 @@ private lemma compiler_events_step1_rule (C : ClusterData S P) (Y : MarkedTiling
     ∃ (θ : Template P) (h_allowed : θ ∈ allowedTemplates j),
       ∀ (x : (Compiler.eventRule C ⟨compilerLeaf C t, j, θ, h_allowed⟩).carrier), 
         Y.marking ((compilerFrame C t) ↑x) = (Compiler.eventRule C ⟨compilerLeaf C t, j, θ, h_allowed⟩).mark x := by
-  sorry
+  obtain ⟨x, hx, hx_mark, hx_encl⟩ := compiler_events_step1_rule_step1_center C Y hY t ht j
+  obtain ⟨R, hR, ψ, y, hy, hy_mark⟩ := compiler_events_step1_rule_step2_covering C Y hY _ j x hx_mark
+  obtain ⟨θ, h_allowed, heq⟩ := compiler_events_step1_rule_step3_event_rule C _ j R hR y (by rw [← hy_mark, hy, hx_mark])
+  subst heq
+  have heq2 : ψ = compilerFrame C t := compiler_events_step1_rule_step4_pinned C Y hY t ht j θ h_allowed ψ x hx ⟨y, hy⟩ hx_encl hy_mark
+  subst heq2
+  exact ⟨θ, h_allowed, hy_mark⟩
 
 /-- Step 2 of the V4 proof of `compiler_events` (V4 2.17b): Each readout ball of θ at template tile u ... gives an actual tile of Y. -/
 private lemma compiler_events_step2_readout (C : ClusterData S P) (Y : MarkedTiling (systemM S P C))

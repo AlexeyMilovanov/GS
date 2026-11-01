@@ -207,7 +207,44 @@ theorem native_cells_isometric (A : S.ι) (n : ℕ) (w : S.RoleWord A n)
 /-- S3, V4 §1.0 (H3)--(H4): native tiles cover the standard supertile. -/
 theorem native_cover (A : S.ι) (n : ℕ) :
     (⋃ w : S.RoleWord A n, (S.nativeTile A n w).carrier 0) = S.supertile n A := by
-  sorry
+  induction' n with n ih generalizing A
+  · dsimp [nativeTile, descendantNode, supertile, FramedNode.carrier, placedSet, RoleWord]
+    ext x
+    simp
+  · dsimp [supertile]
+    have h1 : ⇑(S.σ ^ (n + 1)) = (S.σ ^ n) ∘ S.σ := rfl
+    rw [h1]
+    rw [Set.image_comp]
+    rw [S.children_cover]
+    rw [Set.image_iUnion]
+    change (⋃ w : Σ i : S.I A, S.RoleWord (S.child A i).ty n, (S.nativeTile A (n + 1) w).carrier 0) = _
+    rw [Set.iUnion_sigma]
+    apply congr_arg
+    funext i
+    have h2 := ih (S.child A i).ty
+    have h3 : ∀ (w : S.RoleWord (S.child A i).ty n),
+        (S.nativeTile A (n + 1) ⟨i, w⟩).carrier 0 =
+        (S.placeChild n i) '' ((S.nativeTile (S.child A i).ty n w).carrier 0) := by
+      intro w
+      dsimp [nativeTile, descendantNode, FramedNode.carrier, placedSet, FramedNode.move]
+      rw [← Set.image_comp]
+      have hz : 0 + n = n := by omega
+      rw [hz]
+    simp_rw [h3]
+    rw [← Set.image_iUnion]
+    rw [h2]
+    dsimp [supertile, placedSet]
+    rw [← Set.image_comp]
+    rw [← Set.image_comp]
+    congr 1
+    ext x
+    dsimp
+    rw [placeChild_apply]
+    have hz : (S.child A i).frame = S.placeChild 0 i := rfl
+    rw [hz, placeChild_apply]
+    simp
+    dsimp [linearConj]
+    simp
 
 /-- S3, V4 §1.0 (H3)--(H4): distinct role words have disjoint native interiors. -/
 theorem native_disjoint (A : S.ι) (n : ℕ) :

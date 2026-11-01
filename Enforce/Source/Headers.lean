@@ -5492,6 +5492,96 @@ theorem HPiCone_finite_inter {α : Type} [Finite α] (K : α → Set (E d))
     rw [Fintype.mem_piFinset] at hg
     exact s_prop a (g a) (hg a) C ha
 
+private lemma tangentCone_union_isHPiCone_step1_union_cone_step0_tangent_mono {K L : Set (E d)}
+    (h : K ⊆ L) (p : E d) : tangentCone K p ⊆ tangentCone L p := by
+  rintro v ⟨ε, hε, hv⟩
+  exact ⟨ε, hε, fun t ht htε => h (hv t ht htε)⟩
+
+open scoped Topology in
+private lemma tangentCone_union_isHPiCone_step1_union_cone_step1_convex_union {ι : Type*} [Finite ι]
+    (K : ι → Set (E d)) (hclosed : ∀ i, IsClosed (K i)) (hconv : ∀ i, Convex ℝ (K i))
+    (p : E d) : tangentCone (⋃ i, K i) p = ⋃ i, tangentCone (K i) p := by
+  classical
+  ext v
+  constructor
+  · rintro ⟨ε, hε, hv⟩
+    have hgood : ∀ᶠ t : ℝ in 𝓝 0, ∀ i, p ∉ K i → p + t • v ∉ K i := by
+      rw [Filter.eventually_all]
+      intro i
+      by_cases hi : p ∈ K i
+      · exact Filter.Eventually.of_forall (fun _ h => (h hi).elim)
+      · have hcont : Continuous (fun t : ℝ => p + t • v) := by fun_prop
+        have hnbd : (K i)ᶜ ∈ 𝓝 p := (hclosed i).isOpen_compl.mem_nhds hi
+        have hlim : Filter.Tendsto (fun t : ℝ => p + t • v) (𝓝 0) (𝓝 p) := by
+          simpa using (hcont.continuousAt (x := 0)).tendsto
+        have h := hlim.eventually hnbd
+        exact h.mono (fun t ht _ => ht)
+    have hgood' : ∀ᶠ t : ℝ in 𝓝[>] 0,
+        0 < t ∧ t < ε ∧ ∀ i, p ∉ K i → p + t • v ∉ K i := by
+      filter_upwards [self_mem_nhdsWithin,
+        (eventually_lt_nhds hε).filter_mono nhdsWithin_le_nhds,
+        hgood.filter_mono nhdsWithin_le_nhds] with t ht htε hg
+      exact ⟨ht, htε, hg⟩
+    obtain ⟨t, ht, htε, hg⟩ := hgood'.exists
+    obtain ⟨i, hi⟩ := Set.mem_iUnion.mp (hv t ht htε)
+    have hp : p ∈ K i := by by_contra h; exact hg i h hi
+    apply Set.mem_iUnion.mpr
+    refine ⟨i, t, ht, ?_⟩
+    intro u hu hut
+    have hfrac : u / t ∈ Set.Icc (0 : ℝ) 1 :=
+      ⟨le_of_lt (div_pos hu ht), (div_le_one ht).mpr hut.le⟩
+    have hc := (hconv i).add_smul_mem hp hi hfrac
+    simpa only [smul_smul, div_mul_cancel₀ u ht.ne'] using hc
+  · rintro hv
+    obtain ⟨i, hi⟩ := Set.mem_iUnion.mp hv
+    exact tangentCone_union_isHPiCone_step1_union_cone_step0_tangent_mono (Set.subset_iUnion K i) p hi
+
+private lemma tangentCone_union_isHPiCone_step1_union_cone_step2_polyhedral_union {ι : Type*} [Finite ι]
+    (K : ι → Set (E d)) (hK : ∀ i, Polyhedron (K i)) (p : E d) :
+    tangentCone (⋃ i, K i) p = ⋃ i, tangentCone (K i) p := by
+  classical
+  choose s hs using hK
+  let J := Σ i : ι, {t // t ∈ s i}
+  let C : J → Set (E d) := fun a => convexHull ℝ (a.2.val : Set (E d))
+  have hU : (⋃ i, K i) = ⋃ a : J, C a := by
+    simp only [hs, C, J, Set.iUnion_sigma, Set.iUnion_subtype]
+  rw [hU, tangentCone_union_isHPiCone_step1_union_cone_step1_convex_union C
+    (fun a => a.2.val.finite_toSet.isClosed_convexHull) (fun _ => convex_convexHull _ _) p]
+  ext v
+  simp only [Set.mem_iUnion]
+  constructor
+  · rintro ⟨⟨i, t, ht⟩, hv⟩
+    refine ⟨i, tangentCone_union_isHPiCone_step1_union_cone_step0_tangent_mono ?_ p hv⟩
+    rw [hs i]
+    exact Set.subset_iUnion_of_subset t (Set.subset_iUnion_of_subset ht Set.Subset.rfl)
+  · rintro ⟨i, hv⟩
+    have hKi : K i = ⋃ t : {t // t ∈ s i}, convexHull ℝ (t.val : Set (E d)) := by
+      simp only [hs i, Set.iUnion_subtype]
+    have h_hv : v ∈ tangentCone (K i) p := hv
+    rw [hKi, tangentCone_union_isHPiCone_step1_union_cone_step1_convex_union] at h_hv
+    · obtain ⟨⟨t, ht⟩, hv'⟩ := Set.mem_iUnion.mp h_hv
+      exact ⟨⟨i, t, ht⟩, hv'⟩
+    · exact fun (t : {t // t ∈ s i}) => t.val.finite_toSet.isClosed_convexHull
+    · exact fun _ => convex_convexHull _ _
+
+private lemma tangentCone_union_isHPiCone_step1_union_cone_step3_polyhedron_image (e : E d ≃ᵃ[ℝ] E d)
+    {K : Set (E d)} (hK : Polyhedron K) : Polyhedron (e '' K) := by
+  classical
+  obtain ⟨s, rfl⟩ := hK
+  refine ⟨s.image (fun t => t.image e), ?_⟩
+  simp only [Set.image_iUnion]
+  ext x
+  simp only [Set.mem_iUnion, exists_prop, Finset.mem_image]
+  constructor
+  · rintro ⟨t, ht, hx⟩
+    refine ⟨t.image e, ⟨t, ht, rfl⟩, ?_⟩
+    rw [Finset.coe_image]
+    exact (AffineMap.image_convexHull e.toAffineMap (t : Set (E d))) ▸ hx
+  · rintro ⟨_, ⟨t, ht, rfl⟩, hx⟩
+    refine ⟨t, ht, ?_⟩
+    rw [Finset.coe_image] at hx
+    exact (AffineMap.image_convexHull e.toAffineMap (t : Set (E d))).symm ▸ hx
+
 /-- Step 1 of the V4 proof of `tangentCone_union_isHPiCone` (V4 1.16(b')): "finite unions of `HΠ`-cones (e.g. tangent cones of unions of such cells)".
 The tangent cone of a finite union of sets is the finite union of their tangent cones. -/
 private lemma tangentCone_union_isHPiCone_step1_union_cone
@@ -5499,7 +5589,23 @@ private lemma tangentCone_union_isHPiCone_step1_union_cone
     (Q : Finset (Σ t : {t // t ∈ P.tiles}, CellName S t.val.ty)) (p : E d) :
     tangentCone (⋃ q ∈ Q, q.1.val.cell 0 q.2.val) p =
     ⋃ q : Q, tangentCone (q.val.1.val.cell 0 q.val.2.val) p := by
-  sorry
+  let J := Q
+  let K (q : J) := q.1.1.val.cell 0 q.1.2.val
+  have hK : ∀ q : J, Polyhedron (K q) := by
+    intro q
+    dsimp [K, FramedNode.cell, placedSet]
+    exact tangentCone_union_isHPiCone_step1_union_cone_step3_polyhedron_image _ (q.1.2.val.flat.polyhedral)
+  have h := tangentCone_union_isHPiCone_step1_union_cone_step2_polyhedral_union K hK p
+  have h_eq : (⋃ q : Q, q.1.1.val.cell 0 q.1.2.val) = ⋃ q ∈ Q, q.1.val.cell 0 q.2.val := by
+    ext x
+    simp only [Set.mem_iUnion, exists_prop]
+    constructor
+    · rintro ⟨q, hx⟩
+      exact ⟨q.val, q.property, hx⟩
+    · rintro ⟨q, hq, hx⟩
+      exact ⟨⟨q, hq⟩, hx⟩
+  rw [h_eq] at h
+  exact h
 
 /-- P11, V4 1.16(b'): the tangent cone of a finite union of compatible listed
 cells at a common listed anchor remains an `HΠ`-cone, in all dimensions. -/

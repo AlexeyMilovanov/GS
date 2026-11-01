@@ -252,6 +252,36 @@ private lemma honest_translate_exists_step1_tiling_mem_species (U : HonestSource
   rw [Enforce.species_move_iff]
   exact U.mem_species
 
+/-- Step 1 of the V4 proof of `honest_translate_exists_step2_translated_hierarchy` (V4 1.27):
+translated nodes generate the translated ground tiles natively. -/
+private lemma honest_translate_exists_step2_translated_hierarchy_step1_tiles (U : HonestSource S) (v : E d) :
+  ({t | ∃ N ∈ (fun N : FramedNode S => N.move (translation v)) '' U.hierarchy.nodes 0, N.toTile = t} = (U.tiling.move (translation v)).tiles) ∧
+  (∀ n N, N ∈ (fun N : FramedNode S => N.move (translation v)) '' U.hierarchy.nodes n →
+    {t | t ∈ (U.tiling.move (translation v)).tiles ∧ t.carrier ⊆ N.carrier n} =
+      {t | ∃ w : S.RoleWord N.ty n, ((S.nativeTile N.ty n w).move N.frame).toTile = t}) :=
+  sorry
+
+/-- Step 2 of the V4 proof of `honest_translate_exists_step2_translated_hierarchy` (V4 1.27):
+translated nodes cover the space and have disjoint interiors. -/
+private lemma honest_translate_exists_step2_translated_hierarchy_step2_cover (U : HonestSource S) (v : E d) :
+  (∀ n x, ∃ N ∈ (fun N : FramedNode S => N.move (translation v)) '' U.hierarchy.nodes n, x ∈ N.carrier n) ∧
+  (∀ n, ((fun N : FramedNode S => N.move (translation v)) '' U.hierarchy.nodes n).PairwiseDisjoint (fun N => interior (N.carrier n))) :=
+  sorry
+
+/-- Step 3 of the V4 proof of `honest_translate_exists_step2_translated_hierarchy` (V4 1.27):
+translated tree structure is coherent. -/
+private lemma honest_translate_exists_step2_translated_hierarchy_step3_tree (U : HonestSource S) (v : E d) :
+  ∃ (parent : ∀ n, {N // N ∈ (fun N : FramedNode S => N.move (translation v)) '' U.hierarchy.nodes n} → {P // P ∈ (fun N : FramedNode S => N.move (translation v)) '' U.hierarchy.nodes (n + 1)})
+    (role : ∀ n N, S.I (parent n N).val.ty),
+      (∀ n N, N.val = (parent n N).val.child n (role n N)) ∧
+      (∀ n P, P ∈ (fun N : FramedNode S => N.move (translation v)) '' U.hierarchy.nodes (n + 1) → ∀ i : S.I P.ty, P.child n i ∈ (fun N : FramedNode S => N.move (translation v)) '' U.hierarchy.nodes n) ∧
+      (∀ n N P, P ∈ (fun N : FramedNode S => N.move (translation v)) '' U.hierarchy.nodes (n + 1) → (∃ i : S.I P.ty, N.val = P.child n i) → P = (parent n N).val) ∧
+      (∀ n (N : {N // N ∈ U.hierarchy.nodes n}) (hN : N.val.move (translation v) ∈ (fun N : FramedNode S => N.move (translation v)) '' U.hierarchy.nodes n),
+        (parent n ⟨N.val.move (translation v), hN⟩).val = (U.hierarchy.parent n N).val.move (translation v)) ∧
+      (∀ n (N : {N // N ∈ U.hierarchy.nodes n}) (hN : N.val.move (translation v) ∈ (fun N : FramedNode S => N.move (translation v)) '' U.hierarchy.nodes n),
+        (⟨(parent n ⟨N.val.move (translation v), hN⟩).val.ty, role n ⟨N.val.move (translation v), hN⟩⟩ : S.Role) = U.hierarchy.nodeRole ⟨n, N⟩) :=
+  sorry
+
 /-- Step 2 of the V4 proof of `honest_translate_exists` (V4 1.27):
 the translated hierarchy is coherent. We state this as the existence of a coherent hierarchy
 whose nodes, parents, and roles are exactly the translations of the original hierarchy's. -/
@@ -261,8 +291,34 @@ private lemma honest_translate_exists_step2_translated_hierarchy (U : HonestSour
       (∀ n (N : {N // N ∈ U.hierarchy.nodes n}) (hN : N.val.move (translation v) ∈ H.nodes n),
         (H.parent n ⟨N.val.move (translation v), hN⟩).val = (U.hierarchy.parent n N).val.move (translation v)) ∧
       (∀ n (N : {N // N ∈ U.hierarchy.nodes n}) (hN : N.val.move (translation v) ∈ H.nodes n),
-        H.nodeRole ⟨n, ⟨N.val.move (translation v), hN⟩⟩ = U.hierarchy.nodeRole ⟨n, N⟩) :=
-  sorry
+        H.nodeRole ⟨n, ⟨N.val.move (translation v), hN⟩⟩ = U.hierarchy.nodeRole ⟨n, N⟩) := by
+  have h1 := honest_translate_exists_step2_translated_hierarchy_step1_tiles U v
+  have h2 := honest_translate_exists_step2_translated_hierarchy_step2_cover U v
+  obtain ⟨parent, role, h_child, h_mem, h_uniq, h_parent, h_role⟩ :=
+    honest_translate_exists_step2_translated_hierarchy_step3_tree U v
+  let nodes := fun n => (fun N : FramedNode S => N.move (translation v)) '' U.hierarchy.nodes n
+  have h_ground : {t | ∃ N ∈ nodes 0, N.toTile = t} = (U.tiling.move (translation v)).tiles := h1.1
+  have h_cover : ∀ n x, ∃ N ∈ nodes n, x ∈ N.carrier n := h2.1
+  have h_disjoint : ∀ n, (nodes n).PairwiseDisjoint (fun N => interior (N.carrier n)) := h2.2
+  have h_native : ∀ n N, N ∈ nodes n →
+    {t | t ∈ (U.tiling.move (translation v)).tiles ∧ t.carrier ⊆ N.carrier n} =
+      {t | ∃ w : S.RoleWord N.ty n, ((S.nativeTile N.ty n w).move N.frame).toTile = t} := h1.2
+  let H : CoherentHierarchy S (U.tiling.move (translation v)) := {
+    nodes := nodes
+    ground := h_ground
+    cover := h_cover
+    disjoint := h_disjoint
+    parent := parent
+    role := role
+    child_eq := h_child
+    children_mem := h_mem
+    parent_unique := h_uniq
+    native_tiles := h_native
+  }
+  use H
+  refine ⟨fun _ => rfl, h_parent, ?_⟩
+  intro n N hN
+  exact h_role n N hN
 
 /-- Step 3 of the V4 proof of `honest_translate_exists` (V4 1.27):
 the translated hierarchy has legal contexts for all finite sets of nodes. -/

@@ -89,7 +89,59 @@ def observerAlphabet (S : SubstSystem d) (P : Params S) : Set (Observer P) :=
 This asserts finiteness of `𝓙`, not of the ambient type with arbitrary raw states. -/
 theorem observers_finite (S : SubstSystem d) (P : Params S) :
     (observerAlphabet S P).Finite := by
-  sorry
+  have hw : {w : ObserverWindow P | w.top ∈ honestStates S P}.Finite := by
+    have h1 : {w : ObserverWindow P | w.top ∈ honestStates S P} ⊆ 
+        (fun p : State P × (Fin (P.w - 1) → S.Role) => ⟨p.1, p.2⟩) '' (honestStates S P ×ˢ (univ : Set (Fin (P.w - 1) → S.Role))) := by
+      rintro ⟨top, roles⟩ ht
+      exact ⟨(top, roles), ⟨ht, trivial⟩, rfl⟩
+    haveI : Fintype (Fin (P.w - 1) → S.Role) := inferInstance
+    have h2 : (univ : Set (Fin (P.w - 1) → S.Role)).Finite := toFinite _
+    exact Finite.subset (Finite.image (fun p : State P × (Fin (P.w - 1) → S.Role) => ⟨p.1, p.2⟩) (Finite.prod (states_finite S P) h2)) h1
+    
+  have hp : ∀ ty : S.ι, {p : FacetName S ty → Option (Packet P) | ∀ F q, p F = some q → q ∈ honestPackets S P}.Finite := by
+    intro ty
+    let P_set : Set (Option (Packet P)) := insert none (some '' honestPackets S P)
+    have hP_fin : P_set.Finite := Finite.insert none (Finite.image some (packets_finite S P))
+    have h1 : {p : FacetName S ty → Option (Packet P) | ∀ F q, p F = some q → q ∈ honestPackets S P} ⊆ 
+        {p : FacetName S ty → Option (Packet P) | ∀ F, p F ∈ P_set} := by
+      intro p hp_ F
+      cases h : p F
+      · exact mem_insert none _
+      · apply mem_insert_of_mem none
+        exact mem_image_of_mem _ (hp_ F _ h)
+    haveI : Fintype (FacetName S ty) := inferInstance
+    have h2 : {p : FacetName S ty → Option (Packet P) | ∀ F, p F ∈ P_set}.Finite := by
+      apply Finite.subset (Finite.pi fun _ => hP_fin)
+      intro p hp' F _
+      exact hp' F
+    exact Finite.subset h2 h1
+
+  have hsub : observerAlphabet S P ⊆ 
+      ⋃ (ty : S.ι), 
+        (fun p : {w : ObserverWindow P | w.top ∈ honestStates S P ∧ w.head.ty = ty} × 
+                 {p : FacetName S ty → Option (Packet P) | ∀ F q, p F = some q → q ∈ honestPackets S P} => 
+                 { ty := ty, window := p.1.val, head_type := p.1.prop.2, packets := p.2.val } : _ → Observer P) '' univ := by
+    rintro ⟨ty, window, h_head, packets⟩ ⟨hw_top, hp_packets⟩
+    simp only [mem_iUnion, mem_image, mem_univ, true_and, Subtype.exists, Prod.exists]
+    exact ⟨ty, window, ⟨hw_top, h_head⟩, packets, hp_packets, rfl⟩
+  apply Finite.subset _ hsub
+  have h_union : (⋃ (ty : S.ι), (fun p : {w : ObserverWindow P | w.top ∈ honestStates S P ∧ w.head.ty = ty} × {p : FacetName S ty → Option (Packet P) | ∀ F q, p F = some q → q ∈ honestPackets S P} => { ty := ty, window := p.1.val, head_type := p.1.prop.2, packets := p.2.val } : _ → Observer P) '' univ) = ⋃ (ty ∈ (univ : Set S.ι)), (fun p : {w : ObserverWindow P | w.top ∈ honestStates S P ∧ w.head.ty = ty} × {p : FacetName S ty → Option (Packet P) | ∀ F q, p F = some q → q ∈ honestPackets S P} => { ty := ty, window := p.1.val, head_type := p.1.prop.2, packets := p.2.val } : _ → Observer P) '' univ := by
+    ext x
+    simp only [mem_iUnion, mem_univ]
+    exact ⟨fun ⟨i, hi⟩ => ⟨i, trivial, hi⟩, fun ⟨i, _, hi⟩ => ⟨i, hi⟩⟩
+  rw [h_union]
+  haveI : Fintype S.ι := inferInstance
+  apply Finite.biUnion (toFinite (univ : Set S.ι))
+  intro ty _
+  apply Finite.image
+  have h1 : {w : ObserverWindow P | w.top ∈ honestStates S P ∧ w.head.ty = ty}.Finite := by
+    apply Finite.subset hw
+    intro x hx
+    exact hx.1
+  have h2 : {p : FacetName S ty → Option (Packet P) | ∀ F q, p F = some q → q ∈ honestPackets S P}.Finite := hp ty
+  haveI : Fintype {w : ObserverWindow P // w.top ∈ honestStates S P ∧ w.head.ty = ty} := h1.fintype
+  haveI : Fintype {p : FacetName S ty → Option (Packet P) // ∀ F q, p F = some q → q ∈ honestPackets S P} := h2.fintype
+  exact toFinite (univ : Set ({w : ObserverWindow P // w.top ∈ honestStates S P ∧ w.head.ty = ty} × {p : FacetName S ty → Option (Packet P) // ∀ F q, p F = some q → q ∈ honestPackets S P}))
 /-- O1, V4 4.1, 8.1: the parsed compressed window recovers every actual ancestor state. -/
 theorem parsedWindow_at (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (q : (parsedHierarchy Y hY).Node) (j : Fin P.w) :

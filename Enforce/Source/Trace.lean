@@ -4272,7 +4272,53 @@ theorem ScaleTailEquiv.faults {U V : HonestSource S} {a b : ℕ} {J : Iso d}
     (f : FacetName S q.val.2.val.ty)
     (g : FacetName S (e.toEquiv q).val.2.val.ty) (hfg : f.val = g.val) :
     U.hierarchy.IsFault q.val f ↔ V.hierarchy.IsFault (e.toEquiv q).val g := by
-  sorry
+  have htail {T : Tiling S} (H : CoherentHierarchy S T) (c : ℕ)
+      (p : H.Tail c) (r : ℕ) :
+      ((H.tailParent c)^[r] p).val = H.ancestor p.val r := by
+    induction r with
+    | zero => rfl
+    | succ r ih =>
+      rw [Function.iterate_succ_apply']
+      show H.parentNode ((H.tailParent c)^[r] p).val = (H.parentNode)^[r + 1] p.val
+      rw [Function.iterate_succ_apply', ih]
+      rfl
+  have hanc (r : ℕ) :
+      (e.toEquiv ((U.hierarchy.tailParent a)^[r] q)).val =
+        V.hierarchy.ancestor (e.toEquiv q).val r := by
+    have hs : Function.Semiconj e.toEquiv (U.hierarchy.tailParent a)
+        (V.hierarchy.tailParent b) := e.parents
+    rw [hs.iterate_right r q, htail]
+  let Ψ := (((U.expansion ^ ((b : ℤ) - (a : ℤ))).toAffineEquiv).trans J.toAffineEquiv)
+  have hframe (p : U.hierarchy.Tail a) (K : Set (E d)) :
+      (e.toEquiv p).val.2.val.prototypeFrame (e.toEquiv p).val.1 '' K =
+        Ψ '' (p.val.2.val.prototypeFrame p.val.1 '' K) := by
+    rw [e.frames p, AffineEquiv.coe_trans, Set.image_comp]
+  have hcarrier (p : U.hierarchy.Tail a) :
+      (e.toEquiv p).val.2.val.carrier (e.toEquiv p).val.1 =
+        Ψ '' (p.val.2.val.carrier p.val.1) := by
+    have hc (N : FramedNode S) (n : ℕ) :
+        N.carrier n = N.prototypeFrame n '' (S.proto N.ty).carrier := by
+      simp [FramedNode.carrier, FramedNode.prototypeFrame, placedSet,
+        SubstSystem.supertile, Set.image_image]
+    rw [hc, hc, e.types p, hframe]
+  have hcell : (e.toEquiv q).val.2.val.cell (e.toEquiv q).val.1 g.val =
+      Ψ '' (q.val.2.val.cell q.val.1 f.val) := by
+    unfold FramedNode.cell
+    rw [← hfg]
+    exact hframe q _
+  have hfr (K : Set (E d)) : frontier (Ψ '' K) = Ψ '' frontier K :=
+    (Ψ.toHomeomorphOfFiniteDimensional.image_frontier K).symm
+  unfold CoherentHierarchy.IsFault
+  apply forall_congr'
+  intro r
+  change q.val.2.val.cell q.val.1 f.val ⊆
+      frontier ((U.hierarchy.ancestor q.val r).2.val.carrier
+        (U.hierarchy.ancestor q.val r).1) ↔
+    (e.toEquiv q).val.2.val.cell (e.toEquiv q).val.1 g.val ⊆
+      frontier ((V.hierarchy.ancestor (e.toEquiv q).val r).2.val.carrier
+        (V.hierarchy.ancestor (e.toEquiv q).val r).1)
+  rw [← hanc r, ← htail U.hierarchy a q r, hcell, hcarrier, hfr]
+  exact (Set.image_subset_image_iff Ψ.injective).symm
 
 /-- Step 1 of the V4 proof of `providers` (V4 1.13(c)): "all ancestors of `N`"
 remain in the retained tail; iterating its parent map gives the actual ancestors. -/

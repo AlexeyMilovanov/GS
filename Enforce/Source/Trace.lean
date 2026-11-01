@@ -4155,7 +4155,32 @@ private theorem strata_step2_subset {U V : HonestSource S} {a b : ℕ} {J : Iso 
     relint ((e.toEquiv q).val.2.val.cell (e.toEquiv q).val.1 t.val) ⊆
       relint ((V.hierarchy.servingChild (e.toEquiv q).val g hg).2.val.cell
         (V.hierarchy.servingChild (e.toEquiv q).val g hg).1 (U.hierarchy.stratumMap q.val f hf s hs).val) := by
-  sorry
+  let Ψ : E d ≃ᵃ[ℝ] E d := ((U.expansion ^ ((b : ℤ) - (a : ℤ))).toAffineEquiv).trans J.toAffineEquiv
+  let RU : U.hierarchy.Node → Cell d → Set (E d) := fun N c => relint (N.2.val.cell N.1 c)
+  let RV : V.hierarchy.Node → Cell d → Set (E d) := fun N c => relint (N.2.val.cell N.1 c)
+  have transfer (p : U.hierarchy.Tail a) (c : Cell d) : RV (e.toEquiv p).val c = Ψ '' RU p.val c := by
+    dsimp only [RV, RU, FramedNode.cell]
+    rw [e.frames p, hereditary_trace_step1_relint_image, hereditary_trace_step1_relint_image, Set.image_image]
+    rfl
+  have htA (r : ℕ) : ((U.hierarchy.tailParent a)^[r] q).val = U.hierarchy.ancestor q.val r := by
+    induction r with | zero => rfl | succ j ih => rw [Function.iterate_succ_apply']; show U.hierarchy.parentNode ((U.hierarchy.tailParent a)^[j] q).val = (U.hierarchy.parentNode)^[j+1] q.val; rw [Function.iterate_succ_apply', ih]; rfl
+  have htV (r : ℕ) : (e.toEquiv ((U.hierarchy.tailParent a)^[r] q)).val = V.hierarchy.ancestor (e.toEquiv q).val r := by
+    have hs_sem : Function.Semiconj e.toEquiv (U.hierarchy.tailParent a) (V.hierarchy.tailParent b) := e.parents
+    rw [hs_sem.iterate_right r q]
+    induction r with | zero => rfl | succ j ih => rw [Function.iterate_succ_apply']; show V.hierarchy.parentNode ((V.hierarchy.tailParent b)^[j] (e.toEquiv q)).val = (V.hierarchy.parentNode)^[j+1] (e.toEquiv q).val; rw [Function.iterate_succ_apply', ih]; rfl
+  have ancestorTransfer (r : ℕ) (c : Cell d) : RV (V.hierarchy.ancestor (e.toEquiv q).val r) c = Ψ '' RU (U.hierarchy.ancestor q.val r) c := by
+    have h := transfer ((U.hierarchy.tailParent a)^[r] q) c
+    rw [htA r, htV r] at h
+    exact h
+  let c : Cell d := (U.hierarchy.stratumMap q.val f hf s hs).val
+  have hr := (e.providers q f g hfg hf hg).1
+  have dest : RV (V.hierarchy.servingChild (e.toEquiv q).val g hg) c = Ψ '' RU (U.hierarchy.servingChild q.val f hf) c := by
+    change RV (V.hierarchy.ancestor (e.toEquiv q).val (V.hierarchy.firstProvider (e.toEquiv q).val g hg).1) c = Ψ '' RU (U.hierarchy.ancestor q.val (U.hierarchy.firstProvider q.val f hf).1) c
+    rw [← hr]
+    exact ancestorTransfer _ c
+  change RV (e.toEquiv q).val t.val ⊆ RV (V.hierarchy.servingChild (e.toEquiv q).val g hg) c
+  rw [transfer q t.val, dest, ← hst]
+  exact Set.image_mono (CoherentHierarchy.stratumMap_spec_step1_spec q.val f hf s hs)
 
 /-- P7/T9, V4 1.7(b), 1.13(c): provider strata retain literal prototype names
 under the same full-tail transfer as the nodes and the provider incidences. -/

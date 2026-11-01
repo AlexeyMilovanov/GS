@@ -2185,6 +2185,7 @@ private lemma stratumMap_spec_step2_dim {d : ℕ} [Fact (2 ≤ d)] {S : SubstSys
   rw [h_eq_dim]
   exact H_spec.2
 
+set_option maxHeartbeats 800000 in
 /-- Step 3 of the V4 proof of `stratumMap_spec` (V4 1.7b): containment in provider. -/
 private lemma stratumMap_spec_step3_provider {d : ℕ} [Fact (2 ≤ d)] {S : SubstSystem d}
     {T : Tiling S} {H : CoherentHierarchy S T} (q : H.Node) (f : FacetName S q.2.val.ty)
@@ -2192,7 +2193,38 @@ private lemma stratumMap_spec_step3_provider {d : ℕ} [Fact (2 ≤ d)] {S : Sub
     (hs : q.2.val.cell q.1 s.val ⊆ q.2.val.cell q.1 f.val) :
     (H.servingChild q f hf).2.val.cell (H.servingChild q f hf).1
         (H.stratumMap q f hf s hs).val ⊆ H.providerCarrier q f hf := by
-  sorry
+  have hrefl : ∀ (M : FramedNode S) (n : ℕ), M.IsDescendant n M n := by
+    intro M n
+    refine ⟨0, rfl, (), ?_⟩
+    cases M with
+    | mk ty frame =>
+      show (⟨ty, frame⟩ : FramedNode S) = ⟨ty, (AffineIsometryEquiv.refl ℝ (E d)).trans frame⟩
+      rw [AffineIsometryEquiv.refl_trans]
+  have hprov : q.2.val.cell q.1 s.val ⊆
+      (H.servingChild q f hf).2.val.cell (H.servingChild q f hf).1 (H.firstProvider q f hf).2.val :=
+    hs.trans (H.firstProvider_spec q f hf).2.1
+  have h_nonempty : (relint (q.2.val.cell q.1 s.val)).Nonempty := by
+    obtain ⟨p, hp⟩ := s.val.flat.relint_nonempty
+    refine ⟨q.2.val.prototypeFrame q.1 p, ?_⟩
+    have H_cell_def : q.2.val.cell q.1 s.val =
+        (q.2.val.prototypeFrame q.1 : E d ≃ᵃ[ℝ] E d) '' s.val.carrier := rfl
+    rw [H_cell_def, hereditary_trace_step1_relint_image]
+    exact Set.mem_image_of_mem _ hp
+  obtain ⟨p, hp⟩ := h_nonempty
+  have h1 := stratumMap_spec_step1_spec q f hf s hs hp
+  have h2 := hprov (intrinsicInterior_subset hp)
+  have h_cx_f : (H.firstProvider q f hf).2.val ∈ (S.cx (H.servingChild q f hf).2.val.ty).cells := by
+    have h_prop := (H.firstProvider q f hf).2.property
+    have h_facets_subset_cells : (S.cx (H.ancestor q (H.firstProvider q f hf).1).2.val.ty).facets ⊆ (S.cx (H.ancestor q (H.firstProvider q f hf).1).2.val.ty).cells := by
+      intro e he
+      exact (Finset.mem_filter.mp he).1
+    exact h_facets_subset_cells h_prop
+  have key := hereditary_trace (H.servingChild q f hf).2.val (H.servingChild q f hf).2.val
+    (H.servingChild q f hf).1 (H.servingChild q f hf).1 (hrefl _ _)
+    (H.firstProvider q f hf).2.val (H.stratumMap q f hf s hs).val
+    h_cx_f (H.stratumMap q f hf s hs).property
+    ⟨p, h1, h2⟩
+  exact key
 
 /-- P7, V4 1.7(b): characterization, dimension bound, and containment in the provider. -/
 theorem stratumMap_spec (q : H.Node) (f : FacetName S q.2.val.ty)

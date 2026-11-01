@@ -58,11 +58,12 @@ theorem descendant_refl (N : FramedNode S) (n : ℕ) : N.IsDescendant n N n := b
     show (⟨ty, frame⟩ : FramedNode S) = ⟨ty, (AffineIsometryEquiv.refl ℝ (E d)).trans frame⟩
     rw [AffineIsometryEquiv.refl_trans]
 
+open private birth_ascent_routing_step3_desc_trans from Enforce.Source.Routing in
 /-- R1, V4 §3.0: descendant inclusion composes with exact frames and heights. -/
 theorem descendant_trans (A B D : FramedNode S) (a b e : ℕ)
     (hAB : A.IsDescendant a B b) (hBD : B.IsDescendant b D e) :
     A.IsDescendant a D e := by
-  sorry
+  exact birth_ascent_routing_step3_desc_trans A B D a b e hAB hBD
 
 /-- R1, V4 §3.0: a descendant has no greater height than its root. -/
 theorem descendant_height_le (A B : FramedNode S) (a b : ℕ)

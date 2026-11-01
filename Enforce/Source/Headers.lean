@@ -116,10 +116,29 @@ theorem incident_listed_step (p : E d) (n : ℕ) (a : P.Incident p n)
     (P.native (n + 1) b.val).Lists 0 ((S.σ ^ (n + 1)) p) := by
   sorry
 
+/-- Step 0 of the V4 proof of `incident_commonListed`: native identity at depth 0. -/
+private lemma incident_commonListed_step0_native_zero_eq (a : P.Address 0) : P.native 0 a = a.1.val := by
+  sorry
+
 /-- P9/P5, V4 1.14, 1.5(b): a common-listed point is listed at every depth. -/
 theorem incident_commonListed (p : E d) (hp : P.CommonListed p)
     (n : ℕ) (a : P.Incident p n) : (P.native n a.val).Lists 0 ((S.σ ^ n) p) := by
-  sorry
+  induction' n with n ih
+  · have h0 : P.native 0 a.val = a.val.1.val := incident_commonListed_step0_native_zero_eq P a.val
+    have h1 : (S.σ ^ 0) p = p := rfl
+    have a_prop : p ∈ a.val.1.val.carrier 0 := by
+      have h := a.property
+      change p ∈ (P.native 0 a.val).carrier 0 at h
+      rw [h0] at h
+      exact h
+    have h_listed := hp a.val.1.val a.val.1.property a_prop
+    change (P.native 0 a.val).Lists 0 p
+    rw [h0]
+    exact h_listed
+  · let a_parent := P.incidentParent p n a
+    have h_parent_child := P.incidentParent_spec p n a
+    have h_parent_listed := ih a_parent
+    exact P.incident_listed_step p n a_parent a h_parent_child h_parent_listed
 
 end CompatiblePatch
 

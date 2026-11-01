@@ -947,7 +947,27 @@ private lemma base_level_step1_decoded (Y : MarkedTiling (systemM S P C)) (hY : 
 /-- Step 2 of the V4 proof of `base_level` (V4 3.2): (I1): the table's state of the root has the block's type, and its residue is K mod L because the certificate is the S-table of an honest node of height exactly K. -/
 private lemma base_level_step2_I1 (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (D : DecodedLevel Y P.K) (hbase : Parser.CertificateBase D) : Parser.I1 D := by
-  sorry
+  intro B hB
+  have hroot : B.node ∈ D.geometry.roots := ⟨B, hB, rfl⟩
+  rw [hbase.1] at hroot
+  obtain ⟨B', hB'⟩ := hroot
+  obtain ⟨hN, hs⟩ := hbase.2 B' 0 (Nat.zero_le _) ()
+  have hinner : B'.innerNode 0 (Nat.zero_le _) () = B'.node := by
+    rfl
+  have hstate : D.blockState B hB = B'.table 0 (Nat.zero_le _) () := by
+    simpa only [Nat.sub_zero, hinner, hB', DecodedLevel.blockState] using hs
+  refine ⟨D.state_honest P.K ⟨B.node, D.geometry.root_mem B hB⟩, ?_, ?_⟩
+  · rw [hstate]
+    calc
+      (B'.table 0 (Nat.zero_le _) ()).ty = B'.node.ty :=
+        B'.certificate.val.table_type 0 (Nat.zero_le _) ()
+      _ = B.node.ty := congrArg FramedNode.ty hB'
+  · rw [hstate]
+    have hres : ∀ (c : Certificate P), c ∈ honestCerts S P →
+        (c.table 0 (Nat.zero_le _) ()).residue.val = P.K % P.L := by
+      rintro c ⟨U, N, hN, rfl⟩
+      rfl
+    exact hres B'.certificate.val B'.certificate.property
 
 /-- Step 1 of the V4 proof of `base_level_step3_I2` (V4 3.2): "the K-blocks ...
 form a decoded level K". Every inner node of a level with the forced roots has

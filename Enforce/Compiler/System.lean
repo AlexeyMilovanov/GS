@@ -2763,7 +2763,31 @@ private lemma compiler_events_step1_rule_step1_center (C : ClusterData S P) (Y :
     (j : EventSlot (compilerLeaf C t)) :
     ∃ x : E d, x ∈ interior t.carrier ∧ Y.marking x = Colour.trigger (compilerLeaf C t) j 0 ∧
       x ∈ (compilerFrame C t) '' C.enclosing (compilerLeaf C t) (.trigger j) := by
-  sorry
+  let l := compilerLeaf C t
+  let φ := compilerFrame C t
+  let c := C.centre l (.trigger j) 0
+  let x := φ c
+  have hc : c ∈ C.microball l (.trigger j) 0 :=
+    Metric.mem_closedBall_self C.ρ_pos.le
+  have hci : c ∈ interior (S.proto l.prototype).carrier :=
+    C.cluster_inside l (.trigger j) (Set.mem_iUnion_of_mem 0 hc)
+  have hxi : x ∈ interior t.carrier :=
+    compiler_certificates_frame_interior C t c hci
+  have htransport :
+      ∀ (u : PlacedMarkedTile (systemM S P C)),
+        u = placedLeaf C l φ → ∀ z : u.carrier,
+          u.mark z = augmentedColour C l (φ.symm z.val) := by
+    rintro u rfl z
+    rfl
+  have htm := htransport t (placedLeaf_decode C t).symm
+    ⟨x, interior_subset hxi⟩
+  have hmark : Y.marking x = Colour.trigger l j 0 := by
+    rw [Y.marking_eq_tile t ht x (interior_subset hxi), htm]
+    change augmentedColour C l (φ.symm (φ c)) = Colour.trigger l j 0
+    rw [AffineIsometryEquiv.symm_apply_apply]
+    exact augmentedMarking_microball C l (.trigger j) 0 c hc
+  refine ⟨x, hxi, hmark, ?_⟩
+  exact ⟨c, C.microball_subset_enclosing l (.trigger j) 0 hc, rfl⟩
 
 /-- Step 2 of the V4 proof of `compiler_events_step1_rule` (V4 2.17b): The covering rule copy \psi(\Lambda, m) covers x. -/
 private lemma compiler_events_step1_rule_step2_covering (C : ClusterData S P) (Y : MarkedTiling (systemM S P C))

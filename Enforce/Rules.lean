@@ -32,6 +32,33 @@ def MarkedSet.move (P : MarkedSet d X) (g : Iso d) : MarkedSet d X where
     rw [← he, g.symm_apply_apply]
     exact hy⟩
 
+private theorem MarkedSet.ext_of_mark {P Q : MarkedSet d X} (hc : P.carrier = Q.carrier)
+    (hm : ∀ x (hx : x ∈ P.carrier) (hx' : x ∈ Q.carrier), P.mark ⟨x, hx⟩ = Q.mark ⟨x, hx'⟩) :
+    P = Q := by
+  obtain ⟨c, m⟩ := P
+  obtain ⟨c', m'⟩ := Q
+  simp only at hc hm
+  subst hc
+  have h : m = m' := funext fun x => hm x.1 x.2 x.2
+  subst h
+  rfl
+
+private theorem MarkedSet.move_one (P : MarkedSet d X) : P.move 1 = P := by
+  refine MarkedSet.ext_of_mark ?_ ?_
+  · show (1 : Iso d) '' P.carrier = P.carrier
+    ext y; simp
+  · intro x hx hx'
+    show P.mark ⟨(1 : Iso d).symm x, _⟩ = P.mark ⟨x, hx'⟩
+    exact congrArg P.mark (Subtype.ext (by rfl))
+
+private theorem MarkedSet.move_mul (P : MarkedSet d X) (g h : Iso d) :
+    P.move (g * h) = (P.move h).move g := by
+  refine MarkedSet.ext_of_mark ?_ ?_
+  · show (g * h) '' P.carrier = g '' (h '' P.carrier)
+    rw [Set.image_image]; rfl
+  · intro x hx hx'
+    exact congrArg P.mark (Subtype.ext rfl)
+
 /-- M1, V4 2.9: a physical marked prototile in a C1 catalogue. -/
 structure MarkedPrototile (d : ℕ) (X : Type) extends MarkedSet d X where
   /-- M1, V4 2.9: the physical carrier is compact. -/
@@ -114,7 +141,24 @@ The action is on placed marked carriers, so it retains the physical partition. -
 theorem symmetry_group_laws : Y.IsSymmetry 1 ∧
     (∀ g h : Iso d, Y.IsSymmetry g → Y.IsSymmetry h → Y.IsSymmetry (g * h)) ∧
       (∀ g : Iso d, Y.IsSymmetry g → Y.IsSymmetry g⁻¹) := by
-  sorry
+  have hone : (fun P : MarkedSet d X => P.move 1) '' Y.markedCarriers = Y.markedCarriers := by
+    simp only [MarkedSet.move_one, Set.image_id']
+  have himg : ∀ g h : Iso d,
+      (fun P : MarkedSet d X => P.move (g * h)) '' Y.markedCarriers
+        = (fun P : MarkedSet d X => P.move g) '' ((fun P : MarkedSet d X => P.move h) '' Y.markedCarriers) := by
+    intro g h
+    rw [Set.image_image]
+    exact Set.image_congr (fun P _ => MarkedSet.move_mul P g h)
+  refine ⟨hone, ?_, ?_⟩
+  · intro g h hg hh
+    unfold IsSymmetry at hg hh ⊢
+    rw [himg g h, hh, hg]
+  · intro g hg
+    unfold IsSymmetry at hg ⊢
+    calc (fun P : MarkedSet d X => P.move g⁻¹) '' Y.markedCarriers
+        = (fun P : MarkedSet d X => P.move g⁻¹) '' ((fun P : MarkedSet d X => P.move g) '' Y.markedCarriers) := by rw [hg]
+      _ = (fun P : MarkedSet d X => P.move (g⁻¹ * g)) '' Y.markedCarriers := (himg _ _).symm
+      _ = Y.markedCarriers := by rw [inv_mul_cancel]; exact hone
 
 /-- M1/F, V4 5.7: the full Euclidean symmetry group of the marked tiling. -/
 def symmetryGroup : Subgroup (Iso d) where

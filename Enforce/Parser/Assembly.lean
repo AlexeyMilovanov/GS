@@ -6103,6 +6103,234 @@ private theorem packet_E_equality_step2_boundary_neighborhood_step5a_low_codim {
     IsPreconnected (interior C) := by
   sorry
 
+/-- Step 1 of the V4 proof of `packet_E_equality_step2_boundary_neighborhood_step5b_frontier_off_lineality`
+(V4 §1.0 (H1), used in 3.12(b)): "the boundary of P is a (d-1)-manifold".
+The geometric splitting is explicit: for a set invariant under translations in
+`L`, addition identifies its complement of `L` with the product of `L` and its
+punctured orthogonal slice. No connectedness or manifold assumption is used. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step5b_frontier_off_lineality_step1_orthogonal_product
+    {X : Set (E d)} (L : Submodule ℝ (E d))
+    (htrans : ∀ v ∈ L, ∀ x, x + v ∈ X ↔ x ∈ X) :
+    X \ (L : Set (E d)) =
+      (fun p : E d × E d => p.1 + p.2) ''
+        ((L : Set (E d)) ×ˢ ((X ∩ (Lᗮ : Set (E d))) \ {0})) := by
+  ext x
+  constructor
+  · rintro ⟨hx, hxL⟩
+    let l : E d := L.starProjection x
+    have hl : l ∈ L := L.starProjection_apply_mem x
+    have hv : x - l ∈ X := by
+      simpa only [sub_eq_add_neg] using (htrans (-l) (L.neg_mem hl) x).mpr hx
+    refine ⟨(l, x - l), ⟨hl, ⟨hv, L.sub_starProjection_mem_orthogonal x⟩, ?_⟩, ?_⟩
+    · intro hz
+      apply hxL
+      rw [sub_eq_zero.mp (show x - l = 0 from hz)]
+      exact hl
+    · dsimp
+      abel
+  · rintro ⟨⟨l, v⟩, ⟨hl, ⟨hv, hvorth⟩, hv0⟩, rfl⟩
+    refine ⟨by simpa only [add_comm] using (htrans l hl v).mpr hv, ?_⟩
+    intro hsum
+    have hvL : v ∈ L := by simpa using L.sub_mem hsum hl
+    have hvbot : v ∈ (⊥ : Submodule ℝ (E d)) := by
+      rw [← L.inf_orthogonal_eq_bot]
+      exact ⟨hvL, hvorth⟩
+    exact hv0 (show v = 0 from hvbot)
+
+/-- Step 2 of the V4 proof of `packet_E_equality_step2_boundary_neighborhood_step5b_frontier_off_lineality`
+(V4 §1.0 (H1), used in 3.12(b)): "P is a polyhedral manifold domain".
+This is the chart nonseparation fact used along the lineality space: an embedded
+closed disk of dimension at most `n - 2` cannot separate an open ball in `E n`.
+The disk is compact, so its embedded image is closed. The embedding may be
+topological; no smoothness of a chart is assumed. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step5b_frontier_off_lineality_step2_chart_disk_nonseparation
+    {n : ℕ} (L : Submodule ℝ (E d))
+    (hdim : Module.finrank ℝ L + 2 ≤ n) {r : ℝ} (hr : 0 < r)
+    (f : ↥(closedBall (0 : L) r) → E n) (hf : Topology.IsEmbedding f)
+    (a : E n) {ρ : ℝ} (hρ : 0 < ρ) :
+    IsPreconnected (ball a ρ \ Set.range f) := by
+  sorry
+
+/-- Step 3 of the V4 proof of `packet_E_equality_step2_boundary_neighborhood_step5b_frontier_off_lineality`
+(V4 §1.0 (H1), used in 3.12(b)): "P is a polyhedral manifold domain".
+Work in one manifold chart at the origin. A small closed disk in the embedded
+subspace `L` lies in the chart; a still smaller chart ball meets `L` only in that
+disk. Step 2 therefore gives a relatively open neighborhood whose complement
+of `L` is preconnected. This is local and requires no conical structure. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step5b_frontier_off_lineality_step3_manifold_neighborhood
+    {n : ℕ} {X : Set (E d)} (hman : IsLocallyEuclidean n X)
+    (L : Submodule ℝ (E d)) (hLX : (L : Set (E d)) ⊆ X)
+    (hdim : Module.finrank ℝ L + 2 ≤ n) :
+    ∃ U : Set X, IsOpen U ∧ (⟨0, hLX L.zero_mem⟩ : X) ∈ U ∧
+      IsPreconnected ((Subtype.val '' U : Set (E d)) \ (L : Set (E d))) := by
+  let x₀ : X := ⟨0, hLX L.zero_mem⟩
+  let i : L → X := Set.inclusion hLX
+  have hi : Topology.IsEmbedding i := Topology.IsEmbedding.inclusion hLX
+  obtain ⟨U, hU, hx₀U, V, hV, ⟨φ⟩⟩ := hman x₀
+  obtain ⟨ε, hε, hεU⟩ := Metric.isOpen_iff.mp (hU.preimage hi.continuous)
+    (0 : L) (show i 0 ∈ U from hx₀U)
+  let r := ε / 2
+  have hr : 0 < r := by dsimp [r]; positivity
+  have hballU : ∀ z : L, z ∈ closedBall (0 : L) r → i z ∈ U := by
+    intro z hz
+    apply hεU
+    rw [mem_ball]
+    have hz' : dist z 0 ≤ r := hz
+    dsimp [r] at hz'
+    linarith
+  let j : ↥(closedBall (0 : L) r) → U := fun z => ⟨i z.val, hballU z.val z.property⟩
+  have hjcont : Continuous j := by
+    exact (hi.continuous.comp continuous_subtype_val).subtype_mk _
+  have hj : Topology.IsEmbedding j :=
+    Topology.IsEmbedding.of_comp hjcont continuous_subtype_val
+      (hi.comp Topology.IsEmbedding.subtypeVal)
+  let f : ↥(closedBall (0 : L) r) → E n := fun z => (φ (j z) : E n)
+  have hf : Topology.IsEmbedding f :=
+    Topology.IsEmbedding.subtypeVal.comp (φ.isEmbedding.comp hj)
+  let g : V → X := fun y => (φ.symm y).val
+  have hgcont : Continuous g := continuous_subtype_val.comp φ.symm.continuous
+  have hgopen : IsOpenMap g := hU.isOpenMap_subtype_val.comp φ.symm.isOpenMap
+  let a : V := φ ⟨x₀, hx₀U⟩
+  have hga : g a = x₀ := by simp [g, a]
+  let T : Set V := g ⁻¹' ball x₀ r
+  have hT : IsOpen T := isOpen_ball.preimage hgcont
+  have haT : a ∈ T := by
+    change g a ∈ ball x₀ r
+    rw [hga]
+    exact mem_ball_self hr
+  obtain ⟨ρ, hρ, hρT⟩ := Metric.isOpen_iff.mp
+    (hV.isOpenMap_subtype_val T hT) (a : E n) ⟨a, haT, rfl⟩
+  let B := ball (a : E n) ρ
+  have hBV : B ⊆ V := by
+    intro y hy
+    obtain ⟨z, _, rfl⟩ := hρT hy
+    exact z.property
+  have hsmall (y : V) (hy : (y : E n) ∈ B) : dist (g y) x₀ < r := by
+    obtain ⟨z, hz, hzy⟩ := hρT hy
+    have hzy' : z = y := Subtype.ext hzy
+    subst z
+    exact hz
+  have hmemL (y : V) (hy : (y : E n) ∈ B) :
+      (g y : E d) ∈ L ↔ (y : E n) ∈ Set.range f := by
+    constructor
+    · intro hyL
+      let z : L := ⟨(g y : E d), hyL⟩
+      have hz : z ∈ closedBall (0 : L) r := by
+        have hs := (hsmall y hy).le
+        simpa only [mem_closedBall, Subtype.dist_eq, Submodule.coe_zero] using hs
+      refine ⟨⟨z, hz⟩, ?_⟩
+      have hjy : j ⟨z, hz⟩ = φ.symm y := by
+        apply Subtype.ext
+        apply Subtype.ext
+        rfl
+      change (φ (j ⟨z, hz⟩) : E n) = (y : E n)
+      rw [hjy, φ.apply_symm_apply]
+    · rintro ⟨z, hz⟩
+      have hz' : φ (j z) = y := Subtype.ext hz
+      have hgy : g y = i z.val := by
+        change (φ.symm y).val = i z.val
+        rw [← hz', φ.symm_apply_apply]
+      rw [hgy]
+      exact z.val.property
+  have hBconn : IsPreconnected (B \ Set.range f) :=
+    packet_E_equality_step2_boundary_neighborhood_step5b_frontier_off_lineality_step2_chart_disk_nonseparation
+      L hdim hr f hf (a : E n) hρ
+  have hBconn' : IsPreconnected ((Subtype.val : V → E n) ⁻¹' (B \ Set.range f)) :=
+    hBconn.preimage_of_isOpenMap Subtype.val_injective hV.isOpenMap_subtype_val
+      (fun y hy => ⟨⟨y, hBV hy.1⟩, rfl⟩)
+  let U₀ : Set X := g '' ((Subtype.val : V → E n) ⁻¹' B)
+  refine ⟨U₀, hgopen _ (isOpen_ball.preimage continuous_subtype_val),
+    ⟨a, mem_ball_self hρ, hga⟩, ?_⟩
+  have himage :
+      (fun y : V => (g y : E d)) '' (Subtype.val ⁻¹' (B \ Set.range f)) =
+        (Subtype.val '' U₀ : Set (E d)) \ (L : Set (E d)) := by
+    ext x
+    constructor
+    · rintro ⟨y, hy, rfl⟩
+      refine ⟨⟨g y, ⟨y, hy.1, rfl⟩, rfl⟩, ?_⟩
+      intro h
+      exact hy.2 ((hmemL y hy.1).mp h)
+    · rintro ⟨⟨q, ⟨y, hy, rfl⟩, rfl⟩, hxL⟩
+      exact ⟨y, ⟨hy, fun hz => hxL ((hmemL y hy).mpr hz)⟩, rfl⟩
+  rw [← himage]
+  exact hBconn'.image _ (continuous_subtype_val.comp hgcont).continuousOn
+
+set_option maxHeartbeats 800000 in
+/-- Step 4 of the V4 proof of `packet_E_equality_step2_boundary_neighborhood_step5b_frontier_off_lineality`
+(V4 §1.0 (H1), used in 3.12(b)): "the interior link of P at q is connected".
+For the frontier cone, project the local complement of `L` onto `Lᗮ` and take
+all positive dilations. This gives exactly the punctured transverse slice, so
+local nonseparation at the apex gives its preconnectedness. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step5b_frontier_off_lineality_step4_transverse_slice
+    {X : Set (E d)} (L : Submodule ℝ (E d)) (h₀ : (0 : E d) ∈ X)
+    (hscale : ∀ t : ℝ, 0 < t → ∀ x ∈ X, t • x ∈ X)
+    (htrans : ∀ v ∈ L, ∀ x, x + v ∈ X ↔ x ∈ X)
+    {U : Set X} (hU : IsOpen U) (h₀U : (⟨0, h₀⟩ : X) ∈ U)
+    (hUconn : IsPreconnected ((Subtype.val '' U : Set (E d)) \ (L : Set (E d)))) :
+    IsPreconnected ((X ∩ (Lᗮ : Set (E d))) \ {0}) := by
+  let P : E d →L[ℝ] E d := Lᗮ.starProjection
+  let W := P '' ((Subtype.val '' U : Set (E d)) \ (L : Set (E d)))
+  have hWconn : IsPreconnected W := hUconn.image P P.continuous.continuousOn
+  have hWsub : W ⊆ (X ∩ (Lᗮ : Set (E d))) \ {0} := by
+    rintro _ ⟨x, ⟨⟨q, hqU, rfl⟩, hxL⟩, rfl⟩
+    have hproj : P (q : E d) = (q : E d) - L.starProjection q :=
+      L.starProjection_orthogonal_val q
+    refine ⟨⟨?_, Lᗮ.starProjection_apply_mem q⟩, ?_⟩
+    · rw [hproj]
+      simpa only [sub_eq_add_neg] using
+        (htrans (-L.starProjection q) (L.neg_mem (L.starProjection_apply_mem q)) q).mpr q.property
+    · intro hz
+      have hz' : (q : E d) - L.starProjection q = 0 := by
+        rw [← hproj]
+        exact hz
+      apply hxL
+      rw [sub_eq_zero.mp hz']
+      exact L.starProjection_apply_mem q
+  obtain ⟨ε, hε, hεU⟩ := Metric.isOpen_iff.mp hU (⟨0, h₀⟩ : X) h₀U
+  have himage :
+      (fun p : ℝ × E d => p.1 • p.2) '' ((Ioi (0 : ℝ)) ×ˢ W) =
+        (X ∩ (Lᗮ : Set (E d))) \ {0} := by
+    ext y
+    constructor
+    · rintro ⟨⟨t, x⟩, ⟨ht, hx⟩, rfl⟩
+      obtain ⟨⟨hxX, hxorth⟩, hx0⟩ := hWsub hx
+      refine ⟨⟨hscale t ht x hxX, Lᗮ.smul_mem t hxorth⟩, ?_⟩
+      intro hz
+      rcases smul_eq_zero.mp (show t • x = 0 from hz) with ht0 | hx0'
+      · exact ht.ne' ht0
+      · exact hx0 hx0'
+    · rintro ⟨⟨hyX, hyorth⟩, hy0⟩
+      let s : ℝ := ε / (2 * (‖y‖ + 1))
+      have hs : 0 < s := by dsimp [s]; positivity
+      have hsnorm : ‖s • y‖ < ε := by
+        rw [norm_smul, Real.norm_eq_abs, abs_of_pos hs]
+        dsimp [s]
+        rw [div_mul_eq_mul_div, div_lt_iff₀ (by positivity)]
+        nlinarith [norm_nonneg y, mul_nonneg hε.le (norm_nonneg y)]
+      have hsyX : s • y ∈ X := hscale s hs y hyX
+      have hsyU : (⟨s • y, hsyX⟩ : X) ∈ U := by
+        apply hεU
+        simpa only [mem_ball, Subtype.dist_eq, dist_zero_right] using hsnorm
+      have hyL : y ∉ L := by
+        intro hyL
+        have hybot : y ∈ (⊥ : Submodule ℝ (E d)) := by
+          rw [← L.inf_orthogonal_eq_bot]
+          exact ⟨hyL, hyorth⟩
+        exact hy0 (show y = 0 from hybot)
+      have hsyL : s • y ∉ L := fun h => hyL ((L.smul_mem_iff hs.ne').mp h)
+      have hsyW : s • y ∈ W := by
+        refine ⟨s • y, ⟨⟨⟨s • y, hsyX⟩, hsyU, rfl⟩, hsyL⟩, ?_⟩
+        change Lᗮ.starProjection (s • y) = s • y
+        exact (Submodule.starProjection_eq_self_iff (K := Lᗮ) (v := s • y)).mpr
+          (Lᗮ.smul_mem s hyorth)
+      refine ⟨(s⁻¹, s • y), ⟨inv_pos.mpr hs, hsyW⟩, ?_⟩
+      change s⁻¹ • (s • y) = y
+      rw [smul_smul, inv_mul_cancel₀ hs.ne', one_smul]
+  rw [← himage]
+  exact ((convex_Ioi (0 : ℝ)).isPreconnected.prod hWconn).image _
+    (continuous_fst.smul continuous_snd).continuousOn
+
+open private tangentCone_polyhedral_step4_positive_scaling from Enforce.Geometry.Polyhedral in
 /-- Step 5b of the V4 proof of `packet_E_equality_step2_boundary_neighborhood` (V4 §1.0 (H1), used in 3.12(b)): "the
 boundary of P is a (d-1)-manifold", read on a tangent cone `C` with nonzero
 lineality space `L` of codimension `m ≥ 3`. Then `frontier C = L × ∂C'` with `∂C'`
@@ -6115,7 +6343,43 @@ private theorem packet_E_equality_step2_boundary_neighborhood_step5b_frontier_of
     (hman : IsLocallyEuclidean (d - 1) (frontier C)) (h0 : (0 : E d) ∈ frontier C)
     (hcodim : 3 ≤ d - Module.finrank ℝ (packet_E_equality_step2_boundary_neighborhood_step7_lin C)) (hL : packet_E_equality_step2_boundary_neighborhood_step7_lin C ≠ ⊥) :
     IsPreconnected (frontier C \ (packet_E_equality_step2_boundary_neighborhood_step7_lin C : Set (E d))) := by
-  sorry
+  let L := packet_E_equality_step2_boundary_neighborhood_step7_lin C
+  have htrans : ∀ v ∈ L, ∀ x, x + v ∈ frontier C ↔ x ∈ frontier C :=
+    fun _ hv x => packet_E_equality_step2_boundary_neighborhood_step7_lin_frontier hv x
+  have hLX : (L : Set (E d)) ⊆ frontier C := by
+    intro v hv
+    simpa only [zero_add] using (htrans v hv 0).mpr h0
+  have hdim : Module.finrank ℝ L + 2 ≤ d - 1 := by
+    change 3 ≤ d - Module.finrank ℝ L at hcodim
+    omega
+  obtain ⟨U, hU, h₀U, hUconn⟩ :=
+    packet_E_equality_step2_boundary_neighborhood_step5b_frontier_off_lineality_step3_manifold_neighborhood
+      hman L hLX hdim
+  have hscale : ∀ t : ℝ, 0 < t → ∀ x ∈ frontier C, t • x ∈ frontier C := by
+    intro t ht x hx
+    let h : E d ≃ₜ E d := Homeomorph.smulOfNeZero t ht.ne'
+    have himg : h '' C = C := by
+      ext y
+      constructor
+      · rintro ⟨z, hz, rfl⟩
+        exact (tangentCone_polyhedral_step4_positive_scaling hC ht z).mpr hz
+      · intro hy
+        refine ⟨t⁻¹ • y,
+          (tangentCone_polyhedral_step4_positive_scaling hC (inv_pos.mpr ht) y).mpr hy, ?_⟩
+        change t • (t⁻¹ • y) = y
+        rw [smul_smul, mul_inv_cancel₀ ht.ne', one_smul]
+    have hf := h.image_frontier C
+    rw [himg] at hf
+    rw [← hf]
+    exact ⟨x, hx, rfl⟩
+  have hslice :=
+    packet_E_equality_step2_boundary_neighborhood_step5b_frontier_off_lineality_step4_transverse_slice
+      L h0 hscale htrans hU h₀U hUconn
+  rw [packet_E_equality_step2_boundary_neighborhood_step5b_frontier_off_lineality_step1_orthogonal_product
+    L htrans]
+  exact (L.convex.isPreconnected.prod hslice).image _
+    (continuous_fst.add continuous_snd).continuousOn
+
 
 /-- Step 5c of the V4 proof of `packet_E_equality_step2_boundary_neighborhood` (V4 §1.0 (H1), used in 3.12(b)): "the
 boundary of P is a (d-1)-manifold"; removing the lineality space of the tangent

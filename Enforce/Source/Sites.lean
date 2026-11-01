@@ -6704,6 +6704,7 @@ theorem CoherentHierarchy.placedTraceOwner_mem {T : Tiling S}
   have hN' : N ∈ H.nodes ((n - r) + r) := by rwa [← h_eq]
   exact coarsen_desc_mem H (n - r) r N hN' a.owner
 
+open private exists_honest_step7_descendant_type from Enforce.Tiling in
 /-- P18, V4 1.23(c): persistence in one placed source node, at every deeper
 subdivision still available in that node. The same ambient point is used at each
 depth; scale normalization changes the native coordinates, not the point itself. -/
@@ -6712,6 +6713,26 @@ theorem placed_site_listed (N : FramedNode S) (n r r' : ℕ)
     (hq : IsSite N.ty F r q) (a : TracePiece N.ty F r')
     (ha : tracePlacement N n r q ∈ placedTraceCarrier N n r' F a) :
     (placedTraceOwner N n r' F a).Lists (n - r') (tracePlacement N n r q) := by
-  sorry
+  obtain ⟨s, rfl⟩ : ∃ s, r' = r + s := ⟨r' - r, by omega⟩
+  have hplace : tracePlacement N n (r + s) ((S.σ ^ s) q) =
+      tracePlacement N n r q := by
+    change N.frame ((S.σ ^ (n - (r + s))) ((S.σ ^ s) q)) =
+      N.frame ((S.σ ^ (n - r)) q)
+    apply congrArg N.frame
+    change ((S.σ ^ (n - (r + s))) * (S.σ ^ s)) q = _
+    rw [← pow_add, show n - (r + s) + s = n - r by omega]
+  have hqa : (S.σ ^ s) q ∈ a.carrier := by
+    obtain ⟨x, hx, heq⟩ := ha
+    have hxeq : x = (S.σ ^ s) q :=
+      (tracePlacement N n (r + s)).injective (heq.trans hplace.symm)
+    exact hxeq ▸ hx
+  obtain ⟨v, hv, hqv, -⟩ := site_listed N.ty F r q hq s a hqa
+  have hty : (placedTraceOwner N n (r + s) F a).ty = a.tile.ty := by
+    exact exists_honest_step7_descendant_type N.ty (n - (r + s)) (r + s) a.owner
+  refine ⟨v, ?_, ?_⟩
+  · rw [hty]
+    exact hv
+  · rw [placedTraceOwner_cells N n (r + s) hr'n F a v]
+    exact ⟨(S.σ ^ s) q, hqv, hplace⟩
 
 end Enforce

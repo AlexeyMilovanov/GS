@@ -4556,6 +4556,181 @@ private theorem adjacency_primitive_seed_step1_seed_point (P : FramedNode S) (n 
   rw [hκdim, haPlaced.2.2.1, hκ, ha.2]
   omega
 
+/-- Step 1 of the V4 proof of `adjacency_primitive_seed_step2_other_sheet_step1_ray` (V4 1.0(a), 1.8):
+"one side of `aff F`". Points on the bounding hyperplane are limits of either
+open half-ball, by small positive translations in its unit normal direction. -/
+private lemma adjacency_primitive_seed_step2_other_sheet_step1_ray_step1_halfball_closure
+    {X : Type*} [NormedAddCommGroup X] [InnerProductSpace ℝ X]
+    (p v : X) (hv : ‖v‖ = 1) (r : ℝ) (x : X)
+    (hx : x ∈ ball p r) (hxv : inner ℝ v (x - p) = 0) :
+    x ∈ closure ({y | 0 < inner ℝ v (y - p)} ∩ ball p r) := by
+  rw [Metric.mem_closure_iff]
+  intro ε hε
+  let t := min ε (r - dist x p) / 2
+  have ht : 0 < t := half_pos (lt_min hε (sub_pos.mpr (mem_ball.mp hx)))
+  have htε : t < ε := lt_of_le_of_lt (by dsimp [t]; gcongr; exact min_le_left _ _)
+    (half_lt_self hε)
+  have htr : t < r - dist x p :=
+    lt_of_le_of_lt (by dsimp [t]; gcongr; exact min_le_right _ _)
+      (half_lt_self (sub_pos.mpr (mem_ball.mp hx)))
+  have hdist : dist (x + t • v) x = t := by
+    rw [dist_eq_norm, add_sub_cancel_left, norm_smul, hv, mul_one,
+      Real.norm_of_nonneg ht.le]
+  refine ⟨x + t • v, ⟨?_, ?_⟩, ?_⟩
+  · change 0 < inner ℝ v (x + t • v - p)
+    rw [show x + t • v - p = (x - p) + t • v by abel,
+      inner_add_right, inner_smul_right, hxv, real_inner_self_eq_norm_sq, hv]
+    simpa using ht
+  · rw [mem_ball]
+    have := dist_triangle (x + t • v) x p
+    rw [hdist] at this
+    linarith
+  · rwa [dist_comm, hdist]
+
+/-- Step 2 of the V4 proof of `adjacency_primitive_seed_step2_other_sheet_step1_ray` (V4 1.0(a), 1.8):
+"each component is inside or outside A. Not both inside ... not both outside".
+If the frontier of a regular closed domain is locally contained in a hyperplane,
+it contains the whole hyperplane piece: the two open half-balls lie on opposite sides. -/
+private lemma adjacency_primitive_seed_step2_other_sheet_step1_ray_step2_flat_frontier
+    {X : Type*} [NormedAddCommGroup X] [InnerProductSpace ℝ X]
+    (S : Set X) (hS : closure (interior S) = S)
+    (p v : X) (hv : ‖v‖ = 1) (r : ℝ) (hr : 0 < r)
+    (hp : p ∈ frontier S)
+    (hfr : frontier S ∩ ball p r ⊆ {x | inner ℝ v (x - p) = 0}) :
+    {x | inner ℝ v (x - p) = 0} ∩ ball p r ⊆ frontier S := by
+  have hSc : IsClosed S := by rw [← hS]; exact isClosed_closure
+  have hconn (w : X) :
+      IsPreconnected ({x | 0 < inner ℝ w (x - p)} ∩ ball p r) := by
+    refine (Convex.inter ?_ (convex_ball p r)).isPreconnected
+    intro x hx y hy a b ha hb hab
+    simp only [mem_setOf_eq] at hx hy ⊢
+    have hlin : inner ℝ w (a • x + b • y - p) =
+        a * inner ℝ w (x - p) + b * inner ℝ w (y - p) := by
+      simp only [inner_sub_right, inner_add_right, inner_smul_right]
+      linear_combination (inner ℝ w p) * hab
+    rw [hlin]
+    by_cases ha0 : a = 0
+    · subst ha0
+      have hb1 : b = 1 := by linarith
+      subst hb1
+      linarith
+    · have hapos : 0 < a := lt_of_le_of_ne ha (Ne.symm ha0)
+      have := mul_pos hapos hx
+      have := mul_nonneg hb hy.le
+      linarith
+  have hdich (w : X)
+      (hw : ∀ x, 0 < inner ℝ w (x - p) → inner ℝ v (x - p) ≠ 0) :
+      ({x | 0 < inner ℝ w (x - p)} ∩ ball p r) ⊆ interior S ∨
+        ({x | 0 < inner ℝ w (x - p)} ∩ ball p r) ⊆ Sᶜ := by
+    have hcover : ({x | 0 < inner ℝ w (x - p)} ∩ ball p r) ⊆ interior S ∪ Sᶜ := by
+      rintro x ⟨hx, hxb⟩
+      by_cases hxs : x ∈ S
+      · left
+        by_contra hxi
+        exact hw x hx (hfr ⟨by rw [hSc.frontier_eq]; exact ⟨hxs, hxi⟩, hxb⟩)
+      · exact Or.inr hxs
+    exact (hconn w).subset_or_subset isOpen_interior hSc.isOpen_compl
+      (Set.disjoint_left.mpr fun _ hi hc => hc (interior_subset hi)) hcover
+  have hP := hdich v (fun _ h => h.ne')
+  have hM := hdich (-v) (fun x h => by rw [inner_neg_left] at h; linarith)
+  have hzero (x : X) (hxb : x ∈ ball p r) (hx0 : inner ℝ v (x - p) = 0) :
+      x ∈ closure ({y | 0 < inner ℝ v (y - p)} ∩ ball p r) ∧
+        x ∈ closure ({y | 0 < inner ℝ (-v) (y - p)} ∩ ball p r) := by
+    exact ⟨adjacency_primitive_seed_step2_other_sheet_step1_ray_step1_halfball_closure p v hv r x hxb hx0,
+      adjacency_primitive_seed_step2_other_sheet_step1_ray_step1_halfball_closure p (-v) (by simpa using hv) r x hxb
+        (by rw [inner_neg_left, hx0, neg_zero])⟩
+  rcases hP with hP | hP <;> rcases hM with hM | hM
+  · exfalso
+    apply hp.2
+    refine interior_maximal ?_ isOpen_ball (mem_ball_self hr)
+    intro x hx
+    rcases lt_trichotomy (inner ℝ v (x - p)) 0 with h | h | h
+    · exact interior_subset (hM ⟨by simpa only [mem_setOf_eq, inner_neg_left] using neg_pos.mpr h, hx⟩)
+    · exact hSc.closure_subset_iff.mpr (hP.trans interior_subset) ((hzero x hx h).1)
+    · exact interior_subset (hP ⟨h, hx⟩)
+  · rintro x ⟨hx0, hxb⟩
+    rw [frontier_eq_closure_inter_closure]
+    exact ⟨closure_mono (hP.trans interior_subset) (hzero x hxb hx0).1,
+      closure_mono hM (hzero x hxb hx0).2⟩
+  · rintro x ⟨hx0, hxb⟩
+    rw [frontier_eq_closure_inter_closure]
+    exact ⟨closure_mono (hM.trans interior_subset) (hzero x hxb hx0).2,
+      closure_mono hP (hzero x hxb hx0).1⟩
+  · exfalso
+    have hpcl : p ∈ closure (interior S) := by
+      rw [hS]
+      exact hSc.frontier_subset hp
+    obtain ⟨y, hyb, hyi⟩ := mem_closure_iff.mp hpcl (ball p r) isOpen_ball (mem_ball_self hr)
+    rcases lt_trichotomy (inner ℝ v (y - p)) 0 with h | h | h
+    · exact hM ⟨by simpa only [mem_setOf_eq, inner_neg_left] using neg_pos.mpr h, hyb⟩
+        (interior_subset hyi)
+    · have hyc : y ∈ closure Sᶜ := closure_mono hP (hzero y hyb h).1
+      rw [closure_compl] at hyc
+      exact hyc hyi
+    · exact hP ⟨h, hyb⟩ (interior_subset hyi)
+
+/-- Step 3 of the V4 proof of `adjacency_primitive_seed_step2_other_sheet_step1_ray` (V4 1.0(a), 1.8):
+"one side of `aff F`". The affine hull of a facet is the zero set of a unit
+normal functional based at any of its points. -/
+private lemma adjacency_primitive_seed_step2_other_sheet_step1_ray_step3_normal {d : ℕ} [Fact (2 ≤ d)]
+    (W : AffineSubspace ℝ (E d)) (p : E d) (hp : p ∈ W)
+    (hW : Module.finrank ℝ W.direction = d - 1) :
+    ∃ v : E d, ‖v‖ = 1 ∧ ∀ x, x ∈ W ↔ inner ℝ v (x - p) = 0 := by
+  have hd : 2 ≤ d := Fact.out
+  have hE : Module.finrank ℝ (E d) = d := finrank_euclideanSpace_fin
+  have hperp : Module.finrank ℝ W.directionᗮ = 1 := by
+    have := Submodule.finrank_add_finrank_orthogonal W.direction
+    omega
+  have hne : W.directionᗮ ≠ ⊥ := by
+    intro h
+    rw [h, finrank_bot] at hperp
+    exact zero_ne_one hperp
+  obtain ⟨w, hw, hw0⟩ := Submodule.exists_mem_ne_zero_of_ne_bot hne
+  let v : E d := (‖w‖⁻¹ : ℝ) • w
+  have hv : ‖v‖ = 1 := norm_smul_inv_norm hw0
+  have hvperp : v ∈ W.directionᗮ := Submodule.smul_mem _ _ hw
+  have hv0 : v ≠ 0 := by
+    intro h
+    rw [h, norm_zero] at hv
+    exact zero_ne_one hv
+  have hdir : W.direction = (ℝ ∙ v)ᗮ := by
+    apply Submodule.eq_of_le_of_finrank_eq
+    · intro y hy
+      rw [Submodule.mem_orthogonal_singleton_iff_inner_right]
+      exact Submodule.inner_left_of_mem_orthogonal hy hvperp
+    · have h1 := Submodule.finrank_add_finrank_orthogonal (ℝ ∙ v)
+      rw [finrank_span_singleton hv0] at h1
+      omega
+  refine ⟨v, hv, fun x => ?_⟩
+  rw [← AffineSubspace.vsub_right_mem_direction_iff_mem hp x, hdir,
+    Submodule.mem_orthogonal_singleton_iff_inner_right]
+  rfl
+
+/-- Step 4 of the V4 proof of `adjacency_primitive_seed_step2_other_sheet_step1_ray` (V4 1.0(a), 1.8):
+"Cells are closed and finitely many, so some ball U around p meets no other cell".
+A common set containing every incident cell contains the frontier near the point. -/
+private lemma adjacency_primitive_seed_step2_other_sheet_step1_ray_step4_isolate {d : ℕ} {A : PolyManifoldDomain d}
+    (K : CellComplex A) (F : Set (E d)) (p : E d)
+    (hincident : ∀ e ∈ K.cells, p ∈ e.carrier → e.carrier ⊆ F) :
+    ∃ r > 0, frontier A.carrier ∩ ball p r ⊆ F := by
+  classical
+  let Z : Set (E d) := ⋃ e ∈ K.cells.filter (fun e => p ∉ e.carrier), e.carrier
+  have hZ : IsClosed Z := isClosed_biUnion_finset fun e _ => e.flat.compact.isClosed
+  have hpZ : p ∉ Z := by
+    rintro hpZ
+    obtain ⟨e, he, hpe⟩ := Set.mem_iUnion₂.mp hpZ
+    exact (Finset.mem_filter.mp he).2 hpe
+  obtain ⟨r, hr, hball⟩ := Metric.isOpen_iff.mp hZ.isOpen_compl p hpZ
+  refine ⟨r, hr, ?_⟩
+  rintro x ⟨hxf, hxb⟩
+  rw [← K.carriers_cover] at hxf
+  obtain ⟨e, he, hxe⟩ := Set.mem_iUnion₂.mp hxf
+  by_cases hpe : p ∈ e.carrier
+  · exact hincident e he hpe hxe
+  · exact False.elim (hball hxb (Set.mem_iUnion₂.mpr
+      ⟨e, Finset.mem_filter.mpr ⟨he, hpe⟩, hxe⟩))
+
+
 /-- Step 1 of the V4 proof of `adjacency_primitive_seed_step2_other_sheet` (V4 1.8):
 "moving angularly towards the sector of C' we must cross at least one ray...
 the trace of a facet h of a child of A, with p ∈ h".
@@ -4567,7 +4742,62 @@ private lemma adjacency_primitive_seed_step2_other_sheet_step1_ray (P : FramedNo
     (p : E d) (hpκ : p ∈ relint ((P.child n a.val.1).cell n κ.val)) :
     ∃ h : FacetName S (P.child n a.val.1).ty, h ≠ a.val.2 ∧
       p ∈ (P.child n a.val.1).cell n h.val := by
-  sorry
+  classical
+  have hd : 2 ≤ d := Fact.out
+  let K := S.cx (P.child n a.val.1).ty
+  have hF := Finset.mem_filter.mp a.val.2.property
+  have hsub : κ.val.carrier ⊆ a.val.2.val.carrier := by
+    intro x hx
+    exact ((P.child n a.val.1).prototypeFrame n).injective.mem_set_image.mp
+      (hκa ⟨x, hx, rfl⟩)
+  rw [FramedNode.cell, hereditary_trace_step1_relint_image] at hpκ
+  obtain ⟨x, hx, rfl⟩ := hpκ
+  by_contra hn
+  -- With no second incident facet, every incident cell lies in the given facet.
+  have hincident : ∀ e ∈ K.cells, x ∈ e.carrier → e.carrier ⊆ a.val.2.val.carrier := by
+    intro e he hxe
+    have hκe := boundary_facet_adjacency_step4_minimal K κ.val e κ.property he x hx hxe
+    have hle := hereditary_trace_step3_dim_mono κ.val e hκe
+    have hlt := K.dim_lt e he
+    by_cases hedim : e.dim = d - 1
+    · have hef : (⟨e, Finset.mem_filter.mpr ⟨he, hedim⟩⟩ :
+          FacetName S (P.child n a.val.1).ty) = a.val.2 := by
+        by_contra hne
+        exact hn ⟨⟨e, Finset.mem_filter.mpr ⟨he, hedim⟩⟩, hne, ⟨x, hxe, rfl⟩⟩
+      have hef' : e = a.val.2.val := congrArg Subtype.val hef
+      rw [hef']
+    · have heq := boundary_facet_adjacency_step3_cell_eq K κ.val e κ.property he hκe
+        (by omega)
+      rw [← heq]
+      exact hsub
+  obtain ⟨r, hr, hfr⟩ :=
+    adjacency_primitive_seed_step2_other_sheet_step1_ray_step4_isolate
+      K a.val.2.val.carrier x hincident
+  have hxF : x ∈ a.val.2.val.carrier := hsub (intrinsicInterior_subset hx)
+  have hxW : x ∈ affineSpan ℝ a.val.2.val.carrier := subset_affineSpan ℝ _ hxF
+  obtain ⟨v, hv, hW⟩ := adjacency_primitive_seed_step2_other_sheet_step1_ray_step3_normal
+    (affineSpan ℝ a.val.2.val.carrier) x hxW (a.val.2.val.flat.dimension.trans hF.2)
+  have hxfr : x ∈ frontier (S.proto (P.child n a.val.1).ty).carrier := by
+    rw [← K.cover]
+    exact Set.mem_iUnion₂.mpr ⟨κ.val, κ.property, hx⟩
+  have hflat := adjacency_primitive_seed_step2_other_sheet_step1_ray_step2_flat_frontier
+    (S.proto (P.child n a.val.1).ty).carrier (S.proto _).regularClosed x v hv r hr hxfr
+    (fun y hy => (hW y).mp (subset_affineSpan ℝ _ (hfr hy)))
+  -- The hyperplane piece forced by regular closedness makes x a relative-interior
+  -- point of the facet, contradicting its minimal cell of dimension d - 2.
+  have hxrel : x ∈ relint a.val.2.val.carrier := by
+    rw [relint, mem_intrinsicInterior]
+    refine ⟨⟨x, hxW⟩, ?_, rfl⟩
+    rw [mem_interior_iff_mem_nhds, mem_nhds_subtype]
+    refine ⟨ball x r, ball_mem_nhds x hr, ?_⟩
+    intro y hy
+    exact hfr ⟨hflat ⟨(hW y).mp y.property, hy⟩, hy⟩
+  have hne : κ.val ≠ a.val.2.val := by
+    intro heq
+    have := congrArg Cell.dim heq
+    omega
+  exact Set.disjoint_left.mp (K.relint_disjoint κ.val κ.property a.val.2.val hF.1 hne)
+    hx hxrel
 
 /-- Step 1 of the V4 proof of `adjacency_primitive_seed_step2_other_sheet_step2_cases` (V4 1.8,
 via 1.1): "`κ = mc(p)`". Near a relative-interior ridge point, the relative boundary

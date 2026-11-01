@@ -265,8 +265,36 @@ private lemma honest_translate_exists_step2_translated_hierarchy_step1_tiles (U 
 translated nodes cover the space and have disjoint interiors. -/
 private lemma honest_translate_exists_step2_translated_hierarchy_step2_cover (U : HonestSource S) (v : E d) :
   (∀ n x, ∃ N ∈ (fun N : FramedNode S => N.move (translation v)) '' U.hierarchy.nodes n, x ∈ N.carrier n) ∧
-  (∀ n, ((fun N : FramedNode S => N.move (translation v)) '' U.hierarchy.nodes n).PairwiseDisjoint (fun N => interior (N.carrier n))) :=
-  sorry
+  (∀ n, ((fun N : FramedNode S => N.move (translation v)) '' U.hierarchy.nodes n).PairwiseDisjoint (fun N => interior (N.carrier n))) := by
+  constructor
+  · intro n x
+    obtain ⟨N, hN_mem, hN_x⟩ := U.hierarchy.cover n ((translation v).symm x)
+    use N.move (translation v)
+    constructor
+    · exact Set.mem_image_of_mem _ hN_mem
+    · dsimp [FramedNode.carrier, FramedNode.move, placedSet] at hN_x ⊢
+      obtain ⟨y, hy, heq⟩ := hN_x
+      use y
+      refine ⟨hy, ?_⟩
+      dsimp
+      rw [heq]
+      exact AffineIsometryEquiv.apply_symm_apply _ _
+  · intro n N₁ hN₁ N₂ hN₂ h_neq
+    obtain ⟨M₁, hM₁_mem, rfl⟩ := hN₁
+    obtain ⟨M₂, hM₂_mem, rfl⟩ := hN₂
+    dsimp [FramedNode.carrier, FramedNode.move, placedSet]
+    have h_disj := U.hierarchy.disjoint n hM₁_mem hM₂_mem (by
+      intro h
+      apply h_neq
+      rw [h])
+    dsimp [FramedNode.carrier, placedSet] at h_disj
+    have himg : ∀ M : FramedNode S, interior ((translation v) ∘ M.frame '' S.supertile n M.ty) = (translation v) '' interior (M.frame '' S.supertile n M.ty) := by
+      intro M
+      rw [Set.image_comp]
+      exact (Homeomorph.image_interior (translation v).toHomeomorph _).symm
+    change Disjoint (interior ((translation v) ∘ M₁.frame '' S.supertile n M₁.ty)) (interior ((translation v) ∘ M₂.frame '' S.supertile n M₂.ty))
+    rw [himg M₁, himg M₂]
+    exact Set.disjoint_image_of_injective (translation v).injective h_disj
 
 /-- Step 3 of the V4 proof of `honest_translate_exists_step2_translated_hierarchy` (V4 1.27):
 translated tree structure is coherent. -/

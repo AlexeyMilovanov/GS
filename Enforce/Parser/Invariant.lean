@@ -595,11 +595,45 @@ include h
 theorem boundaryPackets (m : ℕ) (N : FramedNode S) (hN : N ∈ D.geometry.nodes m) :
     Parser.BoundaryPackets Y m N := (h.I5 m N hN).choose
 
+
+private lemma node_type_residue_step2_predecessor_exists (m : ℕ) (N : FramedNode S)
+    (hN : N ∈ D.geometry.nodes m) (hm : m < n) :
+    ∃ (M : FramedNode S) (hM : M ∈ D.geometry.nodes (m + 1)) (i : S.I M.ty), N = M.child m i := by
+  sorry
+
+private lemma node_type_residue_step1_childMap_residue (m : ℕ) (M : FramedNode S)
+    (i : S.I M.ty) (s : State P) (hs : s ∈ honestStates S P)
+    (hty : s.ty = M.ty) (hres : s.residue.val = (m + 1) % P.L) :
+    (childMap P s ⟨M.ty, i⟩).ty = (M.child m i).ty ∧
+      (childMap P s ⟨M.ty, i⟩).residue.val = m % P.L := by
+  sorry
+
 /-- R1, V4 §3.0 (I1)--(I2): type and residue propagate to every inner node. -/
 theorem node_type_residue (m : ℕ) (N : FramedNode S) (hN : N ∈ D.geometry.nodes m) :
     (D.stateAt m N hN).ty = N.ty ∧
       (D.stateAt m N hN).residue.val = m % P.L := by
-  sorry
+  have key : ∀ (r m : ℕ) (N : FramedNode S) (hN : N ∈ D.geometry.nodes m), m + r = n →
+      (D.stateAt m N hN).ty = N.ty ∧ (D.stateAt m N hN).residue.val = m % P.L := by
+    intro r
+    induction r with
+    | zero =>
+      intro m N hN hmn
+      obtain rfl : m = n := by omega
+      have hN' : N ∈ D.geometry.roots := D.geometry.nodes_top ▸ hN
+      obtain ⟨B, hB, rfl⟩ := hN'
+      obtain ⟨_, h1, h2⟩ := h.I1 B hB
+      exact ⟨h1, h2⟩
+    | succ r ih =>
+      intro m N hN hmn
+      obtain ⟨M, hM, i, rfl⟩ := node_type_residue_step2_predecessor_exists (h := h) m N hN (by omega)
+      obtain ⟨hty, hres⟩ := ih (m + 1) M hM (by omega)
+      have e := h.I2.1 m M hM i
+      obtain ⟨hty', hres'⟩ := node_type_residue_step1_childMap_residue (h := h) m M i
+        (D.stateAt (m + 1) M hM) (D.state_honest _ ⟨M, hM⟩) hty hres
+      rw [e]
+      exact ⟨hty', hres'⟩
+  exact key (n - m) m N hN (by have := D.geometry.nodes_height m N hN; omega)
+
 
 end Inv
 

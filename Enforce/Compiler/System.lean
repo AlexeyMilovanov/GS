@@ -688,7 +688,29 @@ theorem HonestSource.move_translation (U : HonestSource S) (v : E d) :
 /-- Step 1 of the V4 proof of `move_refl` (V4 2.14(d)): tiling equality -/
 private lemma move_refl_step1_tiling (U : HonestSource S) :
     U.tiling = U.tiling.move (AffineIsometryEquiv.refl ℝ (E d)) := by
-  sorry
+  have H : ∀ (t : PlacedTile S), t.move (AffineIsometryEquiv.refl ℝ (E d)) = t := by
+    intro t
+    dsimp [PlacedTile.move]
+    have h : AffineIsometryEquiv.trans t.frame (AffineIsometryEquiv.refl ℝ (E d)) = t.frame := by
+      ext p
+      rfl
+    rw [h]
+    apply PlacedTile.ext
+    · rfl
+    · dsimp [PlacedTile.ofFrame]
+      rw [t.frame_carrier]
+  rcases U.tiling with ⟨T, hT1, hT2⟩
+  dsimp [Tiling.move]
+  congr 1
+  ext x
+  simp only [Set.mem_image]
+  constructor
+  · intro h
+    use x, h
+    exact H x
+  · rintro ⟨y, hy, rfl⟩
+    rw [H y]
+    exact hy
 
 /-- Step 2 of the V4 proof of `move_refl` (V4 2.14(d)): nodes equality -/
 private lemma move_refl_step2_nodes (U : HonestSource S) (n : ℕ) :

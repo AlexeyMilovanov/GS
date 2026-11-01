@@ -459,7 +459,25 @@ theorem descendant_frames (A : S.ι) (h depth : ℕ) (w : S.RoleWord A depth)
     ∃ R ∈ S.rotGroup,
       ((S.descendantNode A h depth w).move φ).frame.linearIsometryEquiv =
         φ.linearIsometryEquiv * R := by
-  sorry
+  induction depth generalizing A h φ
+  case zero =>
+    use 1
+    constructor
+    · exact Subgroup.one_mem S.rotGroup
+    · rfl
+  case succ depth ih =>
+    obtain ⟨w_head, w_tail⟩ := w
+    obtain ⟨R, hR, ih_eq⟩ := ih (S.child A w_head).ty h w_tail ((S.placeChild (h + depth) w_head).trans φ)
+    use S.childRotation (h + depth) w_head * R
+    constructor
+    · apply Subgroup.mul_mem S.rotGroup
+      · apply S.rotGroup_spec.1
+        exact ⟨h + depth, A, w_head, rfl⟩
+      · exact hR
+    · dsimp [descendantNode]
+      have step1 : ((S.descendantNode (S.child A w_head).ty h depth w_tail).move (S.placeChild (h + depth) w_head)).move φ = (S.descendantNode (S.child A w_head).ty h depth w_tail).move ((S.placeChild (h + depth) w_head).trans φ) := rfl
+      rw [step1, ih_eq]
+      rfl
 
 /-- S6, V4 1.10(c): the finite catalogue `Π` of prototype cell directions. -/
 def cellDirections : Set (Submodule ℝ (E d)) :=

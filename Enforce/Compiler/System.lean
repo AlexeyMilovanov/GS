@@ -868,14 +868,73 @@ private lemma honest_move_exists_step1_species (U : HonestSource S) (g : Iso d) 
   (species_move_iff U.tiling g).mpr U.mem_species
 
 /-- Step 2 of the V4 proof of `honest_move_exists` (V4 1.11, 2.14(d)): moving the entire coherent hierarchy preserves coherence. -/
+private lemma honest_move_exists_step2_hierarchy_step1_ground (U : HonestSource S) (g : Iso d) :
+    let nodes' := fun n => (fun N : FramedNode S => N.move g) '' U.hierarchy.nodes n;
+    {t | ∃ N ∈ nodes' 0, N.toTile = t} = (U.tiling.move g).tiles := by
+  sorry
+
+private lemma honest_move_exists_step2_hierarchy_step2_cover (U : HonestSource S) (g : Iso d) :
+    let nodes' := fun n => (fun N : FramedNode S => N.move g) '' U.hierarchy.nodes n;
+    ∀ n x, ∃ N ∈ nodes' n, x ∈ N.carrier n := by
+  sorry
+
+private lemma honest_move_exists_step2_hierarchy_step3_disjoint (U : HonestSource S) (g : Iso d) :
+    let nodes' := fun n => (fun N : FramedNode S => N.move g) '' U.hierarchy.nodes n;
+    ∀ n, (nodes' n).PairwiseDisjoint (fun N => interior (N.carrier n)) := by
+  sorry
+
+private lemma honest_move_exists_step2_hierarchy_step4_tree (U : HonestSource S) (g : Iso d) :
+    let nodes' := fun n => (fun N : FramedNode S => N.move g) '' U.hierarchy.nodes n;
+    ∃ (parent' : ∀ n, {N // N ∈ nodes' n} → {P // P ∈ nodes' (n + 1)})
+      (role' : ∀ n N, S.I (parent' n N).val.ty),
+      (∀ n N, N.val = (parent' n N).val.child n (role' n N)) ∧
+      (∀ n P, P ∈ nodes' (n + 1) → ∀ i : S.I P.ty, P.child n i ∈ nodes' n) ∧
+      (∀ n N P, P ∈ nodes' (n + 1) → (∃ i : S.I P.ty, N.val = P.child n i) → P = (parent' n N).val) ∧
+      (∀ n (N : {N // N ∈ U.hierarchy.nodes n}) (hN : N.val.move g ∈ nodes' n),
+        (parent' n ⟨N.val.move g, hN⟩).val = (U.hierarchy.parent n N).val.move g) ∧
+      (∀ n (N : {N // N ∈ U.hierarchy.nodes n}) (hN : N.val.move g ∈ nodes' n),
+        (⟨(parent' n ⟨N.val.move g, hN⟩).val.ty, role' n ⟨N.val.move g, hN⟩⟩ : S.Role) = U.hierarchy.nodeRole ⟨n, N⟩) := by
+  sorry
+
+private lemma honest_move_exists_step2_hierarchy_step5_native (U : HonestSource S) (g : Iso d) :
+    let nodes' := fun n => (fun N : FramedNode S => N.move g) '' U.hierarchy.nodes n;
+    ∀ n N, N ∈ nodes' n →
+      {t | t ∈ (U.tiling.move g).tiles ∧ t.carrier ⊆ N.carrier n} =
+        {t | ∃ w : S.RoleWord N.ty n, ((S.nativeTile N.ty n w).move N.frame).toTile = t} := by
+  sorry
+
+/-- Step 2 of the V4 proof of `honest_move_exists` (V4 1.11, 2.14(d)): moving the entire coherent hierarchy preserves coherence. -/
 private lemma honest_move_exists_step2_hierarchy (U : HonestSource S) (g : Iso d) :
     ∃ H : CoherentHierarchy S (U.tiling.move g),
       (∀ n, H.nodes n = (fun N : FramedNode S => N.move g) '' U.hierarchy.nodes n) ∧
       (∀ n (N : {N // N ∈ U.hierarchy.nodes n}) (hN : N.val.move g ∈ H.nodes n),
         (H.parent n ⟨N.val.move g, hN⟩).val = (U.hierarchy.parent n N).val.move g) ∧
       (∀ n (N : {N // N ∈ U.hierarchy.nodes n}) (hN : N.val.move g ∈ H.nodes n),
-        H.nodeRole ⟨n, ⟨N.val.move g, hN⟩⟩ = U.hierarchy.nodeRole ⟨n, N⟩) :=
-  sorry
+        H.nodeRole ⟨n, ⟨N.val.move g, hN⟩⟩ = U.hierarchy.nodeRole ⟨n, N⟩) := by
+  let nodes' := fun n => (fun N : FramedNode S => N.move g) '' U.hierarchy.nodes n
+  have h1 := honest_move_exists_step2_hierarchy_step1_ground U g
+  have h2 := honest_move_exists_step2_hierarchy_step2_cover U g
+  have h3 := honest_move_exists_step2_hierarchy_step3_disjoint U g
+  have h4' := honest_move_exists_step2_hierarchy_step4_tree U g
+  obtain ⟨parent', role', h4, h5, h6, h7, h8⟩ := h4'
+  have h9 := honest_move_exists_step2_hierarchy_step5_native U g
+  let H : CoherentHierarchy S (U.tiling.move g) := {
+    nodes := nodes'
+    ground := h1
+    cover := h2
+    disjoint := h3
+    parent := parent'
+    role := role'
+    child_eq := h4
+    children_mem := h5
+    parent_unique := h6
+    native_tiles := h9
+  }
+  use H
+  have h_nodes : ∀ n, H.nodes n = nodes' n := fun n => rfl
+  refine ⟨h_nodes, h7, ?_⟩
+  intro n N hN
+  exact h8 n N hN
 
 /-- Step 3 of the V4 proof of `honest_move_exists` (V4 1.11, 2.14(d)): moving a legal context yields a legal context for the moved finite node set. -/
 private lemma honest_move_exists_step3_contexts (U : HonestSource S) (g : Iso d)

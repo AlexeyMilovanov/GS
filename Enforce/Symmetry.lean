@@ -847,12 +847,78 @@ theorem periodic (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
   · exact h
   · omega
 
+private lemma markedSet_mk_congr {X : Type} {c c' : Set (E d)} {m : c → X} {m' : c' → X}
+    (h : c = c') (hm : ∀ x (hx : x ∈ c) (hx' : x ∈ c'), m ⟨x, hx⟩ = m' ⟨x, hx'⟩) :
+    (MarkedSet.mk c m : MarkedSet d X) = MarkedSet.mk c' m' := by
+  subst h
+  congr 1
+  funext ⟨x, hx⟩
+  exact hm x hx hx
+
+private lemma markedSet_move_move {X : Type} (Q : MarkedSet d X) (a b : Iso d) :
+    (Q.move a).move b = Q.move (b * a) := by
+  cases Q with
+  | mk c m =>
+    refine markedSet_mk_congr ?_ ?_
+    · show b '' (a '' c) = (b * a) '' c
+      rw [Set.image_image]; rfl
+    · intro x hx hx'
+      show m ⟨a.symm (b.symm x), _⟩ = m ⟨(b * a).symm x, _⟩
+      exact congrArg m (Subtype.ext rfl)
+
 /-- Y1, V4 5.7, Step 4(i): the tile-and-marking symmetry group is countable.
 The stronger local statement is discreteness: the labelled frame marker in one
 tile isolates the identity. This countability consequence is used in Step 4(iii). -/
 theorem symmetry_countable (Y : MarkedTiling (systemM S P C)) :
     Countable Y.symmetryGroup := by
-  sorry
+  obtain ⟨t0, ht0, hx0⟩ := Y.cover 0
+  set l := compilerLeaf C t0
+  set φ0 := compilerFrame C t0
+  have hdec : (placedLeaf C l φ0).toMarkedSet = t0.toMarkedSet :=
+    congrArg PlacedMarkedTile.toMarkedSet (placedLeaf_decode C t0)
+  
+  let T : Set (PlacedMarkedTile (systemM S P C)) := {t | t ∈ Y.tiles ∧ t.carrier.Nonempty}
+  have hT : T.Countable := by
+    have h_sub : T ⊆ ⋃ n : ℕ, {t | t ∈ Y.tiles ∧ ((Metric.closedBall (0 : E d) n) ∩ t.carrier).Nonempty} := by
+      rintro t ⟨ht, x, hx⟩
+      refine Set.mem_iUnion.2 ⟨⌈dist x 0⌉₊, ht, x, ?_, hx⟩
+      simp only [Metric.mem_closedBall]
+      exact Nat.le_ceil _
+    refine Set.Countable.mono h_sub (Set.countable_iUnion fun n => Set.Finite.countable ?_)
+    exact (compiler_tiles_locallyFinite C Y).2 _ Metric.isBounded_closedBall
+  have hMC : ((fun t => t.toMarkedSet) '' T).Countable := hT.image _
+
+  let F : Y.symmetryGroup → ((fun t => t.toMarkedSet) '' T) := fun g => 
+    ⟨t0.toMarkedSet.move g.1, by
+      have h := (Y.mem_symmetryGroup g).1 g.2
+      have h_mem : t0.toMarkedSet.move g.1 ∈ Y.markedCarriers := by
+        rw [← h]
+        exact Set.mem_image_of_mem _ ⟨t0, ht0, rfl⟩
+      obtain ⟨t', ht', ht'_eq⟩ := h_mem
+      have ht'_nonempty : t'.carrier.Nonempty := by
+        have H_car : t'.toMarkedSet.carrier = (t0.toMarkedSet.move g.1).carrier := congrArg MarkedSet.carrier ht'_eq
+        have H_car2 : t'.carrier = (g.1 : Iso d) '' t0.carrier := H_car
+        rw [H_car2]
+        exact ⟨(g.1 : Iso d) 0, ⟨0, hx0, rfl⟩⟩
+      exact ⟨t', ⟨ht', ht'_nonempty⟩, ht'_eq⟩⟩
+      
+  have hF : Function.Injective F := by
+    intro g h hgh
+    have hh : t0.toMarkedSet.move g.1 = t0.toMarkedSet.move h.1 := congrArg Subtype.val hgh
+    have hh_dec : (placedLeaf C l φ0).toMarkedSet.move g.1 = (placedLeaf C l φ0).toMarkedSet.move h.1 := by
+      rw [hdec]
+      exact hh
+    have h_move_move : (augmentedLeaf C l).toMarkedSet.move (g.1 * φ0) = (augmentedLeaf C l).toMarkedSet.move (h.1 * φ0) := by
+      have H1 : (placedLeaf C l φ0).toMarkedSet.move g.1 = ((augmentedLeaf C l).toMarkedSet.move φ0).move g.1 := rfl
+      have H2 : (placedLeaf C l φ0).toMarkedSet.move h.1 = ((augmentedLeaf C l).toMarkedSet.move φ0).move h.1 := rfl
+      rw [H1, H2] at hh_dec
+      rw [markedSet_move_move, markedSet_move_move] at hh_dec
+      exact hh_dec
+    have h_mul := (augmentedLeaf_rigid C l l _ _ h_move_move).2
+    exact Subtype.ext (mul_right_cancel h_mul)
+    
+  haveI := hMC.to_subtype
+  exact Function.Injective.countable hF
 
 /-- Y1, V4 5.7, Step 4(ii): every finitely generated subgroup is finite. -/
 def IsLocallyFiniteGroup (G : Subgroup (Iso d)) : Prop :=

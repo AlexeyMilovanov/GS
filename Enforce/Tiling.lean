@@ -200,11 +200,41 @@ theorem oldMarking_interior {S : SubstSystem d} (T : Tiling S)
     exact Set.disjoint_iff.mp h_disj h_mem_inter
   rw [h_eq]
 
+private theorem oldMarking_frontier_tile_regular {S : SubstSystem d} (t : PlacedTile S) :
+    closure (interior t.carrier) = t.carrier := by
+  rw [t.frame_carrier]
+  change closure (interior (t.frame.toHomeomorph '' _)) = t.frame.toHomeomorph '' _
+  rw [← t.frame.toHomeomorph.image_interior, ← t.frame.toHomeomorph.image_closure,
+    (S.proto t.ty).regularClosed]
+
 /-- T4, V4 §1.0 (H7): a point on any tile boundary receives `@`. -/
 theorem oldMarking_frontier {S : SubstSystem d} (T : Tiling S)
     (t : PlacedTile S) (ht : t ∈ T.tiles) (x : E d) (hx : x ∈ frontier t.carrier) :
     oldMarking T x = none := by
-  sorry
+  dsimp [oldMarking]
+  split_ifs with H
+  · obtain ⟨u, hu, hxu⟩ := H
+    have h_ne : t ≠ u := by
+      rintro rfl
+      have h1 : x ∈ interior t.carrier := hxu
+      have h_closed : IsClosed t.carrier := by
+        rw [← oldMarking_frontier_tile_regular t]
+        exact isClosed_closure
+      have h2 : x ∉ interior t.carrier := fun h => (h_closed.frontier_eq ▸ hx).2 h
+      exact h2 h1
+    have hd : Disjoint (interior t.carrier) (interior u.carrier) := T.disjoint ht hu h_ne
+    have h_front2 : x ∈ closure (interior t.carrier) := by
+      have h_closed : IsClosed t.carrier := by
+        rw [← oldMarking_frontier_tile_regular t]
+        exact isClosed_closure
+      have H_x_c : x ∈ t.carrier := h_closed.frontier_subset hx
+      rwa [oldMarking_frontier_tile_regular t]
+    have h_open_u : IsOpen (interior u.carrier) := isOpen_interior
+    have h_mem_cl := mem_closure_iff.mp h_front2 (interior u.carrier) h_open_u hxu
+    have h_empty : interior t.carrier ∩ interior u.carrier = ∅ := Set.eq_empty_of_subset_empty (Set.disjoint_iff.mp hd)
+    rw [Set.inter_comm, h_empty] at h_mem_cl
+    exact Set.not_nonempty_empty h_mem_cl
+  · rfl
 
 /-- T5, V4 §1.0, Hierarchies and Frames: a coherent hierarchy on a whole-space
 tiling. The definition deliberately does not require membership in the source

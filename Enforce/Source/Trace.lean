@@ -719,11 +719,107 @@ theorem ancestralStratum_mono (P C : FramedNode S) (n h : ℕ)
 
 /-- P3, V4 1.3: exactly one ancestral facet contains a boundary facet;
 otherwise its entire relative interior is interior to the ancestor. -/
+private theorem facet_dichotomy_step1a_cell (P C : FramedNode S) (n h : ℕ)
+    (hC : C.IsDescendant h P n) (f : FacetName S C.ty)
+    (hmeet : (relint (C.cell h f.val) ∩ frontier (P.carrier n)).Nonempty) :
+    ∃ F ∈ (S.cx P.ty).cells, C.cell h f.val ⊆ P.cell n F := by
+  obtain ⟨p, hp1, hp2⟩ := hmeet
+  obtain ⟨e, he, hpe⟩ := hereditary_trace_step1_frontier_relint P n p hp2
+  have hprop := f.property
+  unfold CellComplex.facets at hprop
+  have hf : f.val ∈ (S.cx C.ty).cells ∧ f.val.dim = d - 1 := Finset.mem_filter.mp hprop
+  exact ⟨e, he, hereditary_trace P C n h hC e f.val he hf.1 ⟨p, hp1, intrinsicInterior_subset hpe⟩⟩
+
+private theorem facet_dichotomy_step1b_dim_sub (P C : FramedNode S) (n h : ℕ)
+    (f : FacetName S C.ty) (F : Cell d)
+    (hsub : C.cell h f.val ⊆ P.cell n F) :
+    f.val.dim ≤ F.dim := by
+  sorry
+
+private theorem facet_dichotomy_step1b_dim (P C : FramedNode S) (n h : ℕ)
+    (f : FacetName S C.ty) (F : Cell d)
+    (hF : F ∈ (S.cx P.ty).cells) (hsub : C.cell h f.val ⊆ P.cell n F) :
+    F ∈ (S.cx P.ty).facets := by
+  have hd_lt : F.dim < d := (S.cx P.ty).dim_lt F hF
+  have h_fdim : f.val.dim = d - 1 := (Finset.mem_filter.mp f.property).2
+  have h_le : f.val.dim ≤ F.dim := facet_dichotomy_step1b_dim_sub P C n h f F hsub
+  have h_eq : F.dim = d - 1 := by omega
+  exact Finset.mem_filter.mpr ⟨hF, h_eq⟩
+
+private theorem facet_dichotomy_step1c_unique_sub (P C : FramedNode S) (n h : ℕ)
+    (f : FacetName S C.ty) (F : FacetName S P.ty)
+    (hsub : C.cell h f.val ⊆ P.cell n F.val) :
+    affineSpan ℝ (C.cell h f.val) = affineSpan ℝ (P.cell n F.val) := by
+  have hd_eq : Module.finrank ℝ (affineSpan ℝ (C.cell h f.val)).direction =
+                 Module.finrank ℝ (affineSpan ℝ (P.cell n F.val)).direction := by
+    sorry
+  have hle : (affineSpan ℝ (C.cell h f.val)).direction ≤ (affineSpan ℝ (P.cell n F.val)).direction :=
+    AffineSubspace.direction_le (affineSpan_mono ℝ hsub)
+  have heq : (affineSpan ℝ (C.cell h f.val)).direction = (affineSpan ℝ (P.cell n F.val)).direction :=
+    Submodule.eq_of_le_of_finrank_eq hle hd_eq
+  have hnonempty : (C.cell h f.val).Nonempty := by
+    sorry
+  obtain ⟨x, hx⟩ := hnonempty
+  have hx_span_f : x ∈ affineSpan ℝ (C.cell h f.val) := subset_affineSpan _ _ hx
+  have hx_span_F : x ∈ affineSpan ℝ (P.cell n F.val) := subset_affineSpan _ _ (hsub hx)
+  exact AffineSubspace.ext_of_direction_eq heq ⟨x, hx_span_f, hx_span_F⟩
+
+private theorem facet_dichotomy_step1c_unique (P C : FramedNode S) (n h : ℕ)
+    (f : FacetName S C.ty) (F F' : FacetName S P.ty)
+    (h1 : C.cell h f.val ⊆ P.cell n F.val) (h2 : C.cell h f.val ⊆ P.cell n F'.val)
+    (hmeet : (relint (C.cell h f.val) ∩ frontier (P.carrier n)).Nonempty) :
+    F = F' := by
+  obtain ⟨p, hp1, hp2⟩ := hmeet
+  
+  have hdF : affineSpan ℝ (C.cell h f.val) = affineSpan ℝ (P.cell n F.val) :=
+    facet_dichotomy_step1c_unique_sub P C n h f F h1
+  have hdF' : affineSpan ℝ (C.cell h f.val) = affineSpan ℝ (P.cell n F'.val) :=
+    facet_dichotomy_step1c_unique_sub P C n h f F' h2
+
+  have hrF : relint (C.cell h f.val) ⊆ relint (P.cell n F.val) :=
+    hereditary_trace_step2_relint_mono _ _ h1 hdF
+  have hrF' : relint (C.cell h f.val) ⊆ relint (P.cell n F'.val) :=
+    hereditary_trace_step2_relint_mono _ _ h2 hdF'
+
+  have hpF : p ∈ relint (P.cell n F.val) := hrF hp1
+  have hpF' : p ∈ relint (P.cell n F'.val) := hrF' hp1
+
+  have hF_cells : F.val ∈ (S.cx P.ty).cells := (Finset.mem_filter.mp F.property).1
+  have hF'_cells : F'.val ∈ (S.cx P.ty).cells := (Finset.mem_filter.mp F'.property).1
+
+  have h_eq : F.val = F'.val := hereditary_trace_step1_relint_unique P n F.val F'.val hF_cells hF'_cells p hpF hpF'
+  exact Subtype.ext h_eq
+
+private theorem facet_dichotomy_step2_interior (P C : FramedNode S) (n h : ℕ)
+    (hC : C.IsDescendant h P n) (f : FacetName S C.ty)
+    (hnm : ¬ (relint (C.cell h f.val) ∩ frontier (P.carrier n)).Nonempty) :
+    relint (C.cell h f.val) ⊆ interior (P.carrier n) := by
+  obtain ⟨r, rfl, -⟩ := id hC
+  have hprop := f.property
+  unfold CellComplex.facets at hprop
+  have hf : f.val ∈ (S.cx C.ty).cells ∧ f.val.dim = d - 1 := Finset.mem_filter.mp hprop
+  have hsub : relint (C.cell h f.val) ⊆ P.carrier (h + r) :=
+    (intrinsicInterior_subset.trans (hereditary_trace_step1_cell_subset C h f.val hf.1)).trans (hereditary_trace_step7_carrier P C h r hC)
+  intro x hx
+  have hx_carrier : x ∈ P.carrier (h + r) := hsub hx
+  by_contra hnot
+  have hc : IsClosed (P.carrier (h + r)) :=
+    (((S.proto P.ty).compact.image
+      (S.σ ^ (h + r)).toContinuousLinearEquiv.continuous).image P.frame.continuous).isClosed
+  have h_front : x ∈ frontier (P.carrier (h + r)) := by
+    rw [IsClosed.frontier_eq hc]
+    exact ⟨hx_carrier, hnot⟩
+  exact hnm ⟨x, hx, h_front⟩
 theorem facet_dichotomy (P C : FramedNode S) (n h : ℕ)
     (hC : C.IsDescendant h P n) (f : FacetName S C.ty) :
     (∃! F : FacetName S P.ty, C.cell h f.val ⊆ P.cell n F.val) ∨
       relint (C.cell h f.val) ⊆ interior (P.carrier n) := by
-  sorry
+  by_cases hm : (relint (C.cell h f.val) ∩ frontier (P.carrier n)).Nonempty
+  · left
+    obtain ⟨F, hF, hsub⟩ := facet_dichotomy_step1a_cell P C n h hC f hm
+    have hFf : F ∈ (S.cx P.ty).facets := facet_dichotomy_step1b_dim P C n h f F hF hsub
+    exact ⟨⟨F, hFf⟩, hsub, fun F' h' => (facet_dichotomy_step1c_unique P C n h f ⟨F, hFf⟩ F' hsub h' hm).symm⟩
+  · right; exact facet_dichotomy_step2_interior P C n h hC f hm
 
 /-- P4, V4 1.4(a): sibling minimal cells agree as placed carriers.
 The relative-interior hypotheses name the minimal cells without boundary casts. -/

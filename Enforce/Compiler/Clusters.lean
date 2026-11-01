@@ -588,7 +588,21 @@ theorem augmentedMarking_frame {P : Params S} (C : ClusterData S P)
     (l : LeafType P) (a : Fin (d + 1)) (x : E d)
     (hx : x ∈ closedBall ((P.marker l.prototype).centre a) (P.marker l.prototype).radius) :
     augmentedColour C l x = Colour.frame l.prototype a := by
-  sorry
+  classical
+  have hint : x ∈ interior (S.proto l.prototype).carrier :=
+    (P.marker l.prototype).inside a hx
+  have hnm : ¬ ∃ z : ClusterKind l × Fin (d + 1), x ∈ C.microball l z.1 z.2 := by
+    rintro ⟨z, hz⟩
+    have hz' : x ∈ Metric.closedBall (C.enclosingCentre l z.1) (C.enclosingRadius l z.1) :=
+      Metric.ball_subset_closedBall (C.micro_inside l z.1 z.2 hz)
+    exact Set.disjoint_left.1 (C.enclosing_marker_disjoint l z.1 a) hz' hx
+  have hf : ∃ b, x ∈ Metric.closedBall ((P.marker l.prototype).centre b)
+      (P.marker l.prototype).radius := ⟨a, hx⟩
+  have hb := Classical.choose_spec hf
+  have hca : Classical.choose hf = a := by
+    by_contra hne
+    exact Set.disjoint_left.1 ((P.marker l.prototype).disjoint hne) hb hx
+  simp only [augmentedColour, if_pos hint, dif_neg hnm, dif_pos hf, hca]
 
 /-- M2, V4 2.10: the small state ball encodes the complete pre-pattern. -/
 theorem augmentedMarking_state {P : Params S} (C : ClusterData S P)

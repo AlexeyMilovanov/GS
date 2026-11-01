@@ -835,8 +835,29 @@ private lemma move_trans_step5_roles (U : HonestSource S) (g h : Iso d) :
     ∀ n (N : {N // N ∈ U.hierarchy.nodes n})
       (hN : N.val.move (g.trans h) ∈ ((U.move g).move h).hierarchy.nodes n),
       ((U.move g).move h).hierarchy.nodeRole ⟨n, ⟨N.val.move (g.trans h), hN⟩⟩ =
-        U.hierarchy.nodeRole ⟨n, N⟩ :=
-  sorry
+        U.hierarchy.nodeRole ⟨n, N⟩ := by
+  intro n N hN
+  have H : N.val.move (g.trans h) = (N.val.move g).move h := by
+    dsimp [FramedNode.move]
+    ext
+    · rfl
+    · rfl
+  
+  have step1 := (U.move_spec g).roles n N
+  have hNg : N.val.move g ∈ (U.move g).hierarchy.nodes n := by
+    have hn := (U.move_spec g).nodes n
+    rw [hn]
+    exact ⟨N.val, N.property, rfl⟩
+  
+  have step2 := ((U.move g).move_spec h).roles n ⟨N.val.move g, hNg⟩
+  
+  revert hN
+  rw [H]
+  intro hN
+  
+  have step2_applied := step2 hN
+  rw [step2_applied]
+  exact step1 hNg
 
 /-- Step 6 of the V4 proof of `move_trans` (V4 2.14(d)): bundled moved source. -/
 private lemma move_trans_step6_movedSource (U : HonestSource S) (g h : Iso d) :

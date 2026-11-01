@@ -747,13 +747,68 @@ theorem boundaryAngles_finite [Fact (2 ≤ d)] {ι : Type*} [Fintype ι]
       ∀ θ ∈ boundaryAngles proto cx, 0 < θ := by
   sorry
 
+/-- Step 1 of the V4 proof of `minimum_solidAngle` (V4 1.0(b)): Frontier nonempty. -/
+private lemma minimum_solidAngle_step1_frontier_nonempty [Fact (2 ≤ d)] {ι : Type*} [Fintype ι] [Nonempty ι]
+    (proto : ι → PolyManifoldDomain d) (A : ι) :
+    (frontier (proto A).carrier).Nonempty := by
+  by_contra h
+  rw [not_nonempty_iff_eq_empty] at h
+  have is_clopen : IsClopen (proto A).carrier := by
+    have h_closed : IsClosed (proto A).carrier := (proto A).compact.isClosed
+    have h_open : IsOpen (proto A).carrier := by
+      have h1 : frontier (proto A).carrier = closure (proto A).carrier \ interior (proto A).carrier := rfl
+      rw [h1, diff_eq_empty, h_closed.closure_eq] at h
+      have h_eq : interior (proto A).carrier = (proto A).carrier := (h.antisymm interior_subset).symm
+      rw [← h_eq]
+      exact isOpen_interior
+    exact ⟨h_closed, h_open⟩
+  have h1 : (proto A).carrier.Nonempty := by
+    obtain ⟨x, hx⟩ := (proto A).interior_nonempty
+    exact ⟨x, interior_subset hx⟩
+  have h2 : (proto A).carrier = univ := is_clopen.eq_univ h1
+  have h3 : (proto A).carrier ≠ univ := by
+    intro h4
+    have h5 : IsCompact (univ : Set (E d)) := by
+      rw [← h4]
+      exact (proto A).compact
+    have hd2 : 2 ≤ d := Fact.out
+    have hd : Nonempty (Fin d) := Fin.pos_iff_nonempty.mp (by omega)
+    obtain ⟨i⟩ := hd
+    have h6 : Continuous (fun (x : E d) => (WithLp.equiv 2 _ x) i) := by
+      exact (continuous_apply i).comp (ContinuousLinearEquiv.continuous (WithLp.linearEquiv 2 ℝ (Fin d → ℝ)).toContinuousLinearEquiv)
+
+    have h7 := h5.image h6
+    rw [image_univ] at h7
+    have h8 : range (fun (x : E d) => (WithLp.equiv 2 (Fin d → ℝ) x) i) = (univ : Set ℝ) := by
+      apply eq_univ_of_forall
+      intro r
+      use (WithLp.equiv 2 _).symm (fun j => if j = i then r else 0)
+      simp
+    rw [h8] at h7
+    exact @NoncompactSpace.noncompact_univ _ _ (inferInstance : NoncompactSpace ℝ) h7
+  exact h3 h2
+
 /-- G7, V4 1.0(b): the paper's `β` is the positive minimum of the finite
 angle catalogue. The nonempty type catalogue supplies an actual boundary cell;
 the separate uniform-bound theorem also handles an empty catalogue. -/
 theorem minimum_solidAngle [Fact (2 ≤ d)] {ι : Type*} [Fintype ι] [Nonempty ι]
     (proto : ι → PolyManifoldDomain d) (cx : ∀ A, CellComplex (proto A)) :
     ∃ β : ℝ, IsLeast (boundaryAngles proto cx) β ∧ 0 < β := by
-  sorry
+  have hfin := (boundaryAngles_finite proto cx).1
+  have hpos := (boundaryAngles_finite proto cx).2
+  have hne : (boundaryAngles proto cx).Nonempty := by
+    obtain ⟨A⟩ := ‹Nonempty ι›
+    have hfrontier_ne := minimum_solidAngle_step1_frontier_nonempty proto A
+    have : (⋃ e ∈ (cx A).cells, relint e.carrier) = frontier (proto A).carrier := (cx A).cover
+    rw [← this] at hfrontier_ne
+    obtain ⟨x, hx_mem⟩ := hfrontier_ne
+    simp at hx_mem
+    obtain ⟨e, he_mem, hx_in_e⟩ := hx_mem
+    use solidAngle (tangentCone (proto A).carrier x)
+    dsimp [boundaryAngles]
+    use A, e, he_mem, x, hx_in_e
+  obtain ⟨β, hβ_mem, hβ_le⟩ := Set.exists_min_image _ id hfin hne
+  exact ⟨β, ⟨hβ_mem, hβ_le⟩, hpos β hβ_mem⟩
 
 /-- G7, V4 1.0(b): the actual minimum `β` of the finite boundary-angle catalogue.
 The preceding existence lemma supplies the choice; the definition has no proof hole. -/

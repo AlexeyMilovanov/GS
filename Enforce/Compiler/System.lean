@@ -1222,7 +1222,18 @@ theorem leaf_mem (w : S.RoleWord B.certificate.val.ty P.K) : B.leaf w ∈ Y.tile
 /-- M8, V4 2.17(a): union of all native leaf carriers is exactly the whole block. -/
 theorem union_leaves :
     (⋃ w : S.RoleWord B.certificate.val.ty P.K, (B.leaf w).carrier) = B.carrier := by
-  sorry
+  have key : ∀ w : S.RoleWord B.certificate.val.ty P.K, (B.leaf w).carrier =
+      placedSet B.frame ((S.nativeTile B.certificate.val.ty P.K w).carrier 0) := by
+    intro w
+    show placedSet ((LeafType.position (⟨B.certificate, w⟩ : LeafType P)).trans B.frame)
+      (S.proto (LeafType.prototype (⟨B.certificate, w⟩ : LeafType P))).carrier = _
+    simp only [FramedNode.carrier, placedSet, SubstSystem.supertile, pow_zero,
+      LinearEquiv.coe_one, Set.image_id, LeafType.position, LeafType.prototype,
+      AffineIsometryEquiv.coe_trans, Set.image_comp]
+  simp_rw [key]
+  show (⋃ w, placedSet B.frame _) = placedSet B.frame (S.supertile P.K B.certificate.val.ty)
+  rw [← S.native_cover]
+  simp only [placedSet, Set.image_iUnion]
 
 /-- M8, V4 2.17(a): actual tiles contained in a block are exactly its native leaves. -/
 theorem tiles_exact :

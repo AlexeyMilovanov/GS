@@ -1421,6 +1421,38 @@ private lemma base_level_step5_I5_step1_boundary_step3_leaf
     exact ⟨ht, hsub⟩
   exact hmem
 
+/-- Step 1 of the V4 proof of `base_level_step5_I5_step1_boundary_step4_honest` (V4 2.6(c)): the leaf packet equals the honest source facet packet. -/
+private lemma base_level_step5_I5_step1_boundary_step4_honest_step1_leafPacket
+    (Y : MarkedTiling (systemM S P C)) (B : KBlock Y)
+    (U : HonestSource S) (N_honest : FramedNode S) (hN_honest : N_honest ∈ U.hierarchy.nodes P.K)
+    (h_cert : certOf U P N_honest hN_honest = B.certificate.val)
+    (h_ty_eq : (⟨P.K, N_honest, hN_honest⟩ : U.Node).2.val.ty = B.certificate.val.ty)
+    (v : S.RoleWord B.certificate.val.ty P.K)
+    (f : FacetName S (tileNode (B.leaf v)).ty)
+    (h_ty : (U.descendant ⟨P.K, N_honest, hN_honest⟩ P.K le_rfl (h_ty_eq.symm ▸ v)).2.val.ty = (tileNode (B.leaf v)).ty) :
+    leafPacket (compilerLeaf C (B.leaf v)) f.val =
+      U.facetPacket P (U.descendant ⟨P.K, N_honest, hN_honest⟩ P.K le_rfl (h_ty_eq.symm ▸ v)) (h_ty.symm ▸ f) := by
+  sorry
+
+/-- Step 2 of the V4 proof of `base_level_step5_I5_step1_boundary_step4_honest` (V4 2.6(d)): packets are inherited unchanged along the tracks. -/
+private lemma base_level_step5_I5_step1_boundary_step4_honest_step2_inherited
+    (Y : MarkedTiling (systemM S P C)) (B : KBlock Y)
+    (a : ℕ) (ha : a ≤ P.K)
+    (w : S.RoleWord B.certificate.val.ty a)
+    (F : FacetName S (B.innerNode a ha w).ty)
+    (U : HonestSource S) (N_honest : FramedNode S) (hN_honest : N_honest ∈ U.hierarchy.nodes P.K)
+    (h_cert : certOf U P N_honest hN_honest = B.certificate.val)
+    (h_ty_eq : (⟨P.K, N_honest, hN_honest⟩ : U.Node).2.val.ty = B.certificate.val.ty)
+    (v : S.RoleWord B.certificate.val.ty P.K)
+    (f : FacetName S (tileNode (B.leaf v)).ty)
+    (h_piece : Parser.IsFacetPiece Y (P.K - a) (B.innerNode a ha w) F (B.leaf v) f)
+    (h_ty_A : (U.descendant ⟨P.K, N_honest, hN_honest⟩ a ha (h_ty_eq.symm ▸ w)).2.val.ty = (B.innerNode a ha w).ty)
+    (h_ty_L : (U.descendant ⟨P.K, N_honest, hN_honest⟩ P.K le_rfl (h_ty_eq.symm ▸ v)).2.val.ty = (tileNode (B.leaf v)).ty) :
+    U.facetPacket P (U.descendant ⟨P.K, N_honest, hN_honest⟩ P.K le_rfl (h_ty_eq.symm ▸ v)) (h_ty_L.symm ▸ f) =
+    U.facetPacket P (U.descendant ⟨P.K, N_honest, hN_honest⟩ a ha (h_ty_eq.symm ▸ w)) (h_ty_A.symm ▸ F) := by
+  sorry
+
+open private exists_honest_step7_descendant_type from Enforce.Tiling in
 /-- Step 4 of the V4 proof of `base_level_step5_I5_step1_boundary` (V4 2.6(c),(d)): honest packet constancy for prescribed leaves. -/
 private lemma base_level_step5_I5_step1_boundary_step4_honest
     (Y : MarkedTiling (systemM S P C)) (B : KBlock Y)
@@ -1433,7 +1465,49 @@ private lemma base_level_step5_I5_step1_boundary_step4_honest
         Parser.IsFacetPiece Y (P.K - a) (B.innerNode a ha w)
           F (B.leaf v) f →
         leafPacket (compilerLeaf C (B.leaf v)) f.val = q := by
-  sorry
+  obtain ⟨U, N_honest, hN_honest, h_cert⟩ := KBlock.honest_table B
+  have h_ty_eq : (⟨P.K, N_honest, hN_honest⟩ : U.Node).2.val.ty = B.certificate.val.ty := by
+    change (certOf U P N_honest hN_honest).ty = _
+    rw [h_cert]
+  have native_cast : ∀ (T T' : S.ι) (e : T = T')
+      (n : ℕ) (z : S.RoleWord T' n),
+      (S.nativeTile T n (e.symm ▸ z)).ty =
+        (S.nativeTile T' n z).ty := by
+    intro T T' e n z
+    cases e
+    rfl
+  let A := U.descendant ⟨P.K, N_honest, hN_honest⟩ a ha (h_ty_eq.symm ▸ w)
+  have h_ty_A : A.2.val.ty = (B.innerNode a ha w).ty := by
+    calc
+      A.2.val.ty =
+          (S.nativeTile N_honest.ty a (h_ty_eq.symm ▸ w)).ty :=
+        U.descendant_type ⟨P.K, N_honest, hN_honest⟩
+          a ha (h_ty_eq.symm ▸ w)
+      _ = (S.nativeTile B.certificate.val.ty a w).ty :=
+        native_cast _ _ h_ty_eq a w
+      _ = (B.innerNode a ha w).ty :=
+        (exists_honest_step7_descendant_type
+          B.certificate.val.ty (P.K - a) a w).symm
+  use U.facetPacket P A (h_ty_A.symm ▸ F)
+  intro v f hf
+  let L := U.descendant ⟨P.K, N_honest, hN_honest⟩ P.K le_rfl (h_ty_eq.symm ▸ v)
+  have h_ty_L : L.2.val.ty = (tileNode (B.leaf v)).ty := by
+    calc
+      L.2.val.ty =
+          (S.nativeTile N_honest.ty P.K (h_ty_eq.symm ▸ v)).ty :=
+        U.descendant_type ⟨P.K, N_honest, hN_honest⟩
+          P.K le_rfl (h_ty_eq.symm ▸ v)
+      _ = (S.nativeTile B.certificate.val.ty P.K v).ty :=
+        native_cast _ _ h_ty_eq P.K v
+      _ = (tileNode (B.leaf v)).ty := by
+        change _ = (compilerLeaf C (B.leaf v)).prototype
+        rw [(B.leaf_data v).1]
+        rfl
+  have h1 : leafPacket (compilerLeaf C (B.leaf v)) f.val = U.facetPacket P L (h_ty_L.symm ▸ f) :=
+    base_level_step5_I5_step1_boundary_step4_honest_step1_leafPacket Y B U N_honest hN_honest h_cert h_ty_eq v f h_ty_L
+  have h2 : U.facetPacket P L (h_ty_L.symm ▸ f) = U.facetPacket P A (h_ty_A.symm ▸ F) :=
+    base_level_step5_I5_step1_boundary_step4_honest_step2_inherited Y B a ha w F U N_honest hN_honest h_cert h_ty_eq v f hf h_ty_A h_ty_L
+  rw [h1, h2]
 
 /-- Step 1 of the V4 proof of `base_level_step5_I5_step1_boundary` (V4 3.2): a specific packet q exists and is constant along the facet F. -/
 private lemma base_level_step5_I5_step1_boundary_step1_packet (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)

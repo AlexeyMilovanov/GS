@@ -2804,7 +2804,24 @@ private lemma compiler_events_step1_rule_step3_event_rule (C : ClusterData S P)
     (y : R.carrier) (hy_mark : R.mark y = Colour.trigger l j 0) :
     ∃ (θ : Template P) (h_allowed : θ ∈ allowedTemplates j),
       R = Compiler.eventRule C ⟨l, j, θ, h_allowed⟩ := by
-  sorry
+  classical
+  have hfamilies :
+      (∃ D : CertificateSymbol S P, Compiler.coreRule C D = R) ∨
+      ∃ e : Compiler.EventIndex S P, Compiler.eventRule C e = R := by
+    simpa only [systemM, Compiler.ruleCatalogue, Finset.mem_union,
+      Finset.mem_image, Finset.mem_univ, true_and] using hR
+  revert y
+  rcases hfamilies with ⟨D, rfl⟩ | ⟨e, rfl⟩
+  · intro y hy_mark
+    exact False.elim
+      ((colour_disjointness_ii C).1 D l j 0 y hy_mark)
+  · intro y hy_mark
+    obtain ⟨hleaf, hslot, _⟩ :=
+      (colour_disjointness_ii C).2.2 e l j 0 y hy_mark
+    subst l
+    have hslot_eq : e.slot = j := eq_of_heq hslot
+    subst j
+    exact ⟨e.template, e.allowed, rfl⟩
 
 /-- Step 4 of the V4 proof of `compiler_events_step1_rule` (V4 2.17b): The central tile is pinned to t. -/
 private lemma compiler_events_step1_rule_step4_pinned (C : ClusterData S P) (Y : MarkedTiling (systemM S P C))

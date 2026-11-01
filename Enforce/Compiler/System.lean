@@ -944,8 +944,60 @@ private lemma honest_move_exists_step3_contexts (U : HonestSource S) (g : Iso d)
         (H.parent n ⟨N.val.move g, hN⟩).val = (U.hierarchy.parent n N).val.move g)
     (hRoles : ∀ n (N : {N // N ∈ U.hierarchy.nodes n}) (hN : N.val.move g ∈ H.nodes n),
         H.nodeRole ⟨n, ⟨N.val.move g, hN⟩⟩ = U.hierarchy.nodeRole ⟨n, N⟩) :
-    ∀ F : Finset H.Node, Nonempty (LegalContext H F) :=
-  sorry
+    ∀ F : Finset H.Node, Nonempty (LegalContext H F) := by
+  classical
+  have preimages (q : H.Node) :
+      ∃ N : {N // N ∈ U.hierarchy.nodes q.1}, N.val.move g = q.2.val := by
+    have hq : q.2.val ∈ (fun N : FramedNode S => N.move g) '' U.hierarchy.nodes q.1 := by
+      simpa only [hNodes q.1] using q.2.property
+    obtain ⟨N, hN, heq⟩ := hq
+    exact ⟨⟨N, hN⟩, heq⟩
+  choose pre hpre using preimages
+  intro F
+  let back : H.Node → U.hierarchy.Node := fun q => ⟨q.1, pre q⟩
+  let G := F.image back
+  obtain ⟨C⟩ := U.contexts G
+  let ψ := g.symm.trans C.placement
+  have hmem (q : H.Node) (hq : q ∈ F) : back q ∈ G :=
+    Finset.mem_image_of_mem _ hq
+  have hmove (q : H.Node) :
+      q.2.val.move ψ = (pre q).val.move C.placement := by
+    rw [← hpre q]
+    apply FramedNode.ext
+    · rfl
+    · apply AffineIsometryEquiv.ext
+      intro x
+      change C.placement (g.symm (g ((pre q).val.frame x))) =
+        C.placement ((pre q).val.frame x)
+      rw [AffineIsometryEquiv.symm_apply_apply]
+  have hcarrier (q : H.Node) :
+      ψ '' q.2.val.carrier q.1 = C.placement '' (pre q).val.carrier q.1 := by
+    rw [← hpre q]
+    change ψ '' (((pre q).val.frame.trans g) '' S.supertile q.1 (pre q).val.ty) =
+      C.placement '' ((pre q).val.frame '' S.supertile q.1 (pre q).val.ty)
+    rw [Set.image_image, Set.image_image]
+    congr 1
+    funext x
+    change C.placement (g.symm (g ((pre q).val.frame x))) =
+      C.placement ((pre q).val.frame x)
+    rw [AffineIsometryEquiv.symm_apply_apply]
+  refine ⟨{
+    height := C.height
+    ty := C.ty
+    placement := ψ
+    standard := ?_
+    interior := ?_
+    edges := ?_
+  }⟩
+  · intro q hq
+    rw [hmove q]
+    exact C.standard (back q) (hmem q hq)
+  · intro q hq
+    rw [hcarrier q]
+    exact C.interior (back q) (hmem q hq)
+  · intro q _ _
+    simpa only [FramedNode.move, FramedNode.child, AffineIsometryEquiv.trans_assoc] using
+      congrArg (fun N : FramedNode S => N.move ψ) (H.child_eq q.1 q.2)
 
 /-- Step 4 of the V4 proof of `honest_move_exists` (V4 1.11, 2.14(d)): frames of the moved hierarchy lie in the rotated common coset. -/
 private lemma honest_move_exists_step4_coset (U : HonestSource S) (g : Iso d)

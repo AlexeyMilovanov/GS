@@ -85,6 +85,323 @@ structure IncidentTail (p : E d) (N : ℕ) where
   step : ∀ r, (P.native (N + (r + 1)) (node (r + 1)).val).carrier 0 ⊆
     S.σ '' (P.native (N + r) (node r).val).carrier 0
 
+/-- Step 2 of the V4 proof of `incidentForest` (V4 1.14, Proof: "the children of `t`"):
+conjugated frames intertwine successive expansions. -/
+private theorem incidentForest_step2_conjugate_succ
+    (R : E d ≃ₗ[ℝ] E d) (n : ℕ) (x : E d) :
+    linearConj S.σ ((n + 1 : ℕ) : ℤ) R (S.σ x) =
+      S.σ (linearConj S.σ (n : ℤ) R x) := by
+  have heq : linearConj S.σ ((n + 1 : ℕ) : ℤ) R * S.σ =
+      S.σ * linearConj S.σ (n : ℤ) R := by
+    simp only [linearConj, Nat.cast_add, Nat.cast_one]
+    group
+  exact congrArg (fun L : E d ≃ₗ[ℝ] E d => L x) heq
+
+/-- Step 2 of the V4 proof of `incidentForest` (V4 1.14, Proof: "the children of `t`"):
+the prescribed role frame has the same covariance. -/
+private theorem incidentForest_step2_placeChild_succ
+    {A : S.ι} (i : S.I A) (n : ℕ) (x : E d) :
+    S.placeChild (n + 1) i (S.σ x) = S.σ (S.placeChild n i x) := by
+  rw [S.placeChild_apply, S.placeChild_apply,
+    incidentForest_step2_conjugate_succ, map_add, pow_succ']
+  rfl
+
+/-- Step 2 of the V4 proof of `incidentForest` (V4 1.14, Proof: "the children of `t`"):
+at height zero the role frame is the prescribed child frame. -/
+private theorem incidentForest_step2_placeChild_zero
+    {A : S.ι} (i : S.I A) : S.placeChild 0 i = (S.child A i).frame := by
+  apply AffineIsometryEquiv.ext
+  intro x
+  change linearConj S.σ (0 : ℤ) (S.child A i).rotation.toLinearEquiv x +
+      (S.σ ^ 0) (S.child A i).offset =
+    (S.child A i).rotation x + (S.child A i).offset
+  simp [linearConj]
+
+/-- Step 2 of the V4 proof of `incidentForest` (V4 1.14, Proof: "the children of `t`"):
+append a child role to a native address (depth-`n+1` descendants). -/
+private def incidentForest_step2_append (S : SubstSystem d) :
+    (A : S.ι) → (n : ℕ) → (w : S.RoleWord A n) →
+      S.I (S.nativeTile A n w).ty → S.RoleWord A (n + 1)
+  | A, 0, _, i => ⟨i, ()⟩
+  | A, n + 1, w, i => ⟨w.1,
+      incidentForest_step2_append S (S.child A w.1).ty n w.2 i⟩
+
+/-- Step 2 of the V4 proof of `incidentForest` (V4 1.14, Proof: "the children of `t`"):
+appending a role retains its prescribed child type. -/
+private theorem incidentForest_step2_append_type
+    (A : S.ι) (n : ℕ) (w : S.RoleWord A n) (i : S.I (S.nativeTile A n w).ty) :
+    (S.nativeTile A (n + 1) (incidentForest_step2_append S A n w i)).ty =
+      (S.child (S.nativeTile A n w).ty i).ty := by
+  induction n generalizing A with
+  | zero => rfl
+  | succ n ih => exact ih (S.child A w.1).ty w.2 i
+
+/-- Step 2 of the V4 proof of `incidentForest` (V4 1.14, Proof: "the children of `t`"):
+appending a role realizes subdivision after inflation. -/
+private theorem incidentForest_step2_append_frame
+    (A : S.ι) (n : ℕ) (w : S.RoleWord A n) (i : S.I (S.nativeTile A n w).ty)
+    (x : E d) :
+    (S.nativeTile A (n + 1) (incidentForest_step2_append S A n w i)).frame x =
+      S.σ ((S.nativeTile A n w).frame (S.σ.symm ((S.child (S.nativeTile A n w).ty i).frame x))) := by
+  induction n generalizing A with
+  | zero =>
+    change S.placeChild 0 i x = S.σ (S.σ.symm ((S.child A i).frame x))
+    rw [S.σ.apply_symm_apply, incidentForest_step2_placeChild_zero]
+    rfl
+  | succ n ih =>
+    change S.placeChild (0 + (n + 1)) w.1
+      ((S.nativeTile (S.child A w.1).ty (n + 1)
+        (incidentForest_step2_append S (S.child A w.1).ty n w.2 i)).frame x) =
+      S.σ (S.placeChild (0 + n) w.1 ((S.nativeTile (S.child A w.1).ty n w.2).frame
+        (S.σ.symm ((S.child (S.nativeTile (S.child A w.1).ty n w.2).ty i).frame x))))
+    simp only [Nat.zero_add]
+    rw [ih, incidentForest_step2_placeChild_succ]
+
+/-- Step 2 of the V4 proof of `incidentForest` (V4 1.14, Proof: "the children of `t`"):
+the patch's specified ground frame obeys the same covariance. -/
+private theorem incidentForest_step2_inflated_frame_succ
+    (t : FramedNode S) (ht : t.frame.linearIsometryEquiv ∈ S.rotGroup)
+    (n : ℕ) (x : E d) :
+    compatibleInflatedFrame t ht (n + 1) (S.σ x) =
+      S.σ (compatibleInflatedFrame t ht n x) := by
+  have hQ (n : ℕ) (x : E d) :
+      (Classical.choose (S.rotGroup_conj_zpow (n : ℤ)
+        t.frame.linearIsometryEquiv ht)) x =
+      linearConj S.σ (n : ℤ) t.frame.linearIsometryEquiv.toLinearEquiv x :=
+    congrArg (fun L : E d ≃ₗ[ℝ] E d => L x)
+      (Classical.choose_spec (S.rotGroup_conj_zpow (n : ℤ)
+        t.frame.linearIsometryEquiv ht)).2
+  change (Classical.choose (S.rotGroup_conj_zpow ((n + 1 : ℕ) : ℤ)
+      t.frame.linearIsometryEquiv ht)) (S.σ x) + (S.σ ^ (n + 1)) (t.frame 0) =
+    S.σ ((Classical.choose (S.rotGroup_conj_zpow (n : ℤ)
+      t.frame.linearIsometryEquiv ht)) x + (S.σ ^ n) (t.frame 0))
+  rw [hQ, hQ, incidentForest_step2_conjugate_succ, map_add, pow_succ']
+  rfl
+
+/-- Step 1 of the V4 proof of `incidentForest` (V4 1.14): a ground carrier is the
+isometric image of its prototype ("native tiles ... are placed prototiles"). -/
+private theorem incidentForest_step1_carrier_zero (t : FramedNode S) :
+    t.carrier 0 = t.frame '' (S.proto t.ty).carrier := by
+  simp [FramedNode.carrier, placedSet, SubstSystem.supertile]
+
+/-- Step 1 of the V4 proof of `incidentForest` (V4 1.14, "disjoint interiors"):
+a homeomorphism preserves disjointness of interiors. -/
+private theorem incidentForest_step1_disjoint_homeo (e : E d ≃ₜ E d) {X Y : Set (E d)}
+    (h : Disjoint (interior X) (interior Y)) :
+    Disjoint (interior (e '' X)) (interior (e '' Y)) := by
+  rw [← e.image_interior, ← e.image_interior]
+  exact (Set.disjoint_image_iff e.injective).2 h
+
+/-- Step 1 of the V4 proof of `incidentForest` (V4 1.14, "disjoint interiors"):
+the expansion `σⁿ` preserves disjointness of interiors. -/
+private theorem incidentForest_step1_disjoint_linear (L : E d ≃ₗ[ℝ] E d) {X Y : Set (E d)}
+    (h : Disjoint (interior X) (interior Y)) :
+    Disjoint (interior (L '' X)) (interior (L '' Y)) :=
+  incidentForest_step1_disjoint_homeo L.toContinuousLinearEquiv.toHomeomorph h
+
+/-- Step 1 of the V4 proof of `incidentForest` (V4 1.14, "disjoint interiors"):
+an isometry preserves disjointness of interiors. -/
+private theorem incidentForest_step1_disjoint_iso (g : Iso d) {X Y : Set (E d)}
+    (h : Disjoint (interior X) (interior Y)) :
+    Disjoint (interior (g '' X)) (interior (g '' Y)) :=
+  incidentForest_step1_disjoint_homeo g.toHomeomorph h
+
+/-- Step 1 of the V4 proof of `incidentForest` (V4 1.14, Lemma 1.10 frames):
+the height-`n` role frame intertwines `σⁿ` with the prescribed child frame. -/
+private theorem incidentForest_step1_placeChild_pow {A : S.ι} (i : S.I A) (n : ℕ) (x : E d) :
+    S.placeChild n i ((S.σ ^ n) x) = (S.σ ^ n) ((S.child A i).frame x) := by
+  induction n with
+  | zero => simp [incidentForest_step2_placeChild_zero]
+  | succ n ih =>
+    rw [pow_succ', LinearEquiv.mul_apply, LinearEquiv.mul_apply,
+      incidentForest_step2_placeChild_succ, ih]
+
+/-- Step 1 of the V4 proof of `incidentForest` (V4 1.14, Lemma 1.10 frames):
+the inflated patch frame intertwines `σⁿ` with the original ground frame. -/
+private theorem incidentForest_step1_inflated_pow (t : FramedNode S)
+    (ht : t.frame.linearIsometryEquiv ∈ S.rotGroup) (n : ℕ) (x : E d) :
+    compatibleInflatedFrame t ht n ((S.σ ^ n) x) = (S.σ ^ n) (t.frame x) := by
+  induction n with
+  | zero =>
+    have hQ : (Classical.choose (S.rotGroup_conj_zpow ((0 : ℕ) : ℤ)
+        t.frame.linearIsometryEquiv ht)) x =
+        linearConj S.σ ((0 : ℕ) : ℤ) t.frame.linearIsometryEquiv.toLinearEquiv x :=
+      congrArg (fun L : E d ≃ₗ[ℝ] E d => L x)
+        (Classical.choose_spec (S.rotGroup_conj_zpow ((0 : ℕ) : ℤ)
+          t.frame.linearIsometryEquiv ht)).2
+    have hv := t.frame.map_vadd 0 x
+    simp only [vadd_eq_add, add_zero] at hv
+    change (Classical.choose (S.rotGroup_conj_zpow ((0 : ℕ) : ℤ)
+      t.frame.linearIsometryEquiv ht)) ((S.σ ^ 0) x) + (S.σ ^ 0) (t.frame 0) =
+        (S.σ ^ 0) (t.frame x)
+    simp only [pow_zero, LinearEquiv.coe_one, id_eq]
+    rw [hQ, hv]
+    simp [linearConj]
+  | succ n ih =>
+    rw [pow_succ', LinearEquiv.mul_apply, LinearEquiv.mul_apply,
+      incidentForest_step2_inflated_frame_succ, ih]
+
+/-- Step 1 of the V4 proof of `incidentForest` (V4 1.14, with (H3)): native tiles of one
+prototype at a fixed depth have pairwise disjoint interiors ("distinct roles have
+disjoint child interiors", iterated). -/
+private theorem incidentForest_step1_nativeTile_disjoint :
+    ∀ (n : ℕ) (A : S.ι), Pairwise (fun w w' : S.RoleWord A n => Disjoint
+      (interior ((S.nativeTile A n w).frame '' (S.proto (S.nativeTile A n w).ty).carrier))
+      (interior ((S.nativeTile A n w').frame '' (S.proto (S.nativeTile A n w').ty).carrier)))
+  | 0, A => fun w w' h => absurd (Subsingleton.elim (α := Unit) w w') h
+  | n + 1, A => by
+    rintro ⟨i, v⟩ ⟨j, v'⟩ hne
+    have himg : ∀ (k : S.I A) (u : S.RoleWord (S.child A k).ty n),
+        (S.nativeTile A (n + 1) ⟨k, u⟩).frame ''
+            (S.proto (S.nativeTile A (n + 1) ⟨k, u⟩).ty).carrier =
+          S.placeChild n k '' ((S.nativeTile (S.child A k).ty n u).frame ''
+            (S.proto (S.nativeTile (S.child A k).ty n u).ty).carrier) := by
+      intro k u
+      change (S.placeChild (0 + n) k) ∘ (S.nativeTile (S.child A k).ty n u).frame '' _ = _
+      rw [Nat.zero_add, Set.image_comp]
+      rfl
+    rw [himg, himg]
+    by_cases hij : i = j
+    · subst hij
+      have hv : v ≠ v' := fun h => hne (h ▸ rfl)
+      exact incidentForest_step1_disjoint_iso _
+        (incidentForest_step1_nativeTile_disjoint n (S.child A i).ty hv)
+    · have hsub : ∀ (k : S.I A) (u : S.RoleWord (S.child A k).ty n),
+          S.placeChild n k '' ((S.nativeTile (S.child A k).ty n u).frame ''
+            (S.proto (S.nativeTile (S.child A k).ty n u).ty).carrier) ⊆
+          (S.σ ^ n) '' placedSet (S.child A k).frame (S.proto (S.child A k).ty).carrier := by
+        intro k u
+        have hc : (S.nativeTile (S.child A k).ty n u).frame ''
+            (S.proto (S.nativeTile (S.child A k).ty n u).ty).carrier ⊆
+            (S.σ ^ n) '' (S.proto (S.child A k).ty).carrier := by
+          rw [← incidentForest_step1_carrier_zero]
+          have := S.native_cover (S.child A k).ty n
+          change _ ⊆ S.supertile n _
+          rw [← this]
+          exact Set.subset_iUnion (fun w => (S.nativeTile (S.child A k).ty n w).carrier 0) u
+        refine (Set.image_mono hc).trans ?_
+        rintro z ⟨y, ⟨x, hx, rfl⟩, rfl⟩
+        exact ⟨(S.child A k).frame x, ⟨x, hx, rfl⟩,
+          (incidentForest_step1_placeChild_pow k n x).symm⟩
+      exact (incidentForest_step1_disjoint_linear (S.σ ^ n)
+        (S.children_disjoint A hij)).mono (interior_mono (hsub i v)) (interior_mono (hsub j v'))
+
+/-- Step 1 of the V4 proof of `incidentForest` (V4 1.14): a native tile of `σⁿΠ` lies in
+the inflation `σⁿ t` of its patch tile. -/
+private theorem incidentForest_step1_native_subset (n : ℕ) (a : P.Address n) :
+    (P.native n a).frame '' (S.proto (P.native n a).ty).carrier ⊆
+      (S.σ ^ n) '' (a.1.val.frame '' (S.proto a.1.val.ty).carrier) := by
+  have hc : (S.nativeTile a.1.val.ty n a.2).frame ''
+      (S.proto (S.nativeTile a.1.val.ty n a.2).ty).carrier ⊆
+      (S.σ ^ n) '' (S.proto a.1.val.ty).carrier := by
+    rw [← incidentForest_step1_carrier_zero]
+    have := S.native_cover a.1.val.ty n
+    change _ ⊆ S.supertile n _
+    rw [← this]
+    exact Set.subset_iUnion (fun w => (S.nativeTile a.1.val.ty n w).carrier 0) a.2
+  change (compatibleInflatedFrame a.1.val (P.compatible a.1.val a.1.property) n) ∘
+    (S.nativeTile a.1.val.ty n a.2).frame '' _ ⊆ _
+  rw [Set.image_comp]
+  refine (Set.image_mono hc).trans ?_
+  rintro z ⟨y, ⟨x, hx, rfl⟩, rfl⟩
+  exact ⟨a.1.val.frame x, ⟨x, hx, rfl⟩,
+    (incidentForest_step1_inflated_pow a.1.val _ n x).symm⟩
+
+/-- Step 1 of the V4 proof of `incidentForest` (V4 1.14, with Lemma 1.10): the native
+tiles of `σⁿΠ` are "placed prototiles with disjoint interiors": distinct depth-`n`
+addresses of the compatible patch give native tiles with disjoint interiors. -/
+private theorem incidentForest_step1_native_disjoint (n : ℕ) :
+    Pairwise (fun a b : P.Address n => Disjoint
+      (interior (placedSet (P.native n a).frame (S.proto (P.native n a).ty).carrier))
+      (interior (placedSet (P.native n b).frame (S.proto (P.native n b).ty).carrier))) := by
+  rintro ⟨⟨t, ht⟩, w⟩ ⟨⟨t', ht'⟩, w'⟩ hne
+  by_cases htt : t = t'
+  · subst htt
+    have hw : w ≠ w' := fun h => hne (h ▸ rfl)
+    have himg : ∀ u : S.RoleWord t.ty n,
+        placedSet (P.native n ⟨⟨t, ht⟩, u⟩).frame
+            (S.proto (P.native n ⟨⟨t, ht⟩, u⟩).ty).carrier =
+          compatibleInflatedFrame t (P.compatible t ht) n ''
+            ((S.nativeTile t.ty n u).frame '' (S.proto (S.nativeTile t.ty n u).ty).carrier) := by
+      intro u
+      change (compatibleInflatedFrame t (P.compatible t ht) n) ∘
+        (S.nativeTile t.ty n u).frame '' _ = _
+      rw [Set.image_comp]
+      rfl
+    rw [himg, himg]
+    exact incidentForest_step1_disjoint_iso _ (incidentForest_step1_nativeTile_disjoint n t.ty hw)
+  · have h := P.disjoint ht ht' htt
+    simp only [Function.onFun, incidentForest_step1_carrier_zero] at h
+    exact (incidentForest_step1_disjoint_linear (S.σ ^ n) h).mono
+      (interior_mono (incidentForest_step1_native_subset P n ⟨⟨t, ht⟩, w⟩))
+      (interior_mono (incidentForest_step1_native_subset P n ⟨⟨t', ht'⟩, w'⟩))
+
+/-- Step 1 of the V4 proof of `incidentForest` (V4 1.14): "`|I_n| ≤ M₀` (Lemma 1.0(b))",
+the native tiles at depth `n` containing `σⁿ p` are finitely many and at most `M₀`. -/
+private theorem incidentForest_step1_bound [Nonempty S.ι] (p : E d) (n : ℕ) :
+    Finite (P.Incident p n) ∧
+      Nat.card (P.Incident p n) ≤ multiplicityBound S.proto S.cx := by
+  have hpc := point_count_le S.proto S.cx (fun a : P.Address n => (P.native n a).ty)
+    (fun a => (P.native n a).frame) (incidentForest_step1_native_disjoint P n) ((S.σ ^ n) p)
+  have hset : {a : P.Address n | (S.σ ^ n) p ∈
+      placedSet (P.native n a).frame (S.proto (P.native n a).ty).carrier} =
+      {a | (S.σ ^ n) p ∈ (P.native n a).carrier 0} := by
+    ext a
+    rw [Set.mem_setOf_eq, Set.mem_setOf_eq, incidentForest_step1_carrier_zero]
+    rfl
+  rw [hset] at hpc
+  refine ⟨hpc.1.to_subtype, ?_⟩
+  have h2 := hpc.2
+  rw [← Nat.card_coe_set_eq] at h2
+  exact h2
+
+/-- Step 2 of the V4 proof of `incidentForest` (V4 1.14, Proof: "the children of `t`"):
+the appended address is the native child with the prescribed child frame. -/
+private theorem incidentForest_step2_native_child
+    (n : ℕ) (a : P.Address n) (i : S.I (P.native n a).ty) :
+    ∃ b : P.Address (n + 1),
+      (P.native (n + 1) b).ty = (S.child (P.native n a).ty i).ty ∧
+      ∀ x, (P.native (n + 1) b).frame x =
+        S.σ ((P.native n a).frame (S.σ.symm ((S.child (P.native n a).ty i).frame x))) := by
+  refine ⟨⟨a.1, incidentForest_step2_append S a.1.val.ty n a.2 i⟩,
+    incidentForest_step2_append_type a.1.val.ty n a.2 i, ?_⟩
+  intro x
+  change compatibleInflatedFrame a.1.val (P.compatible _ a.1.property) (n + 1)
+    ((S.nativeTile a.1.val.ty (n + 1)
+      (incidentForest_step2_append S a.1.val.ty n a.2 i)).frame x) = _
+  rw [incidentForest_step2_append_frame, incidentForest_step2_inflated_frame_succ]
+  rfl
+
+/-- Step 2 of the V4 proof of `incidentForest` (V4 1.14, Proof): "`σ^{n+1}p ∈ σ(t)`
+for `t ∈ I_n` and the children of `t` cover `σ t`, so a child contains the point". -/
+private theorem incidentForest_step2_child_exists (p : E d) (n : ℕ) (a : P.Incident p n) :
+    ∃ b : P.Incident p (n + 1), P.IncidentChild p n a b := by
+  have ha := a.property
+  rw [incidentForest_step1_carrier_zero] at ha
+  obtain ⟨x, hx, hxp⟩ := ha
+  have hsx : S.σ x ∈ S.σ '' (S.proto (P.native n a.val).ty).carrier :=
+    Set.mem_image_of_mem _ hx
+  rw [S.children_cover] at hsx
+  obtain ⟨i, hi⟩ := Set.mem_iUnion.mp hsx
+  obtain ⟨y, hy, hyx⟩ := hi
+  obtain ⟨b, hty, hframe⟩ := incidentForest_step2_native_child P n a.val i
+  have hinc : (S.σ ^ (n + 1)) p ∈ (P.native (n + 1) b).carrier 0 := by
+    rw [incidentForest_step1_carrier_zero, hty]
+    refine ⟨y, hy, ?_⟩
+    rw [hframe, hyx, S.σ.symm_apply_apply, hxp, pow_succ']
+    rfl
+  refine ⟨⟨b, hinc⟩, ?_⟩
+  change (P.native (n + 1) b).carrier 0 ⊆ S.σ '' (P.native n a.val).carrier 0
+  rw [incidentForest_step1_carrier_zero, incidentForest_step1_carrier_zero, hty]
+  rintro z ⟨u, hu, rfl⟩
+  have hu' : (S.child (P.native n a.val).ty i).frame u ∈
+      S.σ '' (S.proto (P.native n a.val).ty).carrier := by
+    rw [S.children_cover]
+    exact Set.mem_iUnion.mpr ⟨i, ⟨u, hu, rfl⟩⟩
+  obtain ⟨v, hv, hvu⟩ := hu'
+  exact ⟨(P.native n a.val).frame v, Set.mem_image_of_mem _ hv,
+    by rw [hframe, ← hvu, S.σ.symm_apply_apply]⟩
+
 /-- P9, V4 1.14: bounded width, no dying branches, and eventual unique children.
 DEVIATION: the exact minimum-angle constant uses the nonempty catalogue, as in D3. -/
 theorem incidentForest [Nonempty S.ι] (p : E d) :
@@ -94,7 +411,36 @@ theorem incidentForest [Nonempty S.ι] (p : E d) :
       ∃ b : P.Incident p (n + 1), P.IncidentChild p n a b) ∧
     ∃ N : ℕ, ∀ n, N ≤ n → ∀ a : P.Incident p n,
       ∃! b : P.Incident p (n + 1), P.IncidentChild p n a b := by
-  sorry
+  classical
+  have h1 : ∀ n, Finite (P.Incident p n) ∧
+      Nat.card (P.Incident p n) ≤ multiplicityBound S.proto S.cx :=
+    fun n => incidentForest_step1_bound P p n
+  have h2 : ∀ n (a : P.Incident p n), ∃ b : P.Incident p (n + 1), P.IncidentChild p n a b :=
+    fun n a => incidentForest_step2_child_exists P p n a
+  refine ⟨h1, h2, ?_⟩
+  choose f hf using h2
+  have hinj : ∀ n, Function.Injective (f n) := by
+    intro n a a' h
+    have hb := hf n a
+    have hb' := hf n a'
+    rw [h] at hb
+    exact (P.incident_parent_exists_unique p n (f n a')).unique hb hb'
+  haveI : ∀ n, Finite (P.Incident p n) := fun n => (h1 n).1
+  have hmono : Monotone (fun n => Nat.card (P.Incident p n)) :=
+    monotone_nat_of_le_succ fun n => Nat.card_le_card_of_injective (f n) (hinj n)
+  have hbdd : BddAbove (Set.range fun n => Nat.card (P.Incident p n)) :=
+    ⟨multiplicityBound S.proto S.cx, by rintro _ ⟨n, rfl⟩; exact (h1 n).2⟩
+  obtain ⟨N, hN⟩ := Nat.sSup_mem (Set.range_nonempty _) hbdd
+  refine ⟨N, fun n hn a => ⟨f n a, hf n a, fun b hb => ?_⟩⟩
+  have hle : Nat.card (P.Incident p (n + 1)) ≤ Nat.card (P.Incident p n) := by
+    have h3 : Nat.card (P.Incident p (n + 1)) ≤
+        sSup (Set.range fun n => Nat.card (P.Incident p n)) := le_csSup hbdd ⟨n + 1, rfl⟩
+    have h4 := hmono hn
+    dsimp only at hN h4
+    omega
+  obtain ⟨a', rfl⟩ := ((hinj n).bijective_of_nat_card_le hle).2 b
+  have := (P.incident_parent_exists_unique p n (f n a')).unique hb (hf n a')
+  rw [this]
 
 /-- P9, V4 1.14: beyond a splitting cutoff, tails are in bijection with the
 incident tiles there, so there are at most `M₀` infinite tails.

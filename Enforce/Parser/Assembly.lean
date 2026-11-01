@@ -967,6 +967,240 @@ structure ReadableFacet {Y : MarkedTiling (systemM S P C)} {n : ℕ}
 
 end Parser
 
+/-- Step 1 of the V4 proof of `readable_facet` (V4 8.3):
+"Its birth node Q has height b = n - t(A_C) ≥ n - p ≥ 1". Every facet in F(A_C) has the
+first branching depth, bounded by p. -/
+private theorem readable_facet_step1_depth (T : S.ι) (f : PrimitiveFacet S T)
+    (hf : f ∈ firstBranchingFacets T) : f.depth ≤ P.p := by
+  have hd : f.depth = (firstBranching T).1 := congrArg Sigma.fst hf
+  rw [hd, P.p_eq]
+  exact (firstBranching_spec T).2.2
+
+/-- Step 2 of the V4 proof of `readable_facet` (V4 8.3):
+"choose f_C in F(A_C) in its actual position". At height zero the child placement is the
+prescribed prototype isometry. -/
+private theorem readable_facet_step2_ground_child (T : S.ι) (i : S.I T)
+    (e : Cell d) :
+    ((⟨T, AffineIsometryEquiv.refl ℝ (E d)⟩ : FramedNode S).child 0 i).cell 0 e =
+      placedSet (S.child T i).frame e.carrier := by
+  have hp : S.placeChild 0 i = (S.child T i).frame := by
+    ext x
+    simp [SubstSystem.placeChild_apply, linearConj, Child.frame, rigidMotion]
+  simp [FramedNode.cell, FramedNode.prototypeFrame, FramedNode.child, hp, placedSet]
+
+/-- Step 2 of the V4 proof of `readable_facet` (V4 8.3):
+"choose f_C in F(A_C) in its actual position". Whole-facet pairing assigns any
+normalized primitive facet its canonical incidence. -/
+private theorem readable_facet_step2_incidence {T : S.ι}
+    (f : PrimitiveFacet S T) :
+    ∃ a : P.Incidence, a.val.ty = f.birthType ∧ a.val.positioned = f.localCarrier := by
+  obtain ⟨i, e, he, hint⟩ := f.realization
+  let B : FramedNode S := ⟨f.birthType, AffineIsometryEquiv.refl ℝ (E d)⟩
+  have hc : B.carrier (0 + 1) = S.supertile 1 f.birthType := by
+    simp [B, FramedNode.carrier, placedSet]
+  have hne : (relint (placedSet (S.child f.birthType i).frame e.val.carrier)).Nonempty := by
+    change (intrinsicInterior ℝ
+      ((S.child f.birthType i).frame.toAffineIsometry '' e.val.carrier)).Nonempty
+    rw [AffineIsometry.image_intrinsicInterior]
+    exact e.val.flat.relint_nonempty.image _
+  have hpair := internal_facet_pairing B 0 i e (by
+    rw [readable_facet_step2_ground_child, hc]
+    rw [he] at hint
+    exact hne.mono (fun _ hx => ⟨hx, hint hx⟩))
+  obtain ⟨j, ⟨hji, e', he', _⟩, _⟩ := hpair.2
+  let a : PrimitiveIncidence S := {
+    ty := f.birthType
+    left := i
+    right := j
+    distinct := Ne.symm hji
+    leftFacet := e
+    rightFacet := e'
+    paired := by
+      rw [readable_facet_step2_ground_child, readable_facet_step2_ground_child] at he'
+      exact he'.symm
+    internal := by rw [he] at hint; exact hint }
+  refine ⟨P.canonical a, (P.canonical_spec a).1.symm, ?_⟩
+  exact (P.canonical_spec a).2.symm.trans he.symm
+
+/-- Step 2 of the V4 proof of `readable_facet` (V4 8.3):
+"Its birth node Q has height b = n - t(A_C)". The normalized birth frame transports to
+the actual framed child. -/
+private theorem readable_facet_step2_frame (N : FramedNode S) (m : ℕ)
+    (f : PrimitiveFacet S N.ty) (hf : f.depth ≤ m) :
+    ((f.birthNode m).move N.frame).prototypeFrame (m - f.depth) =
+      f.birthFrame.trans (N.prototypeFrame m) := by
+  have h := (f.birthFrame_spec m hf).2
+  apply AffineEquiv.ext
+  intro x
+  have hx := congrArg (fun e : E d ≃ᵃ[ℝ] E d => e x) h
+  change (S.σ ^ m).symm ((f.birthNode m).prototypeFrame (m - f.depth)
+    x) = f.birthFrame x at hx
+  have hx' := congrArg (fun z => N.frame ((S.σ ^ m) z)) hx
+  simpa only [LinearEquiv.apply_symm_apply] using hx'
+
+/-- Step 2 of the V4 proof of `readable_facet` (V4 8.3):
+"in its actual position". A born facet is the image of its incidence under the birth
+prototype frame. -/
+private theorem readable_facet_step2_carrier (g : Parser.BornFacet P) :
+    g.carrier = g.birth.prototypeFrame g.height ''
+      (S.σ.symm '' g.incidence.val.positioned) := by
+  simp only [Parser.BornFacet.carrier, Params.incidencePlacement,
+    PrimitiveIncidence.positioned, placedSet, Set.image_image]
+  rfl
+
+/-- Step 2 of the V4 proof of `readable_facet` (V4 8.3):
+"Its birth node Q has height b = n - t(A_C)". A normalized facet above native height has
+a positive actual birth inside its root. -/
+private theorem readable_facet_step2_birth (N : FramedNode S) (n : ℕ)
+    (f : PrimitiveFacet S N.ty) (hf : f.depth < n) :
+    ∃ g : Parser.BornFacet P,
+      g.height = n - f.depth ∧
+      g.birth = (f.birthNode n).move N.frame ∧
+      g.carrier = N.prototypeFrame n '' f.carrier ∧
+      g.birth.IsDescendant g.height N n := by
+  obtain ⟨a, hat, hac⟩ := readable_facet_step2_incidence (P := P) f
+  let g : Parser.BornFacet P := {
+    height := n - f.depth
+    positive := by omega
+    birth := (f.birthNode n).move N.frame
+    incidence := a
+    parent_type := hat.trans (f.birthFrame_spec n (Nat.le_of_lt hf)).1.symm }
+  refine ⟨g, rfl, rfl, ?_, f.depth, ?_, f.word, rfl⟩
+  · rw [readable_facet_step2_carrier]
+    change ((f.birthNode n).move N.frame).prototypeFrame (n - f.depth) ''
+      (S.σ.symm '' a.val.positioned) = N.prototypeFrame n '' f.carrier
+    rw [readable_facet_step2_frame N n f (Nat.le_of_lt hf), hac]
+    simp only [PrimitiveFacet.carrier, Set.image_image]
+    rfl
+  · change n = n - f.depth + f.depth
+    omega
+
+/-- Step 3 of the V4 proof of `readable_facet` (V4 8.3):
+"The required lists place f_C in E_C and E_P". Prepending the child's role puts its
+positioned F(A_C) facet in the parent's list. -/
+private theorem readable_facet_step3_parent_principal (M N : FramedNode S) (n : ℕ)
+    (i : S.I N.ty) (hM : M = N.child n i) (f : PrimitiveFacet S M.ty)
+    (hf : f ∈ firstBranchingFacets M.ty) (hd : f.depth ≤ n) :
+    P.InPrincipal N (n + 1) (M.prototypeFrame n '' f.carrier) := by
+  subst M
+  let e : PrimitiveFacet S N.ty := {
+    depth := f.depth + 1
+    word := ⟨i, f.word⟩
+    localCarrier := f.localCarrier
+    realization := f.realization }
+  have ha : e.birthAddress = childFirstBranchingAddress N.ty i := by
+    change (⟨f.depth + 1, ⟨i, f.word⟩⟩ : Σ r, S.RoleWord N.ty r) = _
+    exact congrArg (fun a : Σ r, S.RoleWord (N.child n i).ty r =>
+      (⟨a.1 + 1, ⟨i, a.2⟩⟩ : Σ r, S.RoleWord N.ty r)) hf
+  have he : e ∈ P.required N.ty := by
+    rw [P.required_eq, mem_required_list]
+    exact Or.inr (Or.inr ⟨i, ha⟩)
+  refine ⟨e, P.required_mem _ e he, ?_⟩
+  have hnode : (e.birthNode (n + 1)).move N.frame =
+      (f.birthNode n).move (N.child n i).frame := by
+    simp only [PrimitiveFacet.birthNode, e, Nat.add_sub_add_right]
+    dsimp only [SubstSystem.descendantNode, FramedNode.move, FramedNode.child]
+    rw [Nat.sub_add_cancel hd]
+    rfl
+  have hframe := congrArg (fun B : FramedNode S => B.prototypeFrame (n - f.depth)) hnode
+  dsimp only at hframe
+  have hedepth : e.depth ≤ n + 1 := by change f.depth + 1 ≤ n + 1; omega
+  have hh : n + 1 - e.depth = n - f.depth := by change n + 1 - (f.depth + 1) = _; omega
+  rw [← hh, readable_facet_step2_frame N (n + 1) e hedepth, hh,
+    readable_facet_step2_frame (N.child n i) n f hd] at hframe
+  change N.prototypeFrame (n + 1) '' (e.birthFrame '' (S.σ.symm '' f.localCarrier)) =
+    (N.child n i).prototypeFrame n '' (f.birthFrame '' (S.σ.symm '' f.localCarrier))
+  simpa only [Set.image_image] using
+    congrArg (fun a : E d ≃ᵃ[ℝ] E d => a '' (S.σ.symm '' f.localCarrier)) hframe
+
+/-- Step 4 of the V4 proof of `readable_facet` (V4 8.3):
+"the next letter is ... the role of C in P". A globally distinct role and the full child
+frame identify its parent. -/
+private theorem readable_facet_step4_parent_from_child
+    (M N : FramedNode S) (m : ℕ) (j : S.I M.ty) (i : S.I N.ty)
+    (hr : (⟨M.ty, j⟩ : S.Role) = ⟨N.ty, i⟩) (hc : M.child m j = N.child m i) : M = N := by
+  rcases M with ⟨T, φ⟩
+  rcases N with ⟨T', ψ⟩
+  obtain ⟨ht, hj⟩ := Sigma.mk.inj_iff.mp hr
+  dsimp only at ht hj
+  subst T'
+  have hi : j = i := eq_of_heq hj
+  subst i
+  congr 1
+  have hf := congrArg FramedNode.frame hc
+  apply AffineIsometryEquiv.ext
+  intro x
+  have hx := congrArg (fun e : Iso d => e ((S.placeChild m j).symm x)) hf
+  simpa only [FramedNode.child, AffineIsometryEquiv.coe_trans, Function.comp_apply,
+    AffineIsometryEquiv.apply_symm_apply] using hx
+
+open private host_step_step1_seed_step3_restricted_header_step1_realise
+  host_step_step1_seed_step3_restricted_header_step2_descent from Enforce.Parser.Host in
+/-- Step 4 of the V4 proof of `readable_facet` (V4 8.3):
+"Lemma 2.6(a) therefore computes the actual memberships in E_C, E_P". The child
+equations and first letter identify the source ancestor, so the geometric parent
+membership gives its mask bit. -/
+private theorem readable_facet_step4_address_mask
+    {Y : MarkedTiling (systemM S P C)} {n : ℕ}
+    (D : DecodedLevel Y n) (hD : Inv D) (N : FramedNode S)
+    (A : Parser.AssembledParent D N) (g : Parser.BornFacet P)
+    (hg : g.birth ∈ D.geometry.nodes g.height)
+    (hbirth : g.birth.IsDescendant g.height N (n + 1))
+    (hdepth : n + 1 - g.height < P.k) (hprincipal : P.InPrincipal N (n + 1) g.carrier) :
+    packetMask P g.incidence (D.stateAt g.height g.birth hg)
+      ⟨n + 1 - g.height, hdepth⟩ := by
+  have hle := D.geometry.nodes_height _ _ hg
+  obtain ⟨r, hr, w, hw⟩ := hbirth
+  have hrpos : 0 < r := by omega
+  obtain ⟨r, rfl⟩ := Nat.exists_eq_succ_of_ne_zero (Nat.ne_of_gt hrpos)
+  have hn : n = g.height + r := by omega
+  subst n
+  let B := N.child (g.height + r) w.1
+  have hB : B ∈ D.geometry.nodes (g.height + r) := by
+    change N.child (g.height + r) w.1 ∈ D.geometry.nodes (g.height + r)
+    rw [← A.child_eq w.1]
+    exact D.geometry.root_mem (A.children w.1).val (A.children w.1).property
+  obtain ⟨U, hU, hs⟩ := host_step_step1_seed_step3_restricted_header_step1_realise
+    (D.stateAt (g.height + r) B hB) (D.state_honest _ _)
+    B (g.height + r) (hD.node_type_residue _ _ hB).1 (hD.node_type_residue _ _ hB).2
+  have hnode : (S.descendantNode B.ty g.height r w.2).move B.frame = g.birth := by
+    rw [hw]
+    simp [B, SubstSystem.descendantNode, FramedNode.move, FramedNode.child,
+      AffineIsometryEquiv.trans_assoc]
+  have hdown := host_step_step1_seed_step3_restricted_header_step2_descent D hD U g.height r B hB hU hs w.2
+  dsimp only at hdown
+  rw [hnode] at hdown
+  obtain ⟨_, hGU, hstate, hanc⟩ := hdown
+  let c : U.Node := ⟨g.height + r, ⟨B, hU⟩⟩
+  have hrole : U.hierarchy.nodeRole c = ⟨N.ty, w.1⟩ := by
+    change (stateOf U P c).address ⟨0, P.k_pos⟩ = _
+    rw [hs]
+    have h := A.first_letters w.1
+    simpa only [firstRole, DecodedLevel.blockState, A.child_eq] using h
+  have hparent : (U.hierarchy.parentNode c).2.val = N := by
+    have hc := U.hierarchy.child_eq (g.height + r) c.2
+    exact readable_facet_step4_parent_from_child (U.hierarchy.parentNode c).2.val N
+      (g.height + r) (U.hierarchy.role (g.height + r) c.2) w.1 hrole hc.symm
+  let occ : PrimitiveOccurrence U P := {
+    birth := ⟨g.height, ⟨g.birth, hGU⟩⟩
+    positive := g.positive
+    incidence := g.incidence
+    parent_type := g.parent_type }
+  have hanc' : U.hierarchy.ancestor occ.birth (r + 1) = U.hierarchy.parentNode c := by
+    rw [CoherentHierarchy.ancestor, Function.iterate_succ_apply']
+    change U.hierarchy.parentNode (U.hierarchy.ancestor occ.birth r) = _
+    rw [hanc]
+  have hm : mask U P occ ⟨g.height + r + 1 - g.height, hdepth⟩ := by
+    change P.InPrincipal (U.hierarchy.ancestor occ.birth _).2.val
+      (U.hierarchy.ancestor occ.birth _).1 g.carrier
+    dsimp only [Fin.val_mk]
+    have he : g.height + r + 1 - g.height = r + 1 := by omega
+    rw [he, hanc', hparent]
+    exact hprincipal
+  have hmask := (packet_mask_fn U P occ ⟨g.height + r + 1 - g.height, hdepth⟩).mp hm
+  change packetMask P g.incidence (stateOf U P ⟨g.height, ⟨g.birth, hGU⟩⟩) _ at hmask
+  simpa only [hstate] using hmask
+
 /-- R8, V4 3.8, replacement V4 8.3: every assembled child has a readable facet
 in F(A_C) ∩ E_C ∩ E_P, born inside C, with both slots PRESENT.
 The child supplies a first branching descendant even for a placeholder type;
@@ -975,7 +1209,62 @@ theorem readable_facet (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (n : ℕ) (hn : P.K ≤ n) (D : DecodedLevel Y n) (hD : Inv D)
     (N : FramedNode S) (A : Parser.AssembledParent D N) (i : S.I N.ty) :
     Nonempty (Parser.ReadableFacet D N A i) := by
-  sorry
+  obtain ⟨f, hf⟩ := firstBranchingFacets_nonempty (A.children i).val.node.ty
+  have hfp : f.depth ≤ P.p := readable_facet_step1_depth _ f hf
+  have hfn : f.depth < n := by have := P.K_placeholder; omega
+  obtain ⟨g, hheight, hbirth, hcarrier, hins⟩ :=
+    readable_facet_step2_birth (P := P) (A.children i).val.node n f hfn
+  have hcdepth : n - g.height < P.k := by have := P.k_lower; omega
+  have hpdepth : n + 1 - g.height < P.k := by have := P.k_lower; omega
+  have hchild : P.InPrincipal (A.children i).val.node n g.carrier := by
+    refine ⟨f, P.required_mem _ f ?_, hcarrier.symm⟩
+    rw [P.required_eq, mem_required_list]
+    exact Or.inr (Or.inl hf)
+  have hparent : P.InPrincipal N (n + 1) g.carrier := by
+    rw [hcarrier]
+    exact readable_facet_step3_parent_principal _ N n i (A.child_eq i) f hf
+      (Nat.le_of_lt hfn)
+  have hchild_mem := D.geometry.root_mem (A.children i).val (A.children i).property
+  have hg : g.birth ∈ D.geometry.nodes g.height :=
+    D.geometry.descendant_mem n g.height _ _ hchild_mem hins
+  have hinp : g.birth.IsDescendant g.height N (n + 1) := by
+    apply Parser.descendant_trans _ (A.children i).val.node _ _ n _ hins
+    rw [A.child_eq i]
+    exact Parser.child_descendant N n i
+  obtain ⟨hl, q, hq, hchild_decode⟩ :=
+    hD.I4 n (A.children i).val.node hchild_mem g hins hcdepth hchild
+  obtain ⟨_, _, _, q', hhon, hi, hq', _, hhead⟩ := two_sided_constancy Y hY n hn D hD g hg
+  have he : q' = q := Option.some.inj (hq'.symm.trans hq)
+  subst q'
+  have hm : q.mask ⟨n + 1 - g.height, hpdepth⟩ := by
+    change packetMask P q.incidence q.head _
+    rw [hi, hhead]
+    exact readable_facet_step4_address_mask D hD N A g hg hinp hpdepth hparent
+  have hj := (honest_packet_admissible P q hhon).2.2.2.1 _ hm
+  refine ⟨{
+    facet := f
+    first_branching := hf
+    depth_lt := hfn
+    birthFacet := g
+    height_eq := hheight
+    birth_eq := hbirth
+    carrier_eq := hcarrier
+    inside_child := hins
+    child_principal := hchild
+    parent_principal := hparent
+    childSlot := ⟨n - g.height, hcdepth⟩
+    childSlot_eq := rfl
+    parentSlot := ⟨n + 1 - g.height, hpdepth⟩
+    parentSlot_eq := rfl
+    constancy := hl
+    packet := q
+    attached := hq
+    honest := hhon
+    child_decode := hchild_decode
+    parentState := q.reconstructed ⟨n + 1 - g.height, hpdepth⟩
+    parent_decode := ?_ }⟩
+  unfold decode
+  exact if_pos ⟨hj, hm⟩
 
 namespace Parser
 

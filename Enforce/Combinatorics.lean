@@ -370,11 +370,79 @@ theorem patternRequests_countable {X : Type} (ρ : HonestSource S → E d → X)
 def translationStabilizer (T : Tiling S) : Set (E d) :=
   {v | T.move (translation v) = T}
 
+/-- V4 1.27: equality of translates of a nonempty compact carrier forces the
+translation vectors to agree ("impossible for a bounded carrier and v ≠ 0").
+Maximizing the linear functional in direction `v - w` excludes a nonzero period. -/
+private lemma translation_stabilizer_discrete_compact_translates (K : Set (E d)) (hK : IsCompact K)
+    (hKne : K.Nonempty) (v w : E d)
+    (h : translation v '' K = translation w '' K) : v = w := by
+  obtain ⟨x, hx, hmax⟩ := hK.exists_isMaxOn hKne
+    (f := fun x => inner ℝ (v - w) x) (by fun_prop)
+  have hxv : translation v x ∈ translation w '' K := by
+    rw [← h]
+    exact Set.mem_image_of_mem _ hx
+  obtain ⟨y, hy, hyx⟩ := hxv
+  have hyx' : y + w = x + v := hyx
+  have hy_eq : y = x + (v - w) := by
+    rw [← add_sub_assoc, eq_sub_iff_add_eq]
+    exact hyx'
+  have hle := hmax hy
+  dsimp at hle
+  rw [hy_eq, inner_add_right] at hle
+  have hz : v - w = 0 := real_inner_self_nonpos.mp (by linarith)
+  exact sub_eq_zero.mp hz
+
 /-- C2, V4 1.27: bounded full-dimensional tiles force a discrete, countable
 translation stabilizer. This is proved from the tiling hypotheses, not assumed. -/
 theorem translation_stabilizer_discrete (T : Tiling S) :
     DiscreteTopology (translationStabilizer T) ∧ Countable (translationStabilizer T) := by
-  sorry
+  obtain ⟨t, ht, _⟩ := T.cover 0
+  have hK : IsCompact t.carrier := by
+    rw [t.frame_carrier]
+    exact (S.proto t.ty).compact.image t.frame.continuous
+  have hne : (interior t.carrier).Nonempty := by
+    rw [t.frame_carrier]
+    change (interior (t.frame.toHomeomorph '' (S.proto t.ty).carrier)).Nonempty
+    rw [← t.frame.toHomeomorph.image_interior]
+    exact (S.proto t.ty).interior_nonempty.image _
+  obtain ⟨x, hx⟩ := hne
+  obtain ⟨r, hr, hball⟩ := Metric.isOpen_iff.mp isOpen_interior x hx
+  have hdiscrete : DiscreteTopology (translationStabilizer T) := by
+    apply DiscreteTopology.of_forall_le_dist hr
+    intro v w hvw
+    by_contra! hdist
+    apply hvw
+    apply Subtype.ext
+    have hv : t.move (translation v.val) ∈ T.tiles := by
+      have hm : t.move (translation v.val) ∈ (T.move (translation v.val)).tiles :=
+        ⟨t, ht, rfl⟩
+      rw [v.property] at hm
+      exact hm
+    have hw : t.move (translation w.val) ∈ T.tiles := by
+      have hm : t.move (translation w.val) ∈ (T.move (translation w.val)).tiles :=
+        ⟨t, ht, rfl⟩
+      rw [w.property] at hm
+      exact hm
+    have hptv : translation w.val x ∈ interior (t.move (translation v.val)).carrier := by
+      rw [PlacedTile.move_carrier]
+      change translation w.val x ∈ interior ((translation v.val).toHomeomorph '' t.carrier)
+      rw [← (translation v.val).toHomeomorph.image_interior]
+      refine ⟨x + (w.val - v.val), hball ?_, ?_⟩
+      · simpa [Metric.mem_ball, dist_eq_norm, add_sub_cancel_left, norm_sub_rev] using hdist
+      · change x + (w.val - v.val) + v.val = x + w.val
+        abel
+    have hptw : translation w.val x ∈ interior (t.move (translation w.val)).carrier := by
+      rw [PlacedTile.move_carrier]
+      change translation w.val x ∈ interior ((translation w.val).toHomeomorph '' t.carrier)
+      rw [← (translation w.val).toHomeomorph.image_interior]
+      exact ⟨x, hx, rfl⟩
+    have htile : t.move (translation v.val) = t.move (translation w.val) := by
+      by_contra hne
+      exact Set.disjoint_left.mp (T.disjoint hv hw hne) hptv hptw
+    apply translation_stabilizer_discrete_compact_translates t.carrier hK ⟨x, interior_subset hx⟩
+    simpa only [PlacedTile.move_carrier] using congrArg PlacedTile.carrier htile
+  letI := hdiscrete
+  exact ⟨hdiscrete, TopologicalSpace.separableSpace_iff_countable.mp inferInstance⟩
 
 /-- C2, V4 1.27: any countable family of honest witnesses can be translated
 so that their underlying physical tilings are pairwise distinct. Translated sources

@@ -262,7 +262,25 @@ private lemma native_disjoint_step2_same_child {d : ℕ} [Fact (2 ≤ d)] (S : S
                    (interior ((S.nativeTile (S.child A i).ty n w').carrier 0))) :
     Disjoint (interior ((S.nativeTile A (n + 1) ⟨i, v'⟩).carrier 0))
              (interior ((S.nativeTile A (n + 1) ⟨i, w'⟩).carrier 0)) := by
-  sorry
+  have H1 : (S.nativeTile A (n + 1) ⟨i, v'⟩).carrier 0 =
+    S.placeChild n i '' (S.nativeTile (S.child A i).ty n v').carrier 0 := by
+    dsimp [nativeTile, descendantNode, FramedNode.carrier, placedSet, FramedNode.move]
+    rw [← Set.image_comp]
+    have hz : 0 + n = n := by omega
+    simp_rw [hz]
+  have H2 : (S.nativeTile A (n + 1) ⟨i, w'⟩).carrier 0 =
+    S.placeChild n i '' (S.nativeTile (S.child A i).ty n w').carrier 0 := by
+    dsimp [nativeTile, descendantNode, FramedNode.carrier, placedSet, FramedNode.move]
+    rw [← Set.image_comp]
+    have hz : 0 + n = n := by omega
+    simp_rw [hz]
+  rw [H1, H2]
+  have e1 : interior (⇑(S.placeChild n i) '' (S.nativeTile (S.child A i).ty n v').carrier 0) = ⇑(S.placeChild n i) '' interior ((S.nativeTile (S.child A i).ty n v').carrier 0) := by
+    exact (Homeomorph.image_interior (S.placeChild n i).toHomeomorph ((S.nativeTile (S.child A i).ty n v').carrier 0)).symm
+  have e2 : interior (⇑(S.placeChild n i) '' (S.nativeTile (S.child A i).ty n w').carrier 0) = ⇑(S.placeChild n i) '' interior ((S.nativeTile (S.child A i).ty n w').carrier 0) := by
+    exact (Homeomorph.image_interior (S.placeChild n i).toHomeomorph ((S.nativeTile (S.child A i).ty n w').carrier 0)).symm
+  rw [e1, e2]
+  exact Set.disjoint_image_of_injective (S.placeChild n i).injective ih
 
 /-- S3, V4 §1.0 (H3)--(H4): distinct role words have disjoint native interiors. -/
 theorem native_disjoint (A : S.ι) (n : ℕ) :

@@ -12208,7 +12208,7 @@ have the common-listed vertex needed for a same-parent link. -/
 theorem sameParent_seed {A : S.ι} (f g : PrimitiveFacet S A)
     (hparent : f.birthAddress = g.birthAddress)
     (hmeet : (f.carrier ∩ g.carrier).Nonempty) : SameParentLink f g := by
-  sorry
+  exact birth_ascent_routing_step2_same_address_seed f g hparent hmeet
 
 /-- P21, V4 1.25: each same-parent intersection is a union of cells common
 to the owning child complexes; at every point one can name such a minimal cell. -/

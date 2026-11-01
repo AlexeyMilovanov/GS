@@ -109,6 +109,39 @@ def certificateColour (C : ClusterData S P) (D : CertificateSymbol S P)
     augmentedColour C l (l.position.symm x)
     else .boundary
 
+/-- Step 1 of the V4 proof of `certificateColour_leaf` (V4 2.11):
+"compatible on shared boundaries: all @". Distinct native leaves meet on their frontiers. -/
+private theorem certificateColour_leaf_step1_frontier (D : CertificateSymbol S P)
+    (v w : S.RoleWord D.val.ty P.K) (hvw : v ≠ w) (x : E d)
+    (hxv : x ∈ placedSet (LeafType.position (⟨D, v⟩ : LeafType P))
+      (S.proto (LeafType.prototype (⟨D, v⟩ : LeafType P))).carrier)
+    (hxw : x ∈ placedSet (LeafType.position (⟨D, w⟩ : LeafType P))
+      (S.proto (LeafType.prototype (⟨D, w⟩ : LeafType P))).carrier) :
+    (LeafType.position (⟨D, v⟩ : LeafType P)).symm x ∈
+      frontier (S.proto (LeafType.prototype (⟨D, v⟩ : LeafType P))).carrier := by
+  let l : LeafType P := ⟨D, v⟩
+  let u : LeafType P := ⟨D, w⟩
+  have hd : Disjoint (interior (placedSet l.position (S.proto l.prototype).carrier))
+      (interior (placedSet u.position (S.proto u.prototype).carrier)) := by
+    simpa [l, u, LeafType.position, LeafType.prototype, FramedNode.carrier,
+      SubstSystem.supertile] using S.native_disjoint D.val.ty P.K hvw
+  have hu : closure (interior (placedSet u.position (S.proto u.prototype).carrier)) =
+      placedSet u.position (S.proto u.prototype).carrier := by
+    change closure (interior (u.position.toHomeomorph '' _)) = u.position.toHomeomorph '' _
+    rw [← u.position.toHomeomorph.image_interior,
+      ← u.position.toHomeomorph.image_closure, (S.proto u.prototype).regularClosed]
+  have hd' := hd.closure_right isOpen_interior
+  rw [hu] at hd'
+  have hfront : x ∈ frontier (placedSet l.position (S.proto l.prototype).carrier) :=
+    ⟨subset_closure hxv, fun hi => Set.disjoint_left.mp hd' hi hxw⟩
+  change x ∈ frontier (l.position.toHomeomorph '' (S.proto l.prototype).carrier) at hfront
+  rw [← l.position.toHomeomorph.image_frontier] at hfront
+  obtain ⟨y, hy, hxy⟩ := hfront
+  change l.position y = x at hxy
+  change l.position.symm x ∈ frontier (S.proto l.prototype).carrier
+  rw [← hxy, AffineIsometryEquiv.symm_apply_apply]
+  exact hy
+
 /-- M3, V4 2.11: gluing agrees with each native leaf at every shared point. -/
 theorem certificateColour_leaf (C : ClusterData S P) (D : CertificateSymbol S P)
     (w : S.RoleWord D.val.ty P.K) (x : E d)
@@ -116,7 +149,19 @@ theorem certificateColour_leaf (C : ClusterData S P) (D : CertificateSymbol S P)
       (S.proto (LeafType.prototype (⟨D, w⟩ : LeafType P))).carrier) :
     certificateColour C D x = augmentedColour C (⟨D, w⟩ : LeafType P)
       ((LeafType.position (⟨D, w⟩ : LeafType P)).symm x) := by
-  sorry
+  classical
+  have h : ∃ v : S.RoleWord D.val.ty P.K,
+      x ∈ placedSet (LeafType.position (⟨D, v⟩ : LeafType P))
+        (S.proto (LeafType.prototype (⟨D, v⟩ : LeafType P))).carrier := ⟨w, hx⟩
+  unfold certificateColour
+  rw [dif_pos h]
+  by_cases hw : Classical.choose h = w
+  · simp only [hw]
+  · have hv := Classical.choose_spec h
+    rw [augmentedMarking_boundary C _ _
+      (certificateColour_leaf_step1_frontier D _ _ hw x hv hx),
+      augmentedMarking_boundary C _ _
+        (certificateColour_leaf_step1_frontier D _ _ (Ne.symm hw) x hx hv)]
 
 /-- M3, V4 2.11: CORE supports are compact, as closed subsets of supertiles. -/
 theorem coreCarrier_compact (C : ClusterData S P) (D : CertificateSymbol S P) :

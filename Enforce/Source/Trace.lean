@@ -794,7 +794,16 @@ private theorem facet_dichotomy_step1b_dim_sub (P C : FramedNode S) (n h : ℕ)
     (f : FacetName S C.ty) (F : Cell d)
     (hsub : C.cell h f.val ⊆ P.cell n F) :
     f.val.dim ≤ F.dim := by
-  sorry
+  have hd1 : Module.finrank ℝ (affineSpan ℝ (C.cell h f.val)).direction = f.val.dim := by
+    change Module.finrank ℝ (affineSpan ℝ ((C.prototypeFrame h).toAffineMap '' f.val.carrier)).direction = f.val.dim
+    rw [← AffineSubspace.map_span, AffineSubspace.map_direction]
+    exact (LinearEquiv.finrank_map_eq (C.prototypeFrame h).linear _).trans f.val.flat.dimension
+  have hd2 : Module.finrank ℝ (affineSpan ℝ (P.cell n F)).direction = F.dim := by
+    change Module.finrank ℝ (affineSpan ℝ ((P.prototypeFrame n).toAffineMap '' F.carrier)).direction = F.dim
+    rw [← AffineSubspace.map_span, AffineSubspace.map_direction]
+    exact (LinearEquiv.finrank_map_eq (P.prototypeFrame n).linear _).trans F.flat.dimension
+  rw [← hd1, ← hd2]
+  exact Submodule.finrank_mono (AffineSubspace.direction_le (affineSpan_mono ℝ hsub))
 
 private theorem facet_dichotomy_step1b_dim (P C : FramedNode S) (n h : ℕ)
     (f : FacetName S C.ty) (F : Cell d)

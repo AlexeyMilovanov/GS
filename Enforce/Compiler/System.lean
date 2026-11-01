@@ -631,7 +631,16 @@ private lemma cluster_rigidity_step4_affine_span (C : ClusterData S P)
     (l : LeafType P) (κ : ClusterKind l) (ψ φ : Iso d)
     (h_centers : ∀ a, ψ (C.centre l κ a) = φ (C.centre l κ a)) :
     ψ = φ := by
-  sorry
+  have htot : affineSpan ℝ (Set.range (C.centre l κ)) = ⊤ := by
+    rw [AffineIndependent.affineSpan_eq_top_iff_card_eq_finrank_add_one
+      (C.independent l κ)]
+    change Fintype.card (Fin (d + 1)) =
+      Module.finrank ℝ (EuclideanSpace ℝ (Fin d)) + 1
+    simp
+  apply AffineIsometryEquiv.toAffineEquiv_injective
+  apply AffineEquiv.ext_on htot ψ.toAffineEquiv φ.toAffineEquiv
+  rintro _ ⟨a, rfl⟩
+  exact h_centers a
 
 /-- M5, V4 2.13: agreement on an entire cluster forces one actual tile of the
 exact leaf type in the exact source frame. This applies to every marked tiling,

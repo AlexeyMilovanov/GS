@@ -5042,7 +5042,44 @@ theorem HPiCone_finite_union {α : Type} [Finite α] (K : α → Set (E d))
 /-- P11, V4 1.16(b): the cone language is closed under arbitrary finite intersections. -/
 theorem HPiCone_finite_inter {α : Type} [Finite α] (K : α → Set (E d))
     (hK : ∀ a, HPiCone S.hPi (K a)) : HPiCone S.hPi (⋂ a, K a) := by
-  sorry
+  classical
+  cases nonempty_fintype α
+  choose s_f s_eq s_prop using hK
+  let big_s := Fintype.piFinset s_f
+  use big_s.image (fun g => Finset.biUnion Finset.univ (fun a => g a))
+  constructor
+  · ext x
+    simp only [Set.mem_iInter, Set.mem_iUnion, Finset.mem_image, Finset.mem_biUnion, Finset.mem_univ, true_and, exists_prop, exists_exists_and_eq_and]
+    constructor
+    · intro hx
+      have hx' : ∀ a, ∃ p ∈ s_f a, ∀ C ∈ p, x ∈ C := by
+        intro a
+        have h1 := hx a
+        rw [s_eq a] at h1
+        simp only [Set.mem_iUnion, Set.mem_iInter] at h1
+        rcases h1 with ⟨p, hp1, hp2⟩
+        exact ⟨p, hp1, hp2⟩
+      choose g hg hg_prop using hx'
+      use g
+      constructor
+      · rw [Fintype.mem_piFinset]
+        exact hg
+      · intro C hC
+        rcases hC with ⟨a, ha⟩
+        exact hg_prop a C ha
+    · intro ⟨g, hg, hg_prop⟩ a
+      rw [s_eq a]
+      simp only [Set.mem_iUnion, Set.mem_iInter]
+      use g a
+      rw [Fintype.mem_piFinset] at hg
+      exact ⟨hg a, fun C hC => hg_prop C ⟨a, hC⟩⟩
+  · intro p hp C hC
+    simp only [Finset.mem_image] at hp
+    rcases hp with ⟨g, hg, rfl⟩
+    simp only [Finset.mem_biUnion, Finset.mem_univ, true_and] at hC
+    rcases hC with ⟨a, ha⟩
+    rw [Fintype.mem_piFinset] at hg
+    exact s_prop a (g a) (hg a) C ha
 
 /-- P11, V4 1.16(b'): the tangent cone of a finite union of compatible listed
 cells at a common listed anchor remains an `HΠ`-cone, in all dimensions. -/

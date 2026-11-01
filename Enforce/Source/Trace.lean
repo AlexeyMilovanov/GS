@@ -1399,7 +1399,27 @@ This node form also applies separately to every member of a compatible patch. -/
 theorem commonListed_inherited (P C : FramedNode S) (n h : ℕ)
     (hC : C.IsDescendant h P n) (p : E d) (hp : P.Lists n p)
     (hpC : p ∈ C.carrier h) : C.Lists h p := by
-  sorry
+  have ⟨r, h_eq, hw⟩ := hC
+  subst h_eq
+  clear hC
+  revert P hp
+  induction' r with k ih
+  · intro P hw hp
+    have hC : C.IsDescendant h P h := ⟨0, rfl, hw⟩
+    have hCP : C = P := hereditary_trace_step7_zero P C h hC
+    subst hCP
+    exact hp
+  · intro P hw hp
+    have hC : C.IsDescendant h P (h + (k + 1)) := ⟨k + 1, rfl, hw⟩
+    obtain ⟨i, hC'⟩ := hereditary_trace_step7_peel P C h k hC
+    have hp_child_carrier : p ∈ (P.child (h + k) i).carrier (h + k) := by
+      exact hereditary_trace_step7_carrier _ _ h k hC' hpC
+    have hp_child : (P.child (h + k) i).Lists (h + k) p := by
+      exact vertex_inherited P (h + k) p hp i hp_child_carrier
+    have ⟨r', hr', hw'⟩ := hC'
+    have hk : r' = k := by omega
+    subst r'
+    exact ih (P.child (h + k) i) hw' hp_child
 
 /-- P5, V4 1.5(c): a listed vertex on an internal facet is common-listed
 in the entire immediate subdivision, including children meeting only at that vertex. -/

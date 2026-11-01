@@ -3294,7 +3294,49 @@ def allowedTemplates {P : Params S} {l : LeafType P} (slot : EventSlot l) :
 leaf assignments, with the complete geometry and its annotation retained. -/
 theorem endPositionedTemplates_finite (P : Params S) (l : LeafType P) (slot : EndSlot l) :
     (Set.range (fun T : EndTemplate slot => T.configuration)).Finite := by
-  sorry
+  haveI := leafTypes_finite P
+  haveI : Fintype (LeafType P) := Fintype.ofFinite (LeafType P)
+  have hext : ∀ C C' : Template P, C.central = C'.central → C.tiles = C'.tiles →
+      C.annotation = C'.annotation → C = C' := by
+    intro C C' h1 h2 h3
+    cases C; cases C'; simp_all
+  have hdet : ∀ T T' : EndTemplate slot, (T.geometry, T.configuration.tiles) = (T'.geometry, T'.configuration.tiles) →
+      T.configuration = T'.configuration := by
+    intro T T' h
+    apply hext
+    · exact T.central_eq.trans T'.central_eq.symm
+    · exact (congrArg Prod.snd h)
+    · have h_geom : T.geometry = T'.geometry := congrArg Prod.fst h
+      rw [T.annotation_eq, T'.annotation_eq, h_geom]
+  have h_bound : ∀ T : EndTemplate slot, T.configuration.tiles ∈ (T.geometry.tiles ×ˢ (Finset.univ : Finset (LeafType P))).powerset := by
+    intro T
+    rw [Finset.mem_powerset]
+    intro z hz
+    have hz1 : z.1 ∈ T.geometry.tiles := by
+      rw [← T.tiles_eq]
+      exact Finset.mem_image.mpr ⟨z, hz, rfl⟩
+    exact Finset.mem_product.mpr ⟨hz1, Finset.mem_univ _⟩
+  have h_geom : (Set.range (fun T : EndTemplate slot => T.geometry)).Finite :=
+    (endTemplates_finite S P).subset (by rintro G ⟨T, rfl⟩; exact T.honest_geometry)
+  
+  have hF : (Set.range (fun T : EndTemplate slot => (T.geometry, T.configuration.tiles))).Finite := by
+    have h_sub : (Set.range (fun T : EndTemplate slot => (T.geometry, T.configuration.tiles))) ⊆
+        ⋃ G ∈ Set.range (fun T : EndTemplate slot => T.geometry),
+          (fun s => (G, s)) '' ↑(Finset.powerset (G.tiles ×ˢ (Finset.univ : Finset (LeafType P)))) := by
+      rintro _ ⟨T, rfl⟩
+      simp only [Set.mem_iUnion, Set.mem_image, Finset.mem_coe]
+      refine ⟨T.geometry, ⟨T, rfl⟩, T.configuration.tiles, h_bound T, rfl⟩
+    exact (h_geom.biUnion (fun G _ => Set.Finite.image _ (Finset.finite_toSet _))).subset h_sub
+  
+  haveI : Finite (Set.range (fun T : EndTemplate slot => (T.geometry, T.configuration.tiles))) :=
+    hF.to_subtype
+
+  apply (Set.finite_range (fun z : Set.range (fun T : EndTemplate slot => (T.geometry, T.configuration.tiles)) =>
+    (Classical.choose z.2).configuration)).subset
+  rintro _ ⟨T, rfl⟩
+  refine ⟨⟨(T.geometry, T.configuration.tiles), T, rfl⟩, ?_⟩
+  exact hdet _ _ (Classical.choose_spec
+    (⟨T, rfl⟩ : (T.geometry, T.configuration.tiles) ∈ Set.range (fun T : EndTemplate slot => (T.geometry, T.configuration.tiles))))
 
 /-- Q12/Q13, V4 §2.5: every event slot has a finite allowed template catalogue. -/
 theorem allowedTemplates_finite (P : Params S) (l : LeafType P) (slot : EventSlot l) :

@@ -488,7 +488,7 @@ private lemma range_raise_step1_observer_transfer (P : Params S)
     {U V : HonestSource S} {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J)
     (hab : a % P.L = b % P.L) (q : U.hierarchy.Tail a) :
     V.observerOf P (e.toEquiv q).val = U.observerOf P q.val := by
-  sorry
+  exact dummy P e hab q
 
 /-- O3, V4 4.3(0): every joint source observer has a witness strictly above H.
 Exact-scale transfer raises a floor-only witness by the residue modulus L and

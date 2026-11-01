@@ -2188,7 +2188,45 @@ This uses the actual standard leaves and their shared @ boundaries, independentl
 of an already constructed hierarchy on the output. -/
 theorem core_rule_agree (x : (Compiler.coreRule C B.certificate).carrier) :
     Y.marking (B.frame x) = (Compiler.coreRule C B.certificate).mark x := by
-  sorry
+  have hx := x.property
+  have ht_x : ↑x ∈ Compiler.coreCarrier C B.certificate := hx
+  have hx_cov : ↑x ∈ S.supertile P.K B.certificate.val.ty := by
+    exact Set.diff_subset hx
+  rw [← SubstSystem.native_cover] at hx_cov
+  simp only [Set.mem_iUnion] at hx_cov
+  obtain ⟨w, hw⟩ := hx_cov
+  have hw2 : ↑x ∈ placedSet (LeafType.position (⟨B.certificate, w⟩ : LeafType P))
+        (S.proto (LeafType.prototype (⟨B.certificate, w⟩ : LeafType P))).carrier := by
+    change ↑x ∈ (S.nativeTile B.certificate.val.ty P.K w).carrier 0 at hw
+    dsimp [FramedNode.carrier, placedSet] at hw
+    have h_c_0 : S.supertile 0 (S.nativeTile B.certificate.val.ty P.K w).ty = (S.proto (S.nativeTile B.certificate.val.ty P.K w).ty).carrier := by
+      ext y
+      dsimp [SubstSystem.supertile]
+      simp
+    change ↑x ∈ placedSet (S.nativeTile B.certificate.val.ty P.K w).frame (S.proto (S.nativeTile B.certificate.val.ty P.K w).ty).carrier
+    rw [← h_c_0]
+    exact hw
+  have ht := B.leaf_mem w
+  have hx_t : B.frame ↑x ∈ (B.leaf w).carrier := by
+    change B.frame ↑x ∈ placedSet ((LeafType.position ⟨B.certificate, w⟩).trans B.frame) (S.proto (LeafType.prototype ⟨B.certificate, w⟩)).carrier
+    dsimp [placedSet]
+    dsimp [placedSet] at hw2
+    obtain ⟨y, hy, hy_eq⟩ := hw2
+    exact ⟨y, hy, by change B.frame ((LeafType.position ⟨B.certificate, w⟩) y) = B.frame ↑x; rw [hy_eq]⟩
+  have h_eq1 : Y.marking (B.frame ↑x) = (B.leaf w).mark ⟨B.frame ↑x, hx_t⟩ := Y.marking_eq_tile (B.leaf w) ht (B.frame ↑x) hx_t
+  rw [h_eq1]
+  change _ = Compiler.certificateColour C B.certificate x
+  have h_eq2 : Compiler.certificateColour C B.certificate x = augmentedColour C (⟨B.certificate, w⟩ : LeafType P) ((LeafType.position (⟨B.certificate, w⟩ : LeafType P)).symm ↑x) := by
+    exact Compiler.certificateColour_leaf C B.certificate w ↑x hw2
+  rw [h_eq2]
+  have h_eq3 : (B.leaf w).mark ⟨B.frame ↑x, hx_t⟩ = augmentedColour C (⟨B.certificate, w⟩ : LeafType P) ((LeafType.position (⟨B.certificate, w⟩ : LeafType P)).symm ↑x) := by
+    change (placedLeaf C ⟨B.certificate, w⟩ ((LeafType.position ⟨B.certificate, w⟩).trans B.frame)).mark ⟨B.frame ↑x, hx_t⟩ = _
+    change augmentedColour C ⟨B.certificate, w⟩ ((AffineIsometryEquiv.trans (LeafType.position ⟨B.certificate, w⟩) B.frame).symm (B.frame ↑x)) = _
+    have h_symm : (AffineIsometryEquiv.trans (LeafType.position ⟨B.certificate, w⟩) B.frame).symm (B.frame ↑x) = ((LeafType.position ⟨B.certificate, w⟩).symm ↑x) := by
+      show (LeafType.position ⟨B.certificate, w⟩).symm (B.frame.symm (B.frame ↑x)) = _
+      rw [AffineIsometryEquiv.symm_apply_apply]
+    rw [h_symm]
+  exact h_eq3
 
 /-- M8, V4 2.17(a): every leaf's certificate-frame formula recovers the block frame. -/
 theorem frame_from_leaf (w : S.RoleWord B.certificate.val.ty P.K) :

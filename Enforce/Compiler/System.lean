@@ -1067,12 +1067,41 @@ private lemma honest_move_exists_step2_hierarchy_step4_tree (U : HonestSource S)
     rw [h_eq]
     rfl
 
+open private moveEquiv exists_honest_candidates exists_honest_step7_candidate_move exists_honest_step7_node_move_carrier from Enforce.Tiling in
 private lemma honest_move_exists_step2_hierarchy_step5_native (U : HonestSource S) (g : Iso d) :
     let nodes' := fun n => (fun N : FramedNode S => N.move g) '' U.hierarchy.nodes n;
     ∀ n N, N ∈ nodes' n →
       {t | t ∈ (U.tiling.move g).tiles ∧ t.carrier ⊆ N.carrier n} =
         {t | ∃ w : S.RoleWord N.ty n, ((S.nativeTile N.ty n w).move N.frame).toTile = t} := by
-  sorry
+  dsimp only
+  rintro n _ ⟨M, hM, rfl⟩
+  ext t
+  obtain ⟨u, hu⟩ := (moveEquiv (S := S) g).surjective t
+  change u.move g = t at hu
+  subst t
+  have hm : u.move g ∈ (U.tiling.move g).tiles ↔
+      u ∈ U.tiling.tiles := by
+    change u.move g ∈
+      (fun v : PlacedTile S => v.move g) '' U.tiling.tiles ↔ _
+    constructor
+    · rintro ⟨v, hv, he⟩
+      have hvu : v = u := (moveEquiv (S := S) g).injective he
+      exact hvu ▸ hv
+    · intro hu
+      exact ⟨u, hu, rfl⟩
+  have hc : (u.move g).carrier ⊆ (M.move g).carrier n ↔
+      u.carrier ⊆ M.carrier n := by
+    rw [PlacedTile.move_carrier,
+      exists_honest_step7_node_move_carrier]
+    exact Set.image_subset_image_iff g.injective
+  have hn : (u ∈ U.tiling.tiles ∧ u.carrier ⊆ M.carrier n) ↔
+      M ∈ exists_honest_candidates u n :=
+    Set.ext_iff.mp (U.hierarchy.native_tiles n M hM) u
+  change (u.move g ∈ (U.tiling.move g).tiles ∧
+      (u.move g).carrier ⊆ (M.move g).carrier n) ↔
+    M.move g ∈ exists_honest_candidates (u.move g) n
+  exact (and_congr hm hc).trans
+    (hn.trans (exists_honest_step7_candidate_move u n M g).symm)
 
 /-- Step 2 of the V4 proof of `honest_move_exists` (V4 1.11, 2.14(d)): moving the entire coherent hierarchy preserves coherence. -/
 private lemma honest_move_exists_step2_hierarchy (U : HonestSource S) (g : Iso d) :

@@ -9100,7 +9100,41 @@ theorem principalFacets_spec (A : S.ι) (k : ℕ) (E₀ : Set (E d))
     (principalFacets S A k E₀).Finite ∧
       (∀ f ∈ principalFacets S A k E₀, f.carrier ⊆ E₀) ∧
       E₀ = ⋃ f ∈ principalFacets S A k E₀, f.carrier := by
-  sorry
+  have H_subset : ∀ f ∈ principalFacets S A k E₀, f.carrier ⊆ E₀ := by
+    intro f hf
+    obtain ⟨x, hx_skel, hx_eq⟩ := hE
+    have hf_subset : f.carrier ⊆ internalSkeleton S A k := by
+      apply principal_component_step5_carrier_subset
+      exact hf.1
+    obtain ⟨y, hy_f, hy_E₀⟩ := hf.2
+    rw [hx_eq] at hy_E₀ ⊢
+    rw [connectedComponentIn_eq hy_E₀]
+    have h_f_conn : IsConnected f.carrier := principal_component_step5_carrier_connected f
+    exact h_f_conn.isPreconnected.subset_connectedComponentIn hy_f hf_subset
+  constructor
+  · apply Set.Finite.subset (primitiveFacets_finite S A k)
+    rintro f hf
+    exact hf.1
+  · constructor
+    · exact H_subset
+    · apply subset_antisymm
+      · intro x hx
+        obtain ⟨y, hy_skel, hy_eq⟩ := hE
+        rw [hy_eq] at hx
+        have hx_skel_2 : x ∈ internalSkeleton S A k := connectedComponentIn_subset _ _ hx
+        rw [internalSkeleton_eq_primitives] at hx_skel_2
+        simp only [Set.mem_iUnion, Subtype.exists, exists_prop] at hx_skel_2
+        rcases hx_skel_2 with ⟨f, hf_depth, hx_f⟩
+        have hf_in_E₀ : (f.carrier ∩ E₀).Nonempty := by
+          use x
+          exact ⟨hx_f, by { rw [hy_eq]; exact hx }⟩
+        have hf_mem : f ∈ principalFacets S A k E₀ := ⟨hf_depth, hf_in_E₀⟩
+        simp only [Set.mem_iUnion, exists_prop]
+        exact ⟨f, hf_mem, hx_f⟩
+      · intro x hx
+        simp only [Set.mem_iUnion, exists_prop] at hx
+        rcases hx with ⟨f, hf, hx_f⟩
+        exact H_subset f hf hx_f
 
 /-- Step 1 of the V4 proof of `principal_component_refines` (V4 1.24): the
 internal skeleton increases with the depth (it is the union of the primitive

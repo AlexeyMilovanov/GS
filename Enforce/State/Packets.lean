@@ -922,10 +922,50 @@ theorem packet_top_spec (P : Params S) (q : Packet P) (hq : q ∈ honestPackets 
 /-- Q8/Q9, V4 8.1: decoding is injective on the honest compressed alphabet.
 Together with `decode_spec` this is the lossless equivalence with Definition 2.5;
 arbitrary raw tuples are not declared admissible. -/
+private theorem packet_eq_of_fields {P : Params S} (q q' : Packet P)
+    (hι : q.incidence = q'.incidence) (hj : q.jstar = q'.jstar)
+    (hs : q.sstar = q'.sstar)
+    (hr : ∀ (a : ℕ) (h : a < q.jstar.val) (h' : a < q'.jstar.val),
+      q.roles ⟨a, h⟩ = q'.roles ⟨a, h'⟩) : q = q' := by
+  obtain ⟨ι, j, s, r⟩ := q
+  obtain ⟨ι', j', s', r'⟩ := q'
+  dsimp only at hι hj hs hr
+  subst hι hj hs
+  have : r = r' := by
+    funext a
+    exact hr a.1 a.2 a.2
+  subst this
+  rfl
+
 theorem packet_encoding_injective (P : Params S) (q q' : Packet P)
     (hq : q ∈ honestPackets S P) (hq' : q' ∈ honestPackets S P)
     (hι : q.incidence = q'.incidence) (hslots : ∀ j, decode q j = decode q' j) : q = q' := by
-  sorry
+  have hhead : q.head = q'.head := by
+    have h := hslots ⟨0, P.k_pos⟩
+    rw [(honest_packet_admissible P q hq).1,
+      (honest_packet_admissible P q' hq').1] at h
+    exact Option.some.inj h
+  have hmask : ∀ j, q.mask j ↔ q'.mask j := by
+    intro j
+    show packetMask P q.incidence q.head j ↔ packetMask P q'.incidence q'.head j
+    rw [hι, hhead]
+  have hjs : q.jstar = q'.jstar := by
+    have a1 := (honest_packet_admissible P q hq).2.2.1
+    have a2 := (honest_packet_admissible P q' hq').2.2.1
+    exact le_antisymm
+      ((honest_packet_admissible P q' hq').2.2.2.1 _ ((hmask _).1 a1))
+      ((honest_packet_admissible P q hq).2.2.2.1 _ ((hmask _).2 a2))
+  have hss : q.sstar = q'.sstar := by
+    have e := hslots q.jstar
+    rw [(packet_top_spec P q hq).1] at e
+    have e' := (packet_top_spec P q' hq').1
+    rw [← hjs] at e'
+    exact Option.some.inj (e.trans e')
+  have hr : ∀ (a : ℕ) (h : a < q.jstar.val) (h' : a < q'.jstar.val),
+      q.roles ⟨a, h⟩ = q'.roles ⟨a, h'⟩ := by
+    intro a h h'
+    rw [packet_roles_from_head P q hq ⟨a, h⟩, packet_roles_from_head P q' hq' ⟨a, h'⟩, hhead]
+  exact packet_eq_of_fields q q' hι hjs hss hr
 
 /-- Q10, V4 §2.4: every honest pre-pattern has an honest state and honest non-NULL
 packets. The range is joint: this does not assert that arbitrary marginal choices occur. -/

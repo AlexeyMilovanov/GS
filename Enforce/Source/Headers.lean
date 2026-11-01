@@ -5068,7 +5068,57 @@ private lemma uniform_prototype_cone_radius_step2_placed {K : Set (E d)} {v : E 
     (hg : Isometry g) :
     (g '' K) ∩ ball (g v) r =
       ((fun x => g v + x) '' tangentCone (g '' K) (g v)) ∩ ball (g v) r := by
-  sorry
+  have h1 : tangentCone (g '' K) (g v) = g.linear '' tangentCone K v := by
+    ext u
+    simp only [tangentCone, mem_image, mem_setOf_eq]
+    constructor
+    · rintro ⟨ε, hε, hu⟩
+      refine ⟨g.linear.symm u, ⟨ε, hε, ?_⟩, g.linear.apply_symm_apply u⟩
+      intro t ht htε
+      have h1 := hu t ht htε
+      rcases h1 with ⟨y, hy, hy2⟩
+      have hy3 : y = v + t • g.linear.symm u := by
+        apply g.injective
+        rw [hy2]
+        have hmap (y u : E d) (t : ℝ) : g (y + t • u) = g y + t • g.linear u := by
+          simpa only [vadd_eq_add, add_comm, map_smul] using g.map_vadd y (t • u)
+        rw [hmap v (g.linear.symm u) t, g.linear.apply_symm_apply u]
+      rwa [hy3] at hy
+    · rintro ⟨u', ⟨ε, hε, hu⟩, rfl⟩
+      refine ⟨ε, hε, ?_⟩
+      intro t ht htε
+      have h1 := hu t ht htε
+      use v + t • u'
+      refine ⟨h1, ?_⟩
+      have hmap (y u : E d) (t : ℝ) : g (y + t • u) = g y + t • g.linear u := by
+        simpa only [vadd_eq_add, add_comm, map_smul] using g.map_vadd y (t • u)
+      exact hmap v u' t
+  rw [h1]
+  ext x
+  simp only [mem_inter_iff, mem_image, mem_ball]
+  constructor
+  · rintro ⟨⟨y, hy, rfl⟩, hdist⟩
+    have hdist2 : dist y v < r := by
+      rwa [← hg.dist_eq y v]
+    have hy2 : y ∈ K ∩ ball v r := ⟨hy, hdist2⟩
+    rw [h] at hy2
+    rcases hy2.1 with ⟨z, hz, hz2⟩
+    refine ⟨⟨g.linear z, ⟨z, hz, rfl⟩, ?_⟩, hdist⟩
+    have hmap (y u : E d) : g (y + u) = g y + g.linear u := by
+      simpa only [vadd_eq_add, add_comm] using g.map_vadd y u
+    rw [← hmap, ← hz2]
+  · rintro ⟨⟨y, ⟨z, hz, rfl⟩, rfl⟩, hdist⟩
+    have hmap (y u : E d) : g (y + u) = g y + g.linear u := by
+      simpa only [vadd_eq_add, add_comm] using g.map_vadd y u
+    have hz3 : g v + g.linear z = g (v + z) := (hmap v z).symm
+    have hdist2 : dist (v + z) v < r := by
+      rw [← hg.dist_eq (v + z) v]
+      rw [← hz3]
+      exact hdist
+    have hz4 : v + z ∈ K ∩ ball v r := by
+      rw [h]
+      exact ⟨⟨z, hz, rfl⟩, hdist2⟩
+    refine ⟨⟨v + z, hz4.1, hz3.symm⟩, hdist⟩
 
 /-- P14, V4 1.19: a single prototype-catalogue radius works for every placed
 ground tile at every listed vertex, independently of patches and their depth.

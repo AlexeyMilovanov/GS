@@ -412,7 +412,67 @@ private theorem packet_attached_step1_owner_step1_anc_subset (U : HonestSource S
       exact hp_height ▸ h2
     exact h1.trans h2_rw
 
-private theorem packet_attached_step1_owner_hint (U : HonestSource S) (P : Params S) (g : PrimitiveOccurrence U P) : relint g.carrier ⊆ interior (g.birth.2.val.carrier g.birth.1) := by sorry
+omit [Fact (2 ≤ d)] in
+/-- Step 4 of the V4 proof of `packet_attached` (V4 1.6, used in 2.6(c)): relative
+interiors commute with invertible affine maps. -/
+private theorem packet_attached_step1_owner_hint_step1_relint_image
+    (e : E d ≃ᵃ[ℝ] E d) (K : Set (E d)) :
+    relint (e '' K) = e '' relint K := by
+  let h := e.toHomeomorphOfFiniteDimensional
+  have hspan : h '' (affineSpan ℝ K : Set (E d)) =
+      (affineSpan ℝ (e '' K) : Set (E d)) := by
+    exact congrArg (fun A : AffineSubspace ℝ (E d) => (A : Set (E d)))
+      (AffineSubspace.map_span e.toAffineMap K)
+  let f : (affineSpan ℝ K) ≃ₜ (affineSpan ℝ (e '' K)) :=
+    (h.image _).trans (Homeomorph.setCongr hspan)
+  have hf (x : affineSpan ℝ K) : (f x).val = e x.val := rfl
+  have hp : (f ⁻¹' ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))) =
+      ((↑) ⁻¹' K : Set (affineSpan ℝ K)) := by
+    ext x
+    change e x.val ∈ e '' K ↔ x.val ∈ K
+    exact e.injective.mem_set_image
+  have hi := f.preimage_interior ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))
+  rw [hp] at hi
+  ext x
+  constructor
+  · rintro ⟨y, hy, rfl⟩
+    have hm : f.symm y ∈ interior ((↑) ⁻¹' K : Set (affineSpan ℝ K)) := by
+      rw [← hi]
+      simpa using hy
+    refine ⟨(f.symm y).val, ⟨f.symm y, hm, rfl⟩, ?_⟩
+    simpa only [f.apply_symm_apply] using (hf (f.symm y)).symm
+  · rintro ⟨z, ⟨w, hw, rfl⟩, rfl⟩
+    refine ⟨f w, ?_, hf w⟩
+    change w ∈ f ⁻¹' interior ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))
+    rwa [hi]
+
+/-- Step 4 of the V4 proof of `packet_attached` (V4 1.6): the positioned primitive
+facet is the placed side-independent positioned facet of its incidence. -/
+private theorem packet_attached_step1_owner_hint_step2_carrier_eq (U : HonestSource S) (P : Params S)
+    (g : PrimitiveOccurrence U P) :
+    g.carrier = g.birth.2.val.prototypeFrame g.birth.1 ''
+      (S.σ.symm '' g.incidence.val.positioned) := by
+  ext y
+  simp [PrimitiveOccurrence.carrier, Params.incidencePlacement,
+    PrimitiveIncidence.positioned, placedSet]
+
+private theorem packet_attached_step1_owner_hint (U : HonestSource S) (P : Params S) (g : PrimitiveOccurrence U P) : relint g.carrier ⊆ interior (g.birth.2.val.carrier g.birth.1) := by
+  let G : E d ≃ᵃ[ℝ] E d :=
+    S.σ.symm.toAffineEquiv.trans (g.birth.2.val.prototypeFrame g.birth.1)
+  have hg : g.carrier = G '' g.incidence.val.positioned := by
+    rw [packet_attached_step1_owner_hint_step2_carrier_eq U P g, Set.image_image]
+    rfl
+  have hB : g.birth.2.val.carrier g.birth.1 = G '' S.supertile 1 g.incidence.val.ty := by
+    rw [g.parent_type]
+    ext y
+    simp [G, FramedNode.carrier, FramedNode.prototypeFrame, placedSet,
+      SubstSystem.supertile]
+  rw [hg, hB, packet_attached_step1_owner_hint_step1_relint_image]
+  let H := G.toHomeomorphOfFiniteDimensional
+  change H '' relint _ ⊆ interior (H '' _)
+  rw [← H.image_interior]
+  exact Set.image_mono g.incidence.val.internal
+
 private theorem packet_attached_step1_owner_hxc (U : HonestSource S) (P : Params S) (g : PrimitiveOccurrence U P) (t : U.Node) (f : FacetName S t.2.val.ty) (hfg : t.2.val.cell t.1 f.val ⊆ g.carrier) : ∃ x ∈ t.2.val.cell t.1 f.val, x ∈ relint g.carrier := by sorry
 private theorem packet_attached_step1_owner_hfront (U : HonestSource S) (t : U.Node) (f : FacetName S t.2.val.ty) : ∀ x ∈ t.2.val.cell t.1 f.val, x ∈ frontier (t.2.val.carrier t.1) := by sorry
 

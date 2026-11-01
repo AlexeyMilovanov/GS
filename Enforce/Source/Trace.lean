@@ -1457,7 +1457,25 @@ private lemma internal_facet_pairing_step1_relint_subset
     (f : FacetName S (P.child n i).ty)
     (hint : (relint ((P.child n i).cell n f.val) ∩
       interior (P.carrier (n + 1))).Nonempty) :
-    relint ((P.child n i).cell n f.val) ⊆ interior (P.carrier (n + 1)) := by sorry
+    relint ((P.child n i).cell n f.val) ⊆ interior (P.carrier (n + 1)) := by
+  have hdesc : (P.child n i).IsDescendant n P (n + 1) := by
+    use 1
+    constructor
+    · rfl
+    · use ⟨i, ()⟩
+      rfl
+  rcases facet_dichotomy P (P.child n i) (n + 1) n hdesc f with ⟨F, hF, -⟩ | hint2
+  · exfalso
+    have F_prop_cells : F.val ∈ (S.cx P.ty).cells := by
+      have hh := F.property
+      simp only [CellComplex.facets, Finset.mem_filter] at hh
+      exact hh.1
+    have hx_front := hereditary_trace_step1_cell_frontier P (n + 1) F.val F_prop_cells
+    obtain ⟨p, hp1, hp2⟩ := hint
+    have hp1' : p ∈ (P.child n i).cell n f.val := intrinsicInterior_subset hp1
+    have h_front : p ∈ frontier (P.carrier (n + 1)) := hx_front (hF hp1')
+    exact Set.disjoint_left.mp disjoint_interior_frontier hp2 h_front
+  · exact hint2
 
 /-- Step 2a of the V4 proof of `internal_facet_pairing` (V4 1.4(c)): coverage provides a child having the internal facet as a facet. -/
 private lemma internal_facet_pairing_step2a_existence

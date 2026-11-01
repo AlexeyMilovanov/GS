@@ -58,7 +58,11 @@ private theorem depthZeroFacet_image {A : S.ι} (P : Params S) (ι : P.Incidence
     (h : ι.val.ty = A) (B : FramedNode S) (n : ℕ) :
     (B.prototypeFrame n) '' (depthZeroFacet ι.val h).carrier =
       P.incidencePlacement B n ι '' ι.val.leftFacet.val.carrier := by
-  sorry
+  subst h
+  dsimp [PrimitiveFacet.carrier, depthZeroFacet]
+  dsimp [PrimitiveFacet.birthFrame, prototypeDescendantFrame, placedSet]
+  simp only [Set.image_image]
+  rfl
 
 /-- Q8, V4 2.5: slot zero is PRESENT because all first-generation facets are required. -/
 theorem mask_zero (U : HonestSource S) (P : Params S) (g : PrimitiveOccurrence U P) :

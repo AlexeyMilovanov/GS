@@ -5462,6 +5462,15 @@ theorem HPiCone_finite_inter {α : Type} [Finite α] (K : α → Set (E d))
     rw [Fintype.mem_piFinset] at hg
     exact s_prop a (g a) (hg a) C ha
 
+/-- Step 1 of the V4 proof of `tangentCone_union_isHPiCone` (V4 1.16(b')): "finite unions of `HΠ`-cones (e.g. tangent cones of unions of such cells)".
+The tangent cone of a finite union of sets is the finite union of their tangent cones. -/
+private lemma tangentCone_union_isHPiCone_step1_union_cone
+    (P : CompatiblePatch S)
+    (Q : Finset (Σ t : {t // t ∈ P.tiles}, CellName S t.val.ty)) (p : E d) :
+    tangentCone (⋃ q ∈ Q, q.1.val.cell 0 q.2.val) p =
+    ⋃ q : Q, tangentCone (q.val.1.val.cell 0 q.val.2.val) p := by
+  sorry
+
 /-- P11, V4 1.16(b'): the tangent cone of a finite union of compatible listed
 cells at a common listed anchor remains an `HΠ`-cone, in all dimensions. -/
 theorem tangentCone_union_isHPiCone (P : CompatiblePatch S)
@@ -5469,7 +5478,16 @@ theorem tangentCone_union_isHPiCone (P : CompatiblePatch S)
     (hlisted : ∀ q ∈ Q, q.1.val.Lists 0 p)
     (hcontains : ∀ q ∈ Q, p ∈ q.1.val.cell 0 q.2.val) :
     HPiCone S.hPi (tangentCone (⋃ q ∈ Q, q.1.val.cell 0 q.2.val) p) := by
-  sorry
+  rw [tangentCone_union_isHPiCone_step1_union_cone P Q p]
+  let K (q : Q) := tangentCone (q.val.1.val.cell 0 q.val.2.val) p
+  have hK : ∀ (q : Q), HPiCone S.hPi (K q) := by
+    intro q
+    have h_rot := P.compatible q.val.1.val q.val.1.property
+    have hp := hlisted q.val q.property
+    have hC := hcontains q.val q.property
+    exact tangentCone_isHPiCone q.val.1.val h_rot q.val.2 p hp hC
+  have h_eq : (⋃ q : Q, K q) = ⋃ q : Q, K q := rfl
+  exact HPiCone_finite_union K hK
 
 /-- Step 1 of the V4 proof of `uniform_prototype_cone_radius` (V4 1.19): For a prototile A
 and a vertex v there is ρ>0 with exact cone intersection; take r₀ the minimum over the finite catalogue. -/

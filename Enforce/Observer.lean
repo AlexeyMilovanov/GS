@@ -147,7 +147,64 @@ theorem parsedWindow_at (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (q : (parsedHierarchy Y hY).Node) (j : Fin P.w) :
     (ObserverWindow.ofHierarchy (parsedHierarchy Y hY) (parsedState Y hY) q).stateAt j =
       parsedState Y hY ((parsedHierarchy Y hY).ancestor q j.val) := by
-  sorry
+  let H := parsedHierarchy Y hY
+  let state := parsedState Y hY
+  change (ObserverWindow.ofHierarchy H state q).stateAt j = state (H.ancestor q j.val)
+  let a := ObserverWindow.ofHierarchy H state q
+  have h_descend : ∀ (k : ℕ), k < P.w → a.descend k = state (H.ancestor q (P.w - 1 - k)) := by
+    intro k hk
+    induction' k with k ih
+    · dsimp [ObserverWindow.descend, a, ObserverWindow.ofHierarchy]
+    · have hk' : k < P.w - 1 := by omega
+      rw [ObserverWindow.descend]
+      rw [dif_pos hk']
+      rw [ih (by omega)]
+      have h_role : a.roles ⟨P.w - 2 - k, by omega⟩ = H.nodeRole (H.ancestor q (P.w - 2 - k)) := by rfl
+      rw [h_role]
+      let q' := H.ancestor q (P.w - 2 - k)
+      have hd : H.parentNode q' = H.ancestor q (P.w - 1 - k) := by
+        change H.ancestor q' 1 = H.ancestor q (P.w - 1 - k)
+        rw [CoherentHierarchy.ancestor_add]
+        congr 2
+        omega
+      have h_child_eq := parsedState_child Y hY (H.parentNode q') (by
+        change 1 ≤ q'.1 + 1
+        omega
+      ) (H.role q'.1 q'.2) (by
+        have h_eq : (H.parent q'.1 q'.2).val.child q'.1 (H.role q'.1 q'.2) = q'.2.val := (H.child_eq q'.1 q'.2).symm
+        change (H.parent q'.1 q'.2).val.child q'.1 (H.role q'.1 q'.2) ∈ H.nodes q'.1
+        rw [h_eq]
+        exact q'.2.2
+      )
+      have h_nodeRole_eq : H.nodeRole q' = ⟨(H.parentNode q').2.val.ty, H.role q'.1 q'.2⟩ := rfl
+      rw [h_nodeRole_eq]
+      have h_target : childMap P (state (H.ancestor q (P.w - 1 - k))) ⟨(H.parentNode q').2.val.ty, H.role q'.1 q'.2⟩ = state (H.ancestor q (P.w - 1 - (k + 1))) := by
+        have hk_succ : P.w - 1 - (k + 1) = P.w - 2 - k := by omega
+        rw [hk_succ]
+        change childMap P (state (H.ancestor q (P.w - 1 - k))) ⟨(H.parentNode q').2.val.ty, H.role q'.1 q'.2⟩ = state q'
+        rw [← hd]
+        have hd2 : H.parentNode q' = ⟨q'.1 + 1, H.parent q'.1 q'.2⟩ := rfl
+        have h_child_eq_subst : state ⟨q'.1, ⟨(H.parent q'.1 q'.2).val.child q'.1 (H.role q'.1 q'.2), by
+          have h_eq : (H.parent q'.1 q'.2).val.child q'.1 (H.role q'.1 q'.2) = q'.2.val := (H.child_eq q'.1 q'.2).symm
+          change (H.parent q'.1 q'.2).val.child q'.1 (H.role q'.1 q'.2) ∈ H.nodes q'.1
+          rw [h_eq]
+          exact q'.2.2
+        ⟩⟩ = childMap P (state (H.parentNode q')) ⟨(H.parentNode q').2.val.ty, H.role q'.1 q'.2⟩ := h_child_eq
+        rw [← h_child_eq_subst]
+        congr 2
+        apply Subtype.ext
+        dsimp [CoherentHierarchy.parentNode, CoherentHierarchy.parent]
+        change (H.parent q'.1 q'.2).val.child q'.1 (H.role q'.1 q'.2) = q'.2.val
+        have h_eq : (H.parent q'.1 q'.2).val.child q'.1 (H.role q'.1 q'.2) = q'.2.val := (H.child_eq q'.1 q'.2).symm
+        exact h_eq
+      exact h_target
+  change a.descend (P.w - 1 - j.val) = state (H.ancestor q j.val)
+  have h_j : P.w - 1 - (P.w - 1 - j.val) = j.val := by
+    have h_w : j.val < P.w := j.isLt
+    omega
+  have H_descend := h_descend (P.w - 1 - j.val) (by omega)
+  rw [H_descend]
+  rw [h_j]
 /-- O1, V4 4.1, 8.1: the honest compressed window recovers every ancestor state. -/
 theorem honestWindow_at (U : HonestSource S) (P : Params S) (q : U.Node)
     (j : Fin P.w) :

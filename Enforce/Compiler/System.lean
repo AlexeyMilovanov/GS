@@ -2736,7 +2736,10 @@ theorem unique_at_leaf (D : KBlock Y)
 This uses only the actual-leaf subdivision witnesses and the physical tiling. -/
 theorem eq_of_interior_meet (D : KBlock Y)
     (h : (interior B.carrier ∩ interior D.carrier).Nonempty) : B = D := by
-  sorry
+  rcases h with ⟨x, hxB, hxD⟩
+  by_contra hBD
+  exact Set.disjoint_left.mp
+    (compiler_certificates_step6_disjoint C Y hBD) hxB hxD
 
 end KBlock
 

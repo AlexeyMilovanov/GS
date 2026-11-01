@@ -639,7 +639,22 @@ theorem hereditary_trace_union (P C : FramedNode S) (n h : ℕ)
     (hC : C.IsDescendant h P n) (F : Cell d) (hF : F ∈ (S.cx P.ty).cells) :
     P.cell n F ∩ C.carrier h =
       ⋃ e ∈ (S.cx C.ty).cells, ⋃ (_ : C.cell h e ⊆ P.cell n F), C.cell h e := by
-  sorry
+  obtain ⟨r, rfl, -⟩ := id hC
+  apply Set.Subset.antisymm
+  · rintro p ⟨hpF, hpC⟩
+    have hfr : p ∈ frontier (P.carrier (h + r)) :=
+      hereditary_trace_step1_cell_frontier P _ F hF hpF
+    have hpfr : p ∈ frontier (C.carrier h) := by
+      refine ⟨subset_closure hpC, fun hint => hfr.2 ?_⟩
+      exact interior_mono (hereditary_trace_step7_carrier P C h r hC) hint
+    obtain ⟨g, hg, hpg⟩ := hereditary_trace_step1_frontier_relint C h p hpfr
+    have hsub : C.cell h g ⊆ P.cell (h + r) F :=
+      hereditary_trace P C (h + r) h hC F g hF hg ⟨p, hpg, hpF⟩
+    exact Set.mem_iUnion₂.mpr ⟨g, hg, Set.mem_iUnion.mpr ⟨hsub, intrinsicInterior_subset hpg⟩⟩
+  · intro p hp
+    obtain ⟨e, he, hp⟩ := Set.mem_iUnion₂.mp hp
+    obtain ⟨hsub, hpe⟩ := Set.mem_iUnion.mp hp
+    exact ⟨hsub hpe, hereditary_trace_step1_cell_subset C h e he hpe⟩
 
 /-- P2, V4 1.2: existence and uniqueness of the ancestral stratum.
 Nonempty relative interior of the listed cell supplies an actual point. -/

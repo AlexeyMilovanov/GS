@@ -3945,7 +3945,33 @@ private theorem tangentCone_tile_isHPiCone_step0_ambient (A : S.ι) :
     cellDirection (S.proto A).carrier = ⊤ ∧
     closure (relint (S.proto A).carrier) = (S.proto A).carrier ∧
     relfrontier (S.proto A).carrier = frontier (S.proto A).carrier := by
-  sorry
+  let K : Set (E d) := (S.proto A).carrier
+  have hspan : affineSpan ℝ K = ⊤ := by
+    apply top_unique
+    rw [← isOpen_interior.affineSpan_eq_top (S.proto A).interior_nonempty]
+    exact affineSpan_mono ℝ interior_subset
+  have hopen : IsOpen (affineSpan ℝ K : Set (E d)) := by
+    simp [hspan]
+  have hop : IsOpenMap ((↑) : affineSpan ℝ K → E d) :=
+    hopen.isOpenMap_subtype_val
+  have hI : relint K = interior K := by
+    change intrinsicInterior ℝ K = interior K
+    apply Set.Subset.antisymm
+    · rintro x ⟨y, hy, rfl⟩
+      exact hop.interior_preimage_subset_preimage_interior hy
+    · exact interior_subset_intrinsicInterior
+  have hF : relfrontier K = frontier K := by
+    calc
+      relfrontier K = closure K \ relint K :=
+        (closure_diff_intrinsicInterior (𝕜 := ℝ) K).symm
+      _ = closure K \ interior K := by rw [hI]
+      _ = frontier K := rfl
+  change cellDirection K = ⊤ ∧
+    closure (relint K) = K ∧ relfrontier K = frontier K
+  refine ⟨?_, ?_, hF⟩
+  · simp only [cellDirection, hspan, AffineSubspace.direction_top]
+  · rw [hI]
+    exact (S.proto A).regularClosed
 
 /-- Step 1 of the V4 proof of `tangentCone_tile_isHPiCone`
 (V4 1.16(b')): near the anchor, the boundary lies on the

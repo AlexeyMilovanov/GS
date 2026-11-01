@@ -5669,6 +5669,150 @@ def AgeOneRecord {P : Params S} (s : State P) (r : FacetRecord P) : Prop :=
       placedSet (S.child r.servingRole.1 r.servingRole.2).frame e.val.val.carrier) ∧
     ∃ w : ShortProfile P, r.counter = .inr w ∧ w.word = []
 
+/-- Step 1 of the V4 proof of `state_semantics_a` (V4 2.4(a)):
+"properties of the honest node": internalness transports through the full parent frame. -/
+private theorem state_semantics_a_step1_internal_iff (P : Params S) (U : HonestSource S)
+    (q : U.Node) (f : FacetName S q.2.val.ty) :
+    (stateOf U P q).InternalFacet f ↔
+      relint (q.2.val.cell q.1 f.val) ⊆
+        interior ((U.hierarchy.parentNode q).2.val.carrier (U.hierarchy.parentNode q).1) := by
+  let M := S.σ.symm.toAffineEquiv.trans
+    ((U.hierarchy.parentNode q).2.val.prototypeFrame (q.1 + 1))
+  have hframe : q.2.val.prototypeFrame q.1 =
+      (S.child (U.hierarchy.nodeRole q).1 (U.hierarchy.nodeRole q).2).frame.toAffineEquiv.trans M := by
+    have h := congrArg (fun N : FramedNode S => N.prototypeFrame q.1)
+      (U.hierarchy.child_eq q.1 q.2)
+    exact h.trans (exists_childMap_step1_frame _ _ _)
+  have hcell : q.2.val.cell q.1 f.val =
+      M '' placedSet (S.child (U.hierarchy.nodeRole q).1 (U.hierarchy.nodeRole q).2).frame
+        f.val.carrier := by
+    rw [FramedNode.cell, hframe, AffineEquiv.coe_trans, Set.image_comp]
+    rfl
+  have hparent : (U.hierarchy.parentNode q).2.val.carrier (U.hierarchy.parentNode q).1 =
+      M '' S.supertile 1 (U.hierarchy.nodeRole q).1 := by
+    have hcar (N : FramedNode S) (n : ℕ) :
+        N.carrier n = N.prototypeFrame n '' (S.proto N.ty).carrier := by
+      simp [FramedNode.carrier, FramedNode.prototypeFrame, placedSet,
+        SubstSystem.supertile, Set.image_image]
+    rw [hcar]
+    change (U.hierarchy.parentNode q).2.val.prototypeFrame (q.1 + 1) ''
+      (S.proto (U.hierarchy.nodeRole q).1).carrier = _
+    simp only [SubstSystem.supertile, pow_one]
+    rw [Set.image_image]
+    congr 1
+    funext x
+    exact congrArg ((U.hierarchy.parentNode q).2.val.prototypeFrame (q.1 + 1))
+      (S.σ.symm_apply_apply x).symm
+  have hi : interior (M '' S.supertile 1 (U.hierarchy.nodeRole q).1) =
+      M '' interior (S.supertile 1 (U.hierarchy.nodeRole q).1) :=
+    (M.toHomeomorphOfFiniteDimensional.image_interior _).symm
+  rw [hcell, hparent, exists_childMap_step5_relint_image, hi]
+  change _ ↔ M '' _ ⊆ M '' _
+  exact (Set.image_subset_image_iff M.injective).symm
+
+/-- Step 2 of the V4 proof of `state_semantics_a` (V4 1.7(c)):
+"age one": the serving offset is zero and the provider facet is the facet itself. -/
+private theorem state_semantics_a_step2_provider (U : HonestSource S) (q : U.Node)
+    (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f)
+    (ha : U.hierarchy.age q f hf = 1) :
+    (U.hierarchy.firstProvider q f hf).1 = 0 ∧
+      (U.hierarchy.firstProvider q f hf).2.val = f.val := by
+  constructor
+  · have := (U.hierarchy.birthHeight_age_spec q f hf).2.1
+    omega
+  · obtain ⟨hsub, ht⟩ := U.hierarchy.stratumMap_facet q f hf (facetCell f) rfl
+    exact ht.symm.trans (U.hierarchy.stratumMap_age_one q f hf ha (facetCell f) hsub)
+
+/-- Step 3 of the V4 proof of `state_semantics_a` (V4 2.4(a)):
+"side (A_P,i)" and the positioned paired incidence are those of the immediate child. -/
+private theorem state_semantics_a_step3_incidence (P : Params S) (U : HonestSource S)
+    (q : U.Node) (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f)
+    (ha : U.hierarchy.age q f hf = 1) :
+    (U.recordOf P q f hf).servingRole = U.hierarchy.nodeRole q ∧
+      (U.recordIncidence P q f hf).val.positioned =
+        placedSet (S.child (U.hierarchy.nodeRole q).1 (U.hierarchy.nodeRole q).2).frame
+          f.val.carrier := by
+  obtain ⟨hoff, hfacet⟩ := state_semantics_a_step2_provider U q f hf ha
+  have hserv : U.hierarchy.servingChild q f hf = q := by
+    simp only [CoherentHierarchy.servingChild, hoff, CoherentHierarchy.ancestor,
+      Function.iterate_zero, id_eq]
+  constructor
+  · exact (Classical.choose_spec (U.recordSide_exists P q f hf)).1.trans
+      (congrArg U.hierarchy.nodeRole hserv)
+  · have hs := U.hierarchy.providerIncidence_spec q f hf
+    have hrole := hs.2.1.trans (congrArg U.hierarchy.nodeRole hserv)
+    have hleft := hs.2.2.1.trans hfacet
+    calc
+      _ = (U.hierarchy.providerIncidence q f hf).positioned :=
+        (P.canonical_spec _).2.symm
+      _ = _ := by
+        unfold PrimitiveIncidence.positioned
+        rw [hleft, congrArg (fun r : S.Role => (S.child r.1 r.2).frame) hrole]
+
+/-- Step 4 of the V4 proof of `state_semantics_a` (V4 1.7(b),(c)):
+"tau = id": the canonical and serving-side stratum names have equal positioned cells. -/
+private theorem state_semantics_a_step4_tau (P : Params S) (U : HonestSource S)
+    (q : U.Node) (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f)
+    (ha : U.hierarchy.age q f hf = 1) (e : CellsInFacet q.2.val.ty f) :
+    placedSet (S.child (U.recordIncidence P q f hf).val.ty
+        (U.recordIncidence P q f hf).val.left).frame
+        (U.recordTau P q f hf e).val.val.carrier =
+      placedSet (S.child (U.recordOf P q f hf).servingRole.1
+        (U.recordOf P q f hf).servingRole.2).frame e.val.val.carrier := by
+  obtain ⟨hoff, _⟩ := state_semantics_a_step2_provider U q f hf ha
+  have hserv : U.hierarchy.servingChild q f hf = q := by
+    simp only [CoherentHierarchy.servingChild, hoff, CoherentHierarchy.ancestor,
+      Function.iterate_zero, id_eq]
+  let B := U.hierarchy.birthParent q f hf
+  let M := S.σ.symm.toAffineEquiv.trans (B.2.val.prototypeFrame B.1)
+  have hplace : U.providerPlacement P q f hf =
+      (S.child (U.recordIncidence P q f hf).val.ty
+        (U.recordIncidence P q f hf).val.left).frame.toAffineEquiv.trans M := rfl
+  have hframe : q.2.val.prototypeFrame q.1 =
+      (S.child (U.recordOf P q f hf).servingRole.1
+        (U.recordOf P q f hf).servingRole.2).frame.toAffineEquiv.trans M := by
+    exact (congrArg (fun c : U.Node => c.2.val.prototypeFrame c.1) hserv).symm.trans
+      (exists_childMap_step4_profile_step4_serving_frame P U q f hf)
+  have ht := (Classical.choose_spec (U.recordTau_exists P q f hf e)).1
+  change U.providerPlacement P q f hf '' (U.recordTau P q f hf e).val.val.carrier = _ at ht
+  rw [U.hierarchy.stratumMap_age_one q f hf ha e.val (U.cellInFacet_placed q f e)] at ht
+  have heq := ht.trans (congrArg (fun c : U.Node => c.2.val.cell c.1 e.val.val) hserv)
+  apply M.injective.image_injective
+  unfold placedSet
+  rw [Set.image_image, Set.image_image]
+  change ((S.child (U.recordIncidence P q f hf).val.ty
+      (U.recordIncidence P q f hf).val.left).frame.toAffineEquiv.trans M) '' _ =
+    ((S.child (U.recordOf P q f hf).servingRole.1
+      (U.recordOf P q f hf).servingRole.2).frame.toAffineEquiv.trans M) '' _
+  rw [← hplace, ← hframe]
+  exact heq
+
+/-- Step 5 of the V4 proof of `state_semantics_a` (V4 1.23, §2.2 (S4d)):
+"depth-0 profile": every selected site depth is positive, since a site has an ancestor at j < r. -/
+private theorem state_semantics_a_step5_siteDepth_pos (P : Params S) (ι : P.Incidence)
+    (b : Bool) : 0 < P.siteDepth ι b := by
+  have hN := P.N_pos ⟨ι.val, ι.property⟩
+  have hs := P.sites_valid ι b ⟨0, hN⟩
+  obtain ⟨a, c, K, L, _, _, _, _, j, B, hj, _⟩ := hs.2.2
+  omega
+
+/-- Step 6 of the V4 proof of `state_semantics_a` (V4 §2.2 (S4d)):
+"depth-0 profile": age one selects the shallow branch with the empty downward word. -/
+private theorem state_semantics_a_step6_counter (P : Params S) (U : HonestSource S)
+    (q : U.Node) (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f)
+    (ha : U.hierarchy.age q f hf = 1) :
+    ∃ w : ShortProfile P, (U.recordOf P q f hf).counter = .inr w ∧ w.word = [] := by
+  have hoff := (state_semantics_a_step2_provider U q f hf ha).1
+  have hdepth : (U.hierarchy.firstProvider q f hf).1 <
+      P.siteDepth (U.recordIncidence P q f hf) (U.recordSide P q f hf) := by
+    rw [hoff]
+    exact state_semantics_a_step5_siteDepth_pos P _ _
+  change ∃ w, U.counterProfile P q f hf = .inr w ∧ w.word = []
+  unfold HonestSource.counterProfile
+  rw [dif_pos hdepth]
+  refine ⟨_, rfl, ?_⟩
+  simp [hoff, HonestSource.downRoles]
+
 /-- Q7, V4 2.4(a): internal child facets have precisely the age-one data;
 conversely age one determines the first address role and its unique paired sibling. -/
 theorem state_semantics_a (P : Params S) (s : State P) (hs : s ∈ honestStates S P)
@@ -5676,7 +5820,62 @@ theorem state_semantics_a (P : Params S) (s : State P) (hs : s ∈ honestStates 
     (s.InternalFacet f ↔ ∃ r, s.facetRecord f = some r ∧ AgeOneRecord s r) ∧
       (∀ r, s.facetRecord f = some r → r.age.val = 1 →
         s.InternalFacet f ∧ AgeOneRecord s r) := by
-  sorry
+  classical
+  obtain ⟨U, q, rfl⟩ := hs
+  have hdata (hf : ¬ U.hierarchy.IsFault q f) (ha : U.hierarchy.age q f hf = 1) :
+      AgeOneRecord (stateOf U P q) (U.recordOf P q f hf) := by
+    obtain ⟨hoff, _⟩ := state_semantics_a_step2_provider U q f hf ha
+    have hserv : U.hierarchy.servingChild q f hf = q := by
+      simp only [CoherentHierarchy.servingChild, hoff, CoherentHierarchy.ancestor,
+        Function.iterate_zero, id_eq]
+    obtain ⟨hrole, hpositioned⟩ := state_semantics_a_step3_incidence P U q f hf ha
+    refine ⟨?_, hrole, ?_, ?_, ?_, state_semantics_a_step6_counter P U q f hf ha⟩
+    · change min (U.hierarchy.age q f hf) P.C = 1
+      rw [ha, Nat.min_eq_left (Nat.le_of_lt P.C_gt_one)]
+    · change (U.recordIncidence P q f hf).val.positioned =
+        placedSet (S.child (U.recordOf P q f hf).servingRole.1
+          (U.recordOf P q f hf).servingRole.2).frame f.val.carrier
+      rw [hrole]
+      exact hpositioned
+    · apply Fin.ext
+      change (U.hierarchy.servingChild q f hf).1 % P.L = q.1 % P.L
+      rw [hserv]
+    · exact state_semantics_a_step4_tau P U q f hf ha
+  have hconverse : ∀ r, (stateOf U P q).facetRecord f = some r → r.age.val = 1 →
+      (stateOf U P q).InternalFacet f ∧ AgeOneRecord (stateOf U P q) r := by
+    intro r hr ha
+    change U.facetRecordOf P q f = some r at hr
+    unfold HonestSource.facetRecordOf at hr
+    split at hr
+    · contradiction
+    · rename_i hf
+      cases Option.some.inj hr
+      have hage : U.hierarchy.age q f hf = 1 := by
+        change min (U.hierarchy.age q f hf) P.C = 1 at ha
+        have := P.C_gt_one
+        omega
+      obtain ⟨hoff, hfacet⟩ := state_semantics_a_step2_provider U q f hf hage
+      refine ⟨(state_semantics_a_step1_internal_iff P U q f).mpr ?_, hdata hf hage⟩
+      have hzero : U.hierarchy.ancestor q (U.hierarchy.firstProvider q f hf).1 = q := by
+        rw [hoff]
+        rfl
+      have hnext : U.hierarchy.ancestor q ((U.hierarchy.firstProvider q f hf).1 + 1) =
+          U.hierarchy.parentNode q := by
+        rw [hoff]
+        rfl
+      have h := (U.hierarchy.firstProvider_spec q f hf).2.2
+      rw [hfacet, hzero, hnext] at h
+      exact h
+  refine ⟨⟨?_, ?_⟩, hconverse⟩
+  · intro hint
+    obtain ⟨hf, _, _, ha⟩ := U.hierarchy.restriction_det_internal q f
+      ((state_semantics_a_step1_internal_iff P U q f).mp hint)
+    refine ⟨U.recordOf P q f hf, ?_, hdata hf ha⟩
+    change U.facetRecordOf P q f = some (U.recordOf P q f hf)
+    simp only [HonestSource.facetRecordOf, dif_neg hf]
+  · rintro ⟨r, hr, ha⟩
+    exact (hconverse r hr ha.1).1
+
 
 /-- Q7, V4 2.4(b): provider strata never decrease cell dimension. -/
 theorem state_semantics_b (P : Params S) (s : State P) (hs : s ∈ honestStates S P)

@@ -5402,6 +5402,31 @@ theorem positioned_stars_finite (Y : Type) [Finite Y] (p : E d)
         (P.native n a.val).frame.trans (P.native n anchor.val).frame.symm), v, label a),
       ⟨⟨trivial, n, a, anchor, rfl⟩, Set.mem_iUnion.mpr ⟨_, hv⟩, trivial⟩, rfl⟩
 
+/-- Step 1 of the V4 proof of `uniform_cone_radius` (V4 1.19):
+"take r₀ the minimum over the finite catalogue";
+isometric placement preserves the radius. -/
+private theorem uniform_cone_radius_step1_catalogue
+    {k : ℕ} [hk : Fact (2 ≤ k)] (T : SubstSystem k) :
+    ∃ r : ℝ, 0 < r ∧
+      ∀ (t : FramedNode T) (q : E k), t.Lists 0 q →
+        t.carrier 0 ∩ ball q r =
+          ((fun v => q + v) '' tangentCone (t.carrier 0) q)
+            ∩ ball q r := by
+  sorry
+
+/-- Step 2 of the V4 proof of `uniform_cone_radius` (V4 1.19):
+"its tangent cone ... is σⁿG = ⋃ T ... over the descendants";
+nonincident descendants contribute no germ. -/
+private theorem uniform_cone_radius_step2_union
+    {k : ℕ} [hk : Fact (2 ≤ k)] {T : SubstSystem k}
+    (R : CompatiblePatch T)
+    (q : E k) (Q : Finset (FramedNode T))
+    (hQ : Q ⊆ R.tiles) (n : ℕ) :
+    (⋃ a : R.Incident q n, ⋃ (_ : a.val.1.val ∈ Q),
+      tangentCone ((R.native n a.val).carrier 0) ((T.σ ^ n) q)) =
+        (T.σ ^ n) '' tangentCone (⋃ t ∈ Q, t.carrier 0) q := by
+  sorry
+
 /-- P14, V4 1.19: uniform native-scale cone radius and the union formula for
 any selected collection of original tiles whose cones form the chosen cone.
 A single positive radius works at every depth and for every selected subpatch. -/
@@ -5418,7 +5443,20 @@ theorem uniform_cone_radius (p : E d) (hp : P.CommonListed p) :
         ((fun v => (S.σ ^ n) p + v) ''
           ((S.σ ^ n) '' tangentCone (⋃ t ∈ Q, t.carrier 0) p)) ∩
             ball ((S.σ ^ n) p) r₀ := by
-  sorry
+  classical
+  obtain ⟨r, hr, hcat⟩ :=
+    uniform_cone_radius_step1_catalogue (k := d) S
+  have hlocal : ∀ (n : ℕ) (a : P.Incident p n),
+      (P.native n a.val).carrier 0 ∩ ball ((S.σ ^ n) p) r =
+        ((fun v => (S.σ ^ n) p + v) ''
+          tangentCone ((P.native n a.val).carrier 0) ((S.σ ^ n) p)) ∩
+            ball ((S.σ ^ n) p) r := by
+    intro n a
+    exact hcat _ _ (P.incident_commonListed p hp n a)
+  refine ⟨r, hr, hlocal, ?_⟩
+  intro Q hQ n
+  rw [← uniform_cone_radius_step2_union (k := d) P p Q hQ n]
+  simp_rw [Set.image_iUnion, Set.iUnion_inter, hlocal]
 
 end CompatiblePatch
 

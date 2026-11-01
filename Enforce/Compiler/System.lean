@@ -1361,7 +1361,42 @@ no proof hole is hidden in that definition's agreement field. -/
 theorem honestLift_agree (C : ClusterData S P) (U : HonestSource S) :
     ∀ t ∈ Compiler.honestLiftTiles C U, ∀ u ∈ Compiler.honestLiftTiles C U,
       ∀ x (ht : x ∈ t.carrier) (hu : x ∈ u.carrier), t.mark ⟨x, ht⟩ = u.mark ⟨x, hu⟩ := by
-  sorry
+  intro t ht u hu x hxt hxu
+  by_cases htu : t = u
+  · subst u
+    rfl
+  have hd := Compiler.honestLift_disjoint C U ht hu htu
+  obtain ⟨t, rfl⟩ := ht
+  obtain ⟨u, rfl⟩ := hu
+  have hreg (q : Compiler.GroundNode U) :
+      closure (interior (Compiler.honestTile C U q).carrier) =
+        (Compiler.honestTile C U q).carrier := by
+    change closure (interior (q.val.frame.toHomeomorph ''
+      (S.proto (leafTypeOf U P ⟨0, q⟩ rfl).prototype).carrier)) =
+        q.val.frame.toHomeomorph ''
+          (S.proto (leafTypeOf U P ⟨0, q⟩ rfl).prototype).carrier
+    rw [← q.val.frame.toHomeomorph.image_interior,
+      ← q.val.frame.toHomeomorph.image_closure,
+      (S.proto (leafTypeOf U P ⟨0, q⟩ rfl).prototype).regularClosed]
+  have hboundary (q : Compiler.GroundNode U)
+      (hx : x ∈ (Compiler.honestTile C U q).carrier)
+      (hf : x ∈ frontier (Compiler.honestTile C U q).carrier) :
+      (Compiler.honestTile C U q).mark ⟨x, hx⟩ = Colour.boundary := by
+    change augmentedColour C (leafTypeOf U P ⟨0, q⟩ rfl) (q.val.frame.symm x) = _
+    apply augmentedMarking_boundary
+    change x ∈ frontier (q.val.frame.toHomeomorph ''
+      (S.proto (leafTypeOf U P ⟨0, q⟩ rfl).prototype).carrier) at hf
+    rw [← q.val.frame.toHomeomorph.image_frontier] at hf
+    obtain ⟨y, hy, hxy⟩ := hf
+    change q.val.frame y = x at hxy
+    rw [← hxy, AffineIsometryEquiv.symm_apply_apply]
+    exact hy
+  have hdt := hd.closure_right isOpen_interior
+  rw [hreg u] at hdt
+  have hdu := hd.symm.closure_right isOpen_interior
+  rw [hreg t] at hdu
+  rw [hboundary t hxt ⟨subset_closure hxt, fun hi => Set.disjoint_left.mp hdt hi hxu⟩,
+    hboundary u hxu ⟨subset_closure hxu, fun hi => Set.disjoint_left.mp hdu hi hxt⟩]
 
 /-- M6, V4 2.14: the actual marked tiling on the native partition of an honest source.
 The tile set is defined before its cover, disjointness and agreement theorems. -/

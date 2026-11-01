@@ -2505,6 +2505,24 @@ def TemplateOccurs (C : ClusterData S P) (Y : MarkedTiling (systemM S P C))
     (φ : Iso d) (θ : Template P) : Prop :=
   ∀ z ∈ θ.tiles, placedLeaf C z.2 (z.1.frame.trans φ) ∈ Y.tiles
 
+/-- Step 1 of the V4 proof of `compiler_events` (V4 2.17b): Let x be the centre of microball 0 of the trigger cluster of slot j of t... The covering rule copy is an EVENT rule pinned to t. -/
+private lemma compiler_events_step1_rule (C : ClusterData S P) (Y : MarkedTiling (systemM S P C))
+    (hY : MProper Y) (t : PlacedMarkedTile (systemM S P C)) (ht : t ∈ Y.tiles)
+    (j : EventSlot (compilerLeaf C t)) :
+    ∃ (θ : Template P) (h_allowed : θ ∈ allowedTemplates j),
+      ∀ (x : (Compiler.eventRule C ⟨compilerLeaf C t, j, θ, h_allowed⟩).carrier), 
+        Y.marking ((compilerFrame C t) ↑x) = (Compiler.eventRule C ⟨compilerLeaf C t, j, θ, h_allowed⟩).mark x := by
+  sorry
+
+/-- Step 2 of the V4 proof of `compiler_events` (V4 2.17b): Each readout ball of θ at template tile u ... gives an actual tile of Y. -/
+private lemma compiler_events_step2_readout (C : ClusterData S P) (Y : MarkedTiling (systemM S P C))
+    (hY : MProper Y) (t : PlacedMarkedTile (systemM S P C)) (ht : t ∈ Y.tiles)
+    (j : EventSlot (compilerLeaf C t)) (θ : Template P) (h_allowed : θ ∈ allowedTemplates j)
+    (h_rule : ∀ (x : (Compiler.eventRule C ⟨compilerLeaf C t, j, θ, h_allowed⟩).carrier), 
+        Y.marking ((compilerFrame C t) ↑x) = (Compiler.eventRule C ⟨compilerLeaf C t, j, θ, h_allowed⟩).mark x) :
+    TemplateOccurs C Y (compilerFrame C t) θ := by
+  sorry
+
 /-- M8, V4 2.17(b): every output event contains an allowed positioned configuration.
 Catalogue membership includes the CONT row or all six END rows on these actual labels. -/
 theorem compiler_events (C : ClusterData S P) (Y : MarkedTiling (systemM S P C))
@@ -2512,7 +2530,9 @@ theorem compiler_events (C : ClusterData S P) (Y : MarkedTiling (systemM S P C))
     (j : EventSlot (compilerLeaf C t)) :
     ∃ θ ∈ allowedTemplates j, θ.central = compilerLeaf C t ∧
       TemplateOccurs C Y (compilerFrame C t) θ := by
-  sorry
+  obtain ⟨θ, h_allowed, h_rule⟩ := compiler_events_step1_rule C Y hY t ht j
+  refine ⟨θ, h_allowed, ?_, compiler_events_step2_readout C Y hY t ht j θ h_allowed h_rule⟩
+  exact Compiler.allowedTemplate_central _ _ _ h_allowed
 
 namespace Compiler
 

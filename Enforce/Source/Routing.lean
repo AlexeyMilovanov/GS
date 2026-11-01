@@ -10000,6 +10000,46 @@ private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two
         relint (convexHull ℝ (s : Set (E d))) ⊆ relint g.carrier := by
   sorry
 
+/-- Step 1 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets_step2_incidence_equiv` (V4 1.25): incidence transfer from cell facets to simplex cofacets. -/
+private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets_step2_incidence_equiv_step1_f_to_t
+    (D : PolyManifoldDomain d) (C : CellComplex D)
+    (g : Cell d) (hg : g ∈ C.cells) (hgd : g.dim + 2 = d)
+    (K : Geometry.SimplicialComplex ℝ (E d))
+    (hfin : K.faces.Finite) (hspace : K.space = frontier D.carrier)
+    (hpure : ∀ f ∈ K.facets, f.card = d)
+    (hcompat : ∀ e ∈ C.cells, ∀ x ∈ e.carrier,
+      ∃ t ∈ K.faces,
+        x ∈ convexHull ℝ (t : Set (E d)) ∧
+        convexHull ℝ (t : Set (E d)) ⊆ e.carrier)
+    (s : Finset (E d)) (hs : s ∈ K.faces)
+    (hsc : s.card = d - 1)
+    (hsg : convexHull ℝ (s : Set (E d)) ⊆ g.carrier)
+    (hrel : relint (convexHull ℝ (s : Set (E d))) ⊆ relint g.carrier)
+    (f : {f : Cell d | f ∈ C.cells ∧ f.dim = d - 1 ∧ g.carrier ⊆ f.carrier}) :
+    ∃! t : {t ∈ K.facets | s ⊆ t},
+      convexHull ℝ (t.val : Set (E d)) ⊆ f.val.carrier := by
+  sorry
+
+/-- Step 2 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets_step2_incidence_equiv` (V4 1.25): incidence transfer from simplex cofacets to cell facets. -/
+private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets_step2_incidence_equiv_step2_t_to_f
+    (D : PolyManifoldDomain d) (C : CellComplex D)
+    (g : Cell d) (hg : g ∈ C.cells) (hgd : g.dim + 2 = d)
+    (K : Geometry.SimplicialComplex ℝ (E d))
+    (hfin : K.faces.Finite) (hspace : K.space = frontier D.carrier)
+    (hpure : ∀ f ∈ K.facets, f.card = d)
+    (hcompat : ∀ e ∈ C.cells, ∀ x ∈ e.carrier,
+      ∃ t ∈ K.faces,
+        x ∈ convexHull ℝ (t : Set (E d)) ∧
+        convexHull ℝ (t : Set (E d)) ⊆ e.carrier)
+    (s : Finset (E d)) (hs : s ∈ K.faces)
+    (hsc : s.card = d - 1)
+    (hsg : convexHull ℝ (s : Set (E d)) ⊆ g.carrier)
+    (hrel : relint (convexHull ℝ (s : Set (E d))) ⊆ relint g.carrier)
+    (t : {t ∈ K.facets | s ⊆ t}) :
+    ∃! f : {f : Cell d | f ∈ C.cells ∧ f.dim = d - 1 ∧ g.carrier ⊆ f.carrier},
+      convexHull ℝ (t.val : Set (E d)) ⊆ f.val.carrier := by
+  sorry
+
 /-- Step 2 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets` (V4 1.25, using (H1)–(H2) of V4 §1.0): "near a boundary point the polyhedral boundary separates a small ball into two sides" — incidence transfer establishing a bijection between original listed cell facets and the simplex cofacets in the compatible triangulation. -/
 private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets_step2_incidence_equiv
     (D : PolyManifoldDomain d) (C : CellComplex D)
@@ -10019,7 +10059,22 @@ private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two
       ({f : Cell d | f ∈ C.cells ∧ f.dim = d - 1 ∧
           g.carrier ⊆ f.carrier} ≃
        {t ∈ K.facets | s ⊆ t}) := by
-  sorry
+  let R : {f : Cell d | f ∈ C.cells ∧ f.dim = d - 1 ∧ g.carrier ⊆ f.carrier} →
+          {t ∈ K.facets | s ⊆ t} → Prop :=
+    fun f t => convexHull ℝ (t.val : Set (E d)) ⊆ f.val.carrier
+  have h1 : ∀ f, ∃! t, R f t :=
+    birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets_step2_incidence_equiv_step1_f_to_t D C g hg hgd K hfin hspace hpure hcompat s hs hsc hsg hrel
+  have h2 : ∀ t, ∃! f, R f t :=
+    birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets_step2_incidence_equiv_step2_t_to_f D C g hg hgd K hfin hspace hpure hcompat s hs hsc hsg hrel
+  let f : _ → _ := fun a => Classical.choose (h1 a)
+  have hf : ∀ a, R a (f a) := fun a => (Classical.choose_spec (h1 a)).1
+  let g_inv : _ → _ := fun b => Classical.choose (h2 b)
+  have hg_inv : ∀ b, R (g_inv b) b := fun b => (Classical.choose_spec (h2 b)).1
+  have left_inv : ∀ a, g_inv (f a) = a := fun a =>
+    Eq.symm ((Classical.choose_spec (h2 (f a))).2 a (hf a))
+  have right_inv : ∀ b, f (g_inv b) = b := fun b =>
+    Eq.symm ((Classical.choose_spec (h1 (g_inv b))).2 b (hg_inv b))
+  exact ⟨⟨f, g_inv, left_inv, right_inv⟩⟩
 
 /-- Step 1 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood`
 (V4 1.25, using (H1) of V4 §1.0): "the polyhedral boundary separates a small

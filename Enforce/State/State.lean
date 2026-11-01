@@ -5682,7 +5682,13 @@ theorem state_semantics_a (P : Params S) (s : State P) (hs : s ∈ honestStates 
 theorem state_semantics_b (P : Params S) (s : State P) (hs : s ∈ honestStates S P)
     (f : FacetName S s.ty) (r : FacetRecord P) (hr : s.facetRecord f = some r)
     (e : CellsInFacet r.ty r.facet) : e.val.val.dim ≤ (r.tau e).val.val.dim := by
-  sorry
+  obtain ⟨U, q, rfl⟩ := hs
+  dsimp [stateOf] at hr
+  unfold HonestSource.facetRecordOf at hr
+  split at hr
+  · contradiction
+  · cases Option.some.inj hr
+    exact exists_childMap_step6_inherited_header_step1_tau_dimension P U q f ‹_› e
 
 /-- Q7, V4 2.4(c): an interior jump forces shallow depth and uncapped age.
 The depth is the recorded word length, strictly below the chosen side's site depth. -/

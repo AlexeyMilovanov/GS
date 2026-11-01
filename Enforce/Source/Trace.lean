@@ -1873,6 +1873,33 @@ def stratumMap (q : H.Node) (f : FacetName S q.2.val.ty)
     CellName S (H.servingChild q f hf).2.val.ty :=
   Classical.choose (H.stratum_exists_unique q f hf s hs)
 
+/-- Step 1 of the V4 proof of `stratumMap_spec` (V4 1.7b): relative interior inclusion. -/
+private lemma stratumMap_spec_step1_spec {d : ℕ} [Fact (2 ≤ d)] {S : SubstSystem d}
+    {T : Tiling S} {H : CoherentHierarchy S T} (q : H.Node) (f : FacetName S q.2.val.ty)
+    (hf : ¬ H.IsFault q f) (s : CellName S q.2.val.ty)
+    (hs : q.2.val.cell q.1 s.val ⊆ q.2.val.cell q.1 f.val) :
+    relint (q.2.val.cell q.1 s.val) ⊆
+        relint ((H.servingChild q f hf).2.val.cell (H.servingChild q f hf).1
+          (H.stratumMap q f hf s hs).val) := by
+  exact (Classical.choose_spec (H.stratum_exists_unique q f hf s hs)).1
+
+/-- Step 2 of the V4 proof of `stratumMap_spec` (V4 1.7b): dimension bound. -/
+private lemma stratumMap_spec_step2_dim {d : ℕ} [Fact (2 ≤ d)] {S : SubstSystem d}
+    {T : Tiling S} {H : CoherentHierarchy S T} (q : H.Node) (f : FacetName S q.2.val.ty)
+    (hf : ¬ H.IsFault q f) (s : CellName S q.2.val.ty)
+    (hs : q.2.val.cell q.1 s.val ⊆ q.2.val.cell q.1 f.val) :
+    s.val.dim ≤ (H.stratumMap q f hf s hs).val.dim := by
+  sorry
+
+/-- Step 3 of the V4 proof of `stratumMap_spec` (V4 1.7b): containment in provider. -/
+private lemma stratumMap_spec_step3_provider {d : ℕ} [Fact (2 ≤ d)] {S : SubstSystem d}
+    {T : Tiling S} {H : CoherentHierarchy S T} (q : H.Node) (f : FacetName S q.2.val.ty)
+    (hf : ¬ H.IsFault q f) (s : CellName S q.2.val.ty)
+    (hs : q.2.val.cell q.1 s.val ⊆ q.2.val.cell q.1 f.val) :
+    (H.servingChild q f hf).2.val.cell (H.servingChild q f hf).1
+        (H.stratumMap q f hf s hs).val ⊆ H.providerCarrier q f hf := by
+  sorry
+
 /-- P7, V4 1.7(b): characterization, dimension bound, and containment in the provider. -/
 theorem stratumMap_spec (q : H.Node) (f : FacetName S q.2.val.ty)
     (hf : ¬ H.IsFault q f) (s : CellName S q.2.val.ty)
@@ -1883,7 +1910,7 @@ theorem stratumMap_spec (q : H.Node) (f : FacetName S q.2.val.ty)
       s.val.dim ≤ (H.stratumMap q f hf s hs).val.dim ∧
       (H.servingChild q f hf).2.val.cell (H.servingChild q f hf).1
         (H.stratumMap q f hf s hs).val ⊆ H.providerCarrier q f hf := by
-  sorry
+  exact ⟨stratumMap_spec_step1_spec q f hf s hs, stratumMap_spec_step2_dim q f hf s hs, stratumMap_spec_step3_provider q f hf s hs⟩
 
 /-- P7, V4 1.7(b): incidence preservation of the provider stratum map. -/
 theorem stratumMap_mono (q : H.Node) (f : FacetName S q.2.val.ty)

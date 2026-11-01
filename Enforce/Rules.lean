@@ -227,6 +227,44 @@ theorem native_carrier {S : SubstSystem d} {π : X → Option S.ι}
   rw [← h_eq]
   exact h_carrier.symm
 
+
+
+private theorem mark_transport (t : PlacedMarkedTile M) (x : E d) (hx : x ∈ t.carrier) :
+    ∃ y : (t.prototype).val.carrier, t.placement y.val = x ∧
+      t.mark ⟨x, hx⟩ = (t.prototype).val.mark y := by
+  have h2 := Classical.choose_spec t.realization
+  have h3 := Classical.choose_spec h2.2
+  have h_carrier : t.carrier = placedSet t.placement (t.prototype).val.carrier := h3.1
+  dsimp [prototype, placement] at *
+  have hx_mapped : x ∈ placedSet (Classical.choose (Classical.choose_spec t.realization).2) (Classical.choose t.realization).carrier := by
+    rw [← h_carrier]; exact hx
+  obtain ⟨y, hy, rfl⟩ := hx_mapped
+  exact ⟨⟨y, hy⟩, rfl, h3.2 ⟨y, hy⟩ _⟩
+private theorem interior_pullback (t : PlacedMarkedTile M) (y : E d) :
+    t.placement y ∈ interior t.carrier ↔ y ∈ interior (t.prototype).val.carrier := by
+  have h2 := Classical.choose_spec t.realization
+  have h3 := Classical.choose_spec h2.2
+  have h_carrier : t.carrier = placedSet t.placement (t.prototype).val.carrier := h3.1
+  let e := t.placement.toHomeomorph
+  have h_eq : t.carrier = e '' (t.prototype).val.carrier := by
+    show _ = placedSet t.placement _
+    rw [← h_carrier]
+  rw [h_eq, ← e.image_interior]
+  exact e.injective.mem_set_image
+
+private theorem frontier_pullback (t : PlacedMarkedTile M) (y : E d) :
+    t.placement y ∈ frontier t.carrier ↔ y ∈ frontier (t.prototype).val.carrier := by
+  have h2 := Classical.choose_spec t.realization
+  have h3 := Classical.choose_spec h2.2
+  have h_carrier : t.carrier = placedSet t.placement (t.prototype).val.carrier := h3.1
+  let e := t.placement.toHomeomorph
+  have h_eq : t.carrier = e '' (t.prototype).val.carrier := by
+    show _ = placedSet t.placement _
+    rw [← h_carrier]
+  rw [h_eq, ← e.image_frontier]
+  exact e.injective.mem_set_image
+
+
 end PlacedMarkedTile
 
 namespace MarkedTiling
@@ -264,10 +302,34 @@ def project : Tiling S where
   cover := Y.project_cover D
   disjoint := Y.project_disjoint D
 
+
 /-- M1/F, V4 §F.2: pointwise projection recovers the old native marking. -/
 theorem project_marking (x : E d) :
     π (Y.marking x) = oldMarking (Y.project D) x := by
-  sorry
+  classical
+  by_cases h : ∃ t ∈ Y.tiles, x ∈ interior t.carrier
+  · obtain ⟨t, ht, hxi⟩ := h
+    have hxc : x ∈ t.carrier := interior_subset hxi
+    have hnat : t.native D ∈ (Y.project D).tiles := Set.mem_image_of_mem _ ht
+    have hxi' : x ∈ interior (t.native D).carrier := by
+      rw [PlacedMarkedTile.native_carrier D t]; exact hxi
+    rw [oldMarking_interior (Y.project D) _ hnat x hxi', Y.marking_eq_tile t ht x hxc]
+    obtain ⟨y, hy, hm⟩ := t.mark_transport x hxc
+    rw [hm]
+    have hyi : y.val ∈ interior (t.prototype).val.carrier :=
+      (t.interior_pullback y.val).1 (by rw [hy]; exact hxi)
+    exact D.interior_projection t.prototype y hyi
+  · push_neg at h
+    obtain ⟨t, ht, hxc⟩ := Y.cover x
+    have hnat : t.native D ∈ (Y.project D).tiles := Set.mem_image_of_mem _ ht
+    have hxf : x ∈ frontier t.carrier := ⟨subset_closure hxc, h t ht⟩
+    rw [oldMarking_frontier (Y.project D) (t.native D) hnat x
+      (by rw [PlacedMarkedTile.native_carrier D t]; exact hxf), Y.marking_eq_tile t ht x hxc]
+    obtain ⟨y, hy, hm⟩ := t.mark_transport x hxc
+    rw [hm]
+    exact D.frontier_projection t.prototype y
+      ((t.frontier_pullback y.val).1 (by rw [hy]; exact hxf))
+
 
 /-- M1/F, V4 §F.2: projected and physical tiles have exactly the same carriers. -/
 theorem project_carriers :

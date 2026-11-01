@@ -6611,13 +6611,33 @@ owner and chain as the index rather than making fresh geometric choices. -/
 def placedTraceCarrier (N : FramedNode S) (n r : ℕ) (F : FacetFlag S N.ty)
     (a : TracePiece N.ty F r) : Set (E d) := tracePlacement N n r '' a.carrier
 
+open private exists_honest_step7_descendant_scaled from Enforce.Tiling in
+
 /-- P17, V4 1.22(a): every recorded named cell is carried to the corresponding
 cell of the actual owner node, at its actual height. -/
 theorem placedTraceOwner_cells (N : FramedNode S) (n r : ℕ) (hr : r ≤ n)
     (F : FacetFlag S N.ty) (a : TracePiece N.ty F r) (e : Cell d) :
     (placedTraceOwner N n r F a).cell (n - r) e =
       tracePlacement N n r '' (a.tile.cell 0 e) := by
-  sorry
+  dsimp [placedTraceOwner, tracePlacement, FramedNode.cell, FramedNode.prototypeFrame, FramedNode.move]
+  ext x
+  simp
+  constructor
+  · rintro ⟨y, hy, rfl⟩
+    use y
+    refine ⟨hy, ?_⟩
+    change N.frame ((S.σ ^ (n - r)) (a.tile.frame y)) = N.frame ((S.descendantNode N.ty (n - r) r a.owner).frame ((S.σ ^ (n - r)) y))
+    apply congrArg
+    dsimp [TracePiece.tile, SubstSystem.nativeTile]
+    symm
+    exact exists_honest_step7_descendant_scaled N.ty (n - r) r a.owner y
+  · rintro ⟨y, hy, rfl⟩
+    use y
+    refine ⟨hy, ?_⟩
+    change N.frame ((S.descendantNode N.ty (n - r) r a.owner).frame ((S.σ ^ (n - r)) y)) = N.frame ((S.σ ^ (n - r)) (a.tile.frame y))
+    apply congrArg
+    dsimp [TracePiece.tile, SubstSystem.nativeTile]
+    exact exists_honest_step7_descendant_scaled N.ty (n - r) r a.owner y
 
 open private hereditary_trace_step1_relint_image from Enforce.Source.Trace in
 /-- P17, V4 1.22(a): recursive traces tile the prescribed cell of every placed

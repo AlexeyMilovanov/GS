@@ -426,11 +426,28 @@ Rigidity below proves independence of the catalogue realization used in this cho
 def compilerFrame (C : ClusterData S P) (t : PlacedMarkedTile (systemM S P C)) : Iso d :=
   t.placement
 
+open private MarkedSet.ext_of_mark from Enforce.Rules in
 /-- M3/M5, V4 2.11, 2.13: decoding realizes the entire placed marked carrier. -/
 theorem placedLeaf_decode (C : ClusterData S P)
     (t : PlacedMarkedTile (systemM S P C)) :
     placedLeaf C (compilerLeaf C t) (compilerFrame C t) = t := by
-  sorry
+  have hext : ∀ u v : PlacedMarkedTile (systemM S P C),
+      u.toMarkedSet = v.toMarkedSet → u = v := by
+    rintro ⟨u, hu⟩ ⟨v, hv⟩ h
+    cases h
+    rfl
+  apply hext
+  change (augmentedLeaf C (Compiler.physicalLeaf C t.prototype)).toMarkedSet.move
+    t.placement = t.toMarkedSet
+  rw [Compiler.physicalLeaf_spec C t.prototype]
+  have hs := Classical.choose_spec (Classical.choose_spec t.realization).2
+  have hc : t.carrier = placedSet t.placement t.prototype.val.carrier := hs.1
+  apply MarkedSet.ext_of_mark hc.symm
+  intro x hx hx'
+  obtain ⟨y, hy, hxy⟩ := hx
+  subst x
+  change t.prototype.val.mark ⟨t.placement.symm (t.placement y), _⟩ = _
+  simpa only [AffineIsometryEquiv.symm_apply_apply] using (hs.2 ⟨y, hy⟩ hx').symm
 
 /-- M3/M5, V4 2.11, 2.13: augmented physical placements determine label and frame. -/
 theorem placedLeaf_injective (C : ClusterData S P) (l u : LeafType P) (φ ψ : Iso d)

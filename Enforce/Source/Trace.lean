@@ -1488,11 +1488,115 @@ def boundaryOffsets (q : H.Node) (f : FacetName S q.2.val.ty) : Set ℕ :=
 def IsFault (q : H.Node) (f : FacetName S q.2.val.ty) : Prop :=
   ∀ r : ℕ, r ∈ H.boundaryOffsets q f
 
+/-- Step 1 of the V4 proof of `boundaryOffsets_initial` (V4 1.6): "`A_{m'} ⊆ A_m`" for one
+parent step: every prescribed child of a placed node lies in its placed parent (H3). -/
+private theorem boundaryOffsets_initial_step1_child_subset
+    (Q : FramedNode S) (n : ℕ) (i : S.I Q.ty) :
+    (Q.child n i).carrier n ⊆ Q.carrier (n + 1) := by
+  rintro z ⟨_, ⟨x, hx, rfl⟩, rfl⟩
+  have hmem : (S.child Q.ty i).frame x ∈ S.σ '' (S.proto Q.ty).carrier := by
+    rw [S.children_cover]
+    exact mem_iUnion.mpr ⟨i, ⟨x, hx, rfl⟩⟩
+  obtain ⟨y, hy, he⟩ := hmem
+  refine ⟨(S.σ ^ (n + 1)) y, ⟨y, hy, rfl⟩, ?_⟩
+  change Q.frame ((S.σ ^ (n + 1)) y) = Q.frame (S.placeChild n i ((S.σ ^ n) x))
+  have hplace : S.placeChild n i ((S.σ ^ n) x) =
+      (S.σ ^ n) ((S.child Q.ty i).frame x) := by
+    change linearConj S.σ (n : ℤ) (S.child Q.ty i).rotation.toLinearEquiv
+        ((S.σ ^ n) x) + (S.σ ^ n) (S.child Q.ty i).offset =
+      (S.σ ^ n) ((S.child Q.ty i).rotation x + (S.child Q.ty i).offset)
+    simp [linearConj, zpow_neg, LinearEquiv.mul_apply]
+  rw [hplace, ← he, pow_succ]
+  rfl
+
+/-- Step 2 of the V4 proof of `boundaryOffsets_initial` (V4 1.6): "as `A_{m'} ⊆ A_m`":
+ancestor carriers are nested, `A_{n+r} ⊆ A_{n+s}` for `r ≤ s`. -/
+private theorem boundaryOffsets_initial_step2_ancestor_mono (q : H.Node) {r s : ℕ}
+    (hrs : r ≤ s) :
+    (H.ancestor q r).2.val.carrier (H.ancestor q r).1 ⊆
+      (H.ancestor q s).2.val.carrier (H.ancestor q s).1 := by
+  induction hrs with
+  | refl => exact le_rfl
+  | @step k _ ih =>
+    refine ih.trans ?_
+    have hk : H.ancestor q (k + 1) = H.parentNode (H.ancestor q k) := by
+      simp only [ancestor, Function.iterate_succ_apply']
+    rw [hk]
+    set c := H.ancestor q k
+    have hc : c.2.val = (H.parent c.1 c.2).val.child c.1 (H.role c.1 c.2) :=
+      H.child_eq c.1 c.2
+    change c.2.val.carrier c.1 ⊆ (H.parent c.1 c.2).val.carrier (c.1 + 1)
+    rw [hc]
+    exact boundaryOffsets_initial_step1_child_subset _ _ _
+
+/-- Step 3 of the V4 proof of `boundaryOffsets_initial` (V4 1.6): the facet `f` of `B`
+lies on `∂B` ((H2)), so offset zero (the node itself) is a boundary height. -/
+private theorem boundaryOffsets_initial_step3_zero_mem (q : H.Node)
+    (f : FacetName S q.2.val.ty) : 0 ∈ H.boundaryOffsets q f := by
+  change q.2.val.cell q.1 f.val ⊆ frontier (q.2.val.carrier q.1)
+  have he : f.val ∈ (S.cx q.2.val.ty).cells := (Finset.mem_filter.mp f.property).1
+  have hsub : f.val.carrier ⊆ frontier (S.proto q.2.val.ty).carrier := by
+    have h2 : relint f.val.carrier ⊆ frontier (S.proto q.2.val.ty).carrier := by
+      intro y hy
+      rw [← (S.cx q.2.val.ty).cover]
+      exact Set.mem_iUnion₂.mpr ⟨f.val, he, hy⟩
+    rw [← f.val.flat.regularClosed]
+    exact isClosed_frontier.closure_subset_iff.mpr h2
+  have hcarrier : q.2.val.carrier q.1 =
+      q.2.val.prototypeFrame q.1 '' (S.proto q.2.val.ty).carrier := by
+    simp [FramedNode.carrier, FramedNode.prototypeFrame, placedSet,
+      SubstSystem.supertile, Set.image_image]
+  rw [hcarrier]
+  let G := (q.2.val.prototypeFrame q.1).toHomeomorphOfFiniteDimensional
+  change G '' f.val.carrier ⊆ frontier (G '' (S.proto q.2.val.ty).carrier)
+  rw [← G.image_frontier]
+  exact Set.image_mono hsub
+
+/-- Step 4 of the V4 proof of `boundaryOffsets_initial` (V4 1.6): "If the first
+alternative holds for `A_m` it holds for all `A_{m'}` with `n < m' < m` (as
+`A_{m'} ⊆ A_m`)": the set of boundary offsets is downward closed. -/
+private theorem boundaryOffsets_initial_step4_downward (q : H.Node)
+    (f : FacetName S q.2.val.ty) {r s : ℕ} (hrs : r ≤ s)
+    (hs : s ∈ H.boundaryOffsets q f) : r ∈ H.boundaryOffsets q f := by
+  intro x hx
+  have h0 := boundaryOffsets_initial_step3_zero_mem H q f hx
+  have hc : IsClosed (q.2.val.carrier q.1) :=
+    (((S.proto q.2.val.ty).compact.image
+      (S.σ ^ q.1).toContinuousLinearEquiv.continuous).image
+        q.2.val.frame.continuous).isClosed
+  have hxq : x ∈ q.2.val.carrier q.1 := hc.closure_subset (frontier_subset_closure h0)
+  have hxr : x ∈ (H.ancestor q r).2.val.carrier (H.ancestor q r).1 :=
+    boundaryOffsets_initial_step2_ancestor_mono H q (Nat.zero_le r) hxq
+  refine ⟨subset_closure hxr, fun hint => ?_⟩
+  have hmono := boundaryOffsets_initial_step2_ancestor_mono H q hrs
+  exact (hs hx).2 (interior_mono hmono hint)
+
 /-- P6, V4 1.6: boundary heights form an initial segment, or persist forever.
 A finite segment includes offset zero and ends immediately before the birth. -/
 theorem boundaryOffsets_initial (q : H.Node) (f : FacetName S q.2.val.ty) :
     (∃ b : ℕ, 1 ≤ b ∧ H.boundaryOffsets q f = {r | r < b}) ∨ H.IsFault q f := by
-  sorry
+  classical
+  by_cases hall : ∀ r : ℕ, r ∈ H.boundaryOffsets q f
+  · exact Or.inr hall
+  · left
+    have hex : ∃ n, n ∉ H.boundaryOffsets q f := by
+      push_neg at hall
+      exact hall
+    refine ⟨Nat.find hex, ?_, ?_⟩
+    · rcases Nat.eq_zero_or_pos (Nat.find hex) with h | h
+      · exact absurd (h ▸ Nat.find_spec hex) (not_not.mpr
+          (boundaryOffsets_initial_step3_zero_mem H q f))
+      · exact h
+    · ext r
+      simp only [Set.mem_setOf_eq]
+      constructor
+      · intro hr
+        by_contra hge
+        push_neg at hge
+        exact Nat.find_spec hex (boundaryOffsets_initial_step4_downward H q f hge hr)
+      · intro hr
+        by_contra hn
+        exact Nat.find_min hex hr hn
 
 /-- P6, V4 1.6: possible serving-child offsets and named provider facets. -/
 abbrev ProviderCandidate (q : H.Node) :=

@@ -4132,6 +4132,156 @@ theorem ScaleTailEquiv.faults {U V : HonestSource S} {a b : ℕ} {J : Iso d}
     U.hierarchy.IsFault q.val f ↔ V.hierarchy.IsFault (e.toEquiv q).val g := by
   sorry
 
+/-- Step 1 of the V4 proof of `providers` (V4 1.13(c)): "all ancestors of `N`"
+remain in the retained tail; iterating its parent map gives the actual ancestors. -/
+private theorem providers_step1_tail_ancestor {T : Tiling S}
+    (H : CoherentHierarchy S T) (a : ℕ) (q : H.Tail a) (r : ℕ) :
+    ((H.tailParent a)^[r] q).val = H.ancestor q.val r := by
+  induction r with
+  | zero => rfl
+  | succ r ih =>
+    rw [Function.iterate_succ_apply']
+    show H.parentNode ((H.tailParent a)^[r] q).val = (H.parentNode)^[r+1] q.val
+    rw [Function.iterate_succ_apply', ih]
+    rfl
+
+/-- Step 1 of the V4 proof of `providers` (V4 1.13(c)): "preserving all
+combinatorial relations (roles, parents, cells, strata, providers, ages)"; parent
+preservation gives correspondence of every ancestor. -/
+private theorem providers_step1_ancestors {U V : HonestSource S}
+    {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J)
+    (q : U.hierarchy.Tail a) (r : ℕ) :
+    (e.toEquiv ((U.hierarchy.tailParent a)^[r] q)).val =
+      V.hierarchy.ancestor (e.toEquiv q).val r := by
+  have hs : Function.Semiconj e.toEquiv (U.hierarchy.tailParent a)
+      (V.hierarchy.tailParent b) := e.parents
+  rw [hs.iterate_right r q, providers_step1_tail_ancestor]
+
+/-- Step 1 of the V4 proof of `providers` (V4 1.13(c)): "of the same type as `N`";
+corresponding ancestors have the same prototype type and listed facets. -/
+private theorem providers_step1_types {U V : HonestSource S}
+    {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J)
+    (q : U.hierarchy.Tail a) (r : ℕ) :
+    (V.hierarchy.ancestor (e.toEquiv q).val r).2.val.ty =
+      (U.hierarchy.ancestor q.val r).2.val.ty := by
+  rw [← providers_step1_ancestors e q r,
+    ← providers_step1_tail_ancestor U.hierarchy a q r]
+  exact e.types _
+
+/-- Step 2 of the V4 proof of `providers` (V4 1.13(c)): "then
+`φ_N′ = J Λ^(n-m) φ_N`"; every placed prototype set is carried by the common
+invertible affine map. -/
+private theorem providers_step2_frame {U V : HonestSource S}
+    {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J)
+    (q : U.hierarchy.Tail a) (K : Set (E d)) :
+    (e.toEquiv q).val.2.val.prototypeFrame (e.toEquiv q).val.1 '' K =
+      (((U.expansion ^ ((b : ℤ) - (a : ℤ))).toAffineEquiv).trans J.toAffineEquiv) ''
+        (q.val.2.val.prototypeFrame q.val.1 '' K) := by
+  rw [e.frames q, AffineEquiv.coe_trans, Set.image_comp]
+
+/-- Step 2 of the V4 proof of `providers` (V4 1.13(c)): "the invertible
+linear map `Λ^(n-m)` carries the hierarchy above `N`"; the same types and full
+frames transport the closed node carriers. -/
+private theorem providers_step2_carriers {U V : HonestSource S}
+    {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J)
+    (q : U.hierarchy.Tail a) :
+    (e.toEquiv q).val.2.val.carrier (e.toEquiv q).val.1 =
+      (((U.expansion ^ ((b : ℤ) - (a : ℤ))).toAffineEquiv).trans J.toAffineEquiv) ''
+        (q.val.2.val.carrier q.val.1) := by
+  have hc (N : FramedNode S) (n : ℕ) :
+      N.carrier n = N.prototypeFrame n '' (S.proto N.ty).carrier := by
+    simp [FramedNode.carrier, FramedNode.prototypeFrame, placedSet,
+      SubstSystem.supertile, Set.image_image]
+  rw [hc, hc, e.types q, providers_step2_frame]
+
+/-- Step 2 of the V4 proof of `providers` (V4 1.13(c)): "all ancestors of
+`N` with their roles, cells, providers and strata"; each named ancestor cell is
+carried by the common affine map. -/
+private theorem providers_step2_ancestor_cell {U V : HonestSource S}
+    {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J)
+    (q : U.hierarchy.Tail a) (r : ℕ) (c : Cell d) :
+    (V.hierarchy.ancestor (e.toEquiv q).val r).2.val.cell
+        (V.hierarchy.ancestor (e.toEquiv q).val r).1 c =
+      (((U.expansion ^ ((b : ℤ) - (a : ℤ))).toAffineEquiv).trans J.toAffineEquiv) ''
+        ((U.hierarchy.ancestor q.val r).2.val.cell
+          (U.hierarchy.ancestor q.val r).1 c) := by
+  rw [← providers_step1_ancestors e q r,
+    ← providers_step1_tail_ancestor U.hierarchy a q r]
+  exact providers_step2_frame e _ c.carrier
+
+/-- Step 3 of the V4 proof of `providers` (V4 1.6, 1.13(c)): "the set of
+heights ... with `f ⊆ ∂A_m` is an initial segment"; the common homeomorphism
+preserves every boundary offset before taking its finite endpoint. -/
+private theorem providers_step3_offsets {U V : HonestSource S}
+    {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J)
+    (q : U.hierarchy.Tail a) (f : FacetName S q.val.2.val.ty)
+    (g : FacetName S (e.toEquiv q).val.2.val.ty) (hfg : f.val = g.val) :
+    U.hierarchy.boundaryOffsets q.val f =
+      V.hierarchy.boundaryOffsets (e.toEquiv q).val g := by
+  let Ψ := (((U.expansion ^ ((b : ℤ) - (a : ℤ))).toAffineEquiv).trans J.toAffineEquiv)
+  have hfr (K : Set (E d)) : frontier (Ψ '' K) = Ψ '' frontier K :=
+    (Ψ.toHomeomorphOfFiniteDimensional.image_frontier K).symm
+  have hcellq : (e.toEquiv q).val.2.val.cell (e.toEquiv q).val.1 g.val =
+      Ψ '' (q.val.2.val.cell q.val.1 f.val) := by
+    unfold FramedNode.cell
+    rw [← hfg]
+    exact providers_step2_frame e q _
+  ext r
+  show q.val.2.val.cell q.val.1 f.val ⊆
+      frontier ((U.hierarchy.ancestor q.val r).2.val.carrier
+        (U.hierarchy.ancestor q.val r).1) ↔
+    (e.toEquiv q).val.2.val.cell (e.toEquiv q).val.1 g.val ⊆
+      frontier ((V.hierarchy.ancestor (e.toEquiv q).val r).2.val.carrier
+        (V.hierarchy.ancestor (e.toEquiv q).val r).1)
+  rw [← providers_step1_ancestors e q r,
+    ← providers_step1_tail_ancestor U.hierarchy a q r, hcellq,
+    providers_step2_carriers, hfr]
+  exact (Set.image_subset_image_iff Ψ.injective).symm
+
+/-- Step 4 of the V4 proof of `providers` (V4 1.6, 1.13(c)): "`g` is a facet
+of the child `A_(b-1)` of `A_b` with `relint g ⊆ int A_b`"; boundary offsets,
+facet containment and this interior condition transport the defining provider
+predicate for an arbitrary candidate. -/
+private theorem providers_step4_isProvider {U V : HonestSource S}
+    {a b : ℕ} {J : Iso d} (e : ScaleTailEquiv U V a b J)
+    (q : U.hierarchy.Tail a) (f : FacetName S q.val.2.val.ty)
+    (g : FacetName S (e.toEquiv q).val.2.val.ty) (hfg : f.val = g.val)
+    (r : ℕ) (F : FacetName S (U.hierarchy.ancestor q.val r).2.val.ty)
+    (G : FacetName S (V.hierarchy.ancestor (e.toEquiv q).val r).2.val.ty)
+    (hFG : F.val = G.val)
+    (hv : U.hierarchy.IsProvider q.val f ⟨r, F⟩) :
+    V.hierarchy.IsProvider (e.toEquiv q).val g ⟨r, G⟩ := by
+  let Ψ := (((U.expansion ^ ((b : ℤ) - (a : ℤ))).toAffineEquiv).trans J.toAffineEquiv)
+  have hc (p : U.hierarchy.Tail a) (c : Cell d) :
+      (e.toEquiv p).val.2.val.cell (e.toEquiv p).val.1 c =
+        Ψ '' (p.val.2.val.cell p.val.1 c) :=
+    providers_step2_frame e p c.carrier
+  refine ⟨(providers_step3_offsets e q f g hfg).symm.trans hv.1, ?_, ?_⟩
+  · change (e.toEquiv q).val.2.val.cell (e.toEquiv q).val.1 g.val ⊆
+      (V.hierarchy.ancestor (e.toEquiv q).val r).2.val.cell
+        (V.hierarchy.ancestor (e.toEquiv q).val r).1 G.val
+    rw [hc, providers_step2_ancestor_cell, ← hfg, ← hFG]
+    change Ψ '' (q.val.2.val.cell q.val.1 f.val) ⊆
+      Ψ '' ((U.hierarchy.ancestor q.val r).2.val.cell
+        (U.hierarchy.ancestor q.val r).1 F.val)
+    exact Set.image_mono hv.2.1
+  · change relint ((V.hierarchy.ancestor (e.toEquiv q).val r).2.val.cell
+        (V.hierarchy.ancestor (e.toEquiv q).val r).1 G.val) ⊆
+      interior ((V.hierarchy.ancestor (e.toEquiv q).val (r + 1)).2.val.carrier
+        (V.hierarchy.ancestor (e.toEquiv q).val (r + 1)).1)
+    rw [providers_step2_ancestor_cell, ← hFG,
+      ← providers_step1_ancestors e q (r + 1),
+      providers_step2_carriers, providers_step1_tail_ancestor,
+      hereditary_trace_step1_relint_image]
+    change Ψ '' relint ((U.hierarchy.ancestor q.val r).2.val.cell
+        (U.hierarchy.ancestor q.val r).1 F.val) ⊆
+      interior (Ψ '' ((U.hierarchy.ancestor q.val (r + 1)).2.val.carrier
+        (U.hierarchy.ancestor q.val (r + 1)).1))
+    have hi (K : Set (E d)) : interior (Ψ '' K) = Ψ '' interior K :=
+      (Ψ.toHomeomorphOfFiniteDimensional.image_interior K).symm
+    rw [hi]
+    exact Set.image_mono hv.2.2
+
 /-- P6/P7/T9, V4 1.6--1.7, 1.13(c): finite providers keep their exact serving
 offset, facet name, primitive incidence, and age under exact scale transfer. -/
 theorem ScaleTailEquiv.providers {U V : HonestSource S} {a b : ℕ} {J : Iso d}
@@ -4150,7 +4300,62 @@ theorem ScaleTailEquiv.providers {U V : HonestSource S} {a b : ℕ} {J : Iso d}
       J '' ((U.expansion ^ ((b : ℤ) - (a : ℤ))) ''
         U.hierarchy.providerCarrier q.val f hf) =
           V.hierarchy.providerCarrier (e.toEquiv q).val g hg := by
-  sorry
+  let p := U.hierarchy.firstProvider q.val f hf
+  let G : FacetName S (V.hierarchy.ancestor (e.toEquiv q).val p.1).2.val.ty :=
+    ⟨p.2.val, by rw [providers_step1_types e q p.1]; exact p.2.property⟩
+  have hv := providers_step4_isProvider e q f g hfg p.1 p.2 G rfl
+    (U.hierarchy.firstProvider_spec q.val f hf)
+  have heq := V.hierarchy.provider_unique (e.toEquiv q).val g ⟨p.1, G⟩
+    (V.hierarchy.firstProvider (e.toEquiv q).val g hg) hv
+    (V.hierarchy.firstProvider_spec (e.toEquiv q).val g hg)
+  have hoff : p.1 = (V.hierarchy.firstProvider (e.toEquiv q).val g hg).1 :=
+    congrArg Sigma.fst heq
+  have hfacet : p.2.val = (V.hierarchy.firstProvider (e.toEquiv q).val g hg).2.val :=
+    congrArg (fun v : V.hierarchy.ProviderCandidate (e.toEquiv q).val => v.2.val) heq
+  let c := (U.hierarchy.tailParent a)^[p.1] q
+  have hcU : c.val = U.hierarchy.servingChild q.val f hf :=
+    providers_step1_tail_ancestor U.hierarchy a q p.1
+  have hcV : (e.toEquiv c).val = V.hierarchy.servingChild (e.toEquiv q).val g hg := by
+    change (e.toEquiv ((U.hierarchy.tailParent a)^[p.1] q)).val = _
+    rw [providers_step1_ancestors, hoff]
+    rfl
+  have hbU : (U.hierarchy.tailParent a c).val = U.hierarchy.birthParent q.val f hf := by
+    change U.hierarchy.parentNode c.val = _
+    rw [hcU]
+    rfl
+  have hbV : (e.toEquiv (U.hierarchy.tailParent a c)).val =
+      V.hierarchy.birthParent (e.toEquiv q).val g hg := by
+    rw [e.parents]
+    change V.hierarchy.parentNode (e.toEquiv c).val = _
+    rw [hcV]
+    rfl
+  let Ψ := (((U.expansion ^ ((b : ℤ) - (a : ℤ))).toAffineEquiv).trans J.toAffineEquiv)
+  have hcarrier : V.hierarchy.providerCarrier (e.toEquiv q).val g hg =
+      Ψ '' U.hierarchy.providerCarrier q.val f hf := by
+    unfold CoherentHierarchy.providerCarrier
+    rw [← hcU, ← hcV, ← hfacet]
+    exact providers_step2_frame e c p.2.val.carrier
+  have hinc : U.hierarchy.providerIncidence q.val f hf =
+      V.hierarchy.providerIncidence (e.toEquiv q).val g hg := by
+    apply (Classical.choose_spec
+      (V.hierarchy.provider_incidence_exists (e.toEquiv q).val g hg)).2
+    obtain ⟨hty, hrole, hname, hgeom⟩ := U.hierarchy.providerIncidence_spec q.val f hf
+    refine ⟨?_, ?_, hname.trans hfacet, ?_⟩
+    · rw [← hbV, e.types, hbU]
+      exact hty
+    · rw [← hcV, e.roles, hcU]
+      exact hrole
+    · rw [hcarrier, hgeom]
+      change Ψ ''
+        ((U.hierarchy.birthParent q.val f hf).2.val.prototypeFrame
+          (U.hierarchy.birthParent q.val f hf).1 '' _) =
+        (V.hierarchy.birthParent (e.toEquiv q).val g hg).2.val.prototypeFrame
+          (V.hierarchy.birthParent (e.toEquiv q).val g hg).1 '' _
+      rw [← hbU, ← hbV, providers_step2_frame]
+  refine ⟨hoff, hfacet, hinc, ?_, ?_⟩
+  · rw [(U.hierarchy.birthHeight_age_spec q.val f hf).2.1,
+      (V.hierarchy.birthHeight_age_spec (e.toEquiv q).val g hg).2.1, hoff]
+  · simpa only [Ψ, AffineEquiv.coe_trans, Set.image_comp] using hcarrier.symm
 
 /-- Step 1 of the V4 proof of `strata` (V4 1.13(c)): exact-scale transfer preserves the types and the cell collections of the serving child. -/
 private lemma strata_step1_cell_step1_tailParent_ancestor {U V : HonestSource S} {a b : ℕ} {J : Iso d}

@@ -583,7 +583,9 @@ private lemma cluster_rigidity_step1_microball_contained (C : ClusterData S P)
     (Y : MarkedTiling (systemM S P C)) (l : LeafType P) (κ : ClusterKind l) (ψ : Iso d)
     (h : ∀ x ∈ C.cluster l κ, Y.marking (ψ x) = augmentedColour C l x) (a : Fin (d + 1)) :
     ψ '' (C.microball l κ a) ⊆ {x | Y.marking x = microColour l κ a} := by
-  sorry
+  rintro y ⟨x, hx, rfl⟩
+  have hx_cluster : x ∈ C.cluster l κ := Set.mem_iUnion_of_mem a hx
+  exact (h x hx_cluster).trans (augmentedMarking_microball C l κ a x hx)
 
 /-- Step 2 of the V4 proof of `cluster_rigidity` (V4 2.13): a connected set lies in one of the
 pairwise disjoint closed balls of radius ρ. A closed ball of radius ρ contained in a closed ball of

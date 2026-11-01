@@ -867,11 +867,24 @@ private lemma honest_move_exists_step1_species (U : HonestSource S) (g : Iso d) 
     U.tiling.move g ∈ S.Species :=
   (species_move_iff U.tiling g).mpr U.mem_species
 
+open private exists_honest_step7_move_toTile from Enforce.Tiling in
 /-- Step 2 of the V4 proof of `honest_move_exists` (V4 1.11, 2.14(d)): moving the entire coherent hierarchy preserves coherence. -/
 private lemma honest_move_exists_step2_hierarchy_step1_ground (U : HonestSource S) (g : Iso d) :
     let nodes' := fun n => (fun N : FramedNode S => N.move g) '' U.hierarchy.nodes n;
     {t | ∃ N ∈ nodes' 0, N.toTile = t} = (U.tiling.move g).tiles := by
-  sorry
+  ext t
+  simp only [Set.mem_setOf_eq, Tiling.move, Set.mem_image]
+  constructor
+  · rintro ⟨N, ⟨M, hM, rfl⟩, rfl⟩
+    refine ⟨M.toTile, ?_, (exists_honest_step7_move_toTile M g).symm⟩
+    rw [← U.hierarchy.ground]
+    exact ⟨M, hM, rfl⟩
+  · rintro ⟨t', ht', rfl⟩
+    have ht'' : t' ∈ {t | ∃ N ∈ U.hierarchy.nodes 0, N.toTile = t} := by
+      rw [U.hierarchy.ground]
+      exact ht'
+    obtain ⟨M, hM, rfl⟩ := ht''
+    refine ⟨M.move g, ⟨M, hM, rfl⟩, exists_honest_step7_move_toTile M g⟩
 
 private lemma honest_move_exists_step2_hierarchy_step2_cover (U : HonestSource S) (g : Iso d) :
     let nodes' := fun n => (fun N : FramedNode S => N.move g) '' U.hierarchy.nodes n;

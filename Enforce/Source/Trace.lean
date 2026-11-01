@@ -2712,6 +2712,92 @@ def ActiveFlag (q : H.Node) (f : FacetName S q.2.val.ty)
   ∀ j, ∃ hs : q.2.val.cell q.1 (s.cell j).val ⊆ q.2.val.cell q.1 f.val,
     (H.stratumMap q f hf (s.cell j) hs).val = (F.cell j).val
 
+/-- Step 1 of the V4 proof of `active_flags_hereditary` (V4 1.7(a),(c)):
+"the same birth parent" gives the same serving node on the ancestor chain. -/
+private theorem active_flags_hereditary_step1_serving
+    (q c : H.Node) (r : ℕ) (hc : H.ancestor c r = q)
+    (f : FacetName S q.2.val.ty) (g : FacetName S c.2.val.ty)
+    (hf : ¬ H.IsFault q f) (hg : ¬ H.IsFault c g)
+    (hbp : H.birthParent c g hg = H.birthParent q f hf) :
+    H.servingChild c g hg = H.servingChild q f hf := by
+  have hbc : H.birthParent c g hg =
+      H.ancestor c ((H.firstProvider c g hg).1 + 1) := by
+    simp only [birthParent, servingChild, ancestor, Function.iterate_succ_apply']
+  have hbq : H.birthParent q f hf =
+      H.ancestor q ((H.firstProvider q f hf).1 + 1) := by
+    simp only [birthParent, servingChild, ancestor, Function.iterate_succ_apply']
+  have hheight := congrArg (fun N : H.Node => N.1) hbp
+  simp only at hheight
+  rw [hbc, hbq, H.ancestor_height, H.ancestor_height] at hheight
+  have hq := H.ancestor_height c r
+  rw [hc] at hq
+  have hoffset : (H.firstProvider c g hg).1 = r + (H.firstProvider q f hf).1 := by
+    omega
+  unfold servingChild
+  rw [hoffset, Nat.add_comm r]
+  change (H.parentNode^[((H.firstProvider q f hf).1 + r)]) c =
+    (H.parentNode^[(H.firstProvider q f hf).1]) q
+  rw [Function.iterate_add_apply]
+  exact congrArg (H.parentNode^[(H.firstProvider q f hf).1]) hc
+
+/-- Step 2 of the V4 proof of `active_flags_hereditary` (V4 1.7(c),(d)):
+"`relint s' ⊆ relint t` and `relint t ⊆ relint τ_f(t)`, so
+`τ_{f'}(s') = τ_f(t)` by uniqueness in 1.2". This lifts one cell, with
+containment in the ancestral facet and the lower dimension bound of 1.2. -/
+private theorem active_flags_hereditary_step2_cell
+    (q c : H.Node) (r : ℕ) (hc : H.ancestor c r = q)
+    (f : FacetName S q.2.val.ty) (g : FacetName S c.2.val.ty)
+    (hf : ¬ H.IsFault q f) (hg : ¬ H.IsFault c g)
+    (hsub : c.2.val.cell c.1 g.val ⊆ q.2.val.cell q.1 f.val)
+    (s : CellName S c.2.val.ty)
+    (hs : c.2.val.cell c.1 s.val ⊆ c.2.val.cell c.1 g.val) :
+    ∃ (t : CellName S q.2.val.ty)
+      (ht : q.2.val.cell q.1 t.val ⊆ q.2.val.cell q.1 f.val),
+      relint (c.2.val.cell c.1 s.val) ⊆ relint (q.2.val.cell q.1 t.val) ∧
+      s.val.dim ≤ t.val.dim ∧
+      (H.servingChild q f hf).2.val.cell (H.servingChild q f hf).1
+          (H.stratumMap q f hf t ht).val =
+        (H.servingChild c g hg).2.val.cell (H.servingChild c g hg).1
+          (H.stratumMap c g hg s hs).val := by
+  have hC : c.2.val.IsDescendant c.1 q.2.val q.1 := by
+    have h := H.ancestor_descendant c r
+    rw [hc] at h
+    exact h
+  have hf' : f.val ∈ (S.cx q.2.val.ty).cells :=
+    (Finset.mem_filter.mp f.property).1
+  have hfr : c.2.val.cell c.1 s.val ⊆ frontier (q.2.val.carrier q.1) :=
+    hs.trans (hsub.trans (hereditary_trace_step1_cell_frontier _ _ f.val hf'))
+  let t := ancestralStratum q.2.val c.2.val q.1 c.1 hC s hfr
+  have hspec := ancestralStratum_spec q.2.val c.2.val q.1 c.1 hC s hfr
+  have hne : (relint (c.2.val.cell c.1 s.val)).Nonempty := by
+    rw [FramedNode.cell, hereditary_trace_step1_relint_image]
+    exact s.val.flat.relint_nonempty.image _
+  have ht : q.2.val.cell q.1 t.val ⊆ q.2.val.cell q.1 f.val := by
+    obtain ⟨p, hp⟩ := hne
+    exact hereditary_trace _ _ _ _ (ancestor_descendant_refl _ _) f.val t.val
+      hf' t.property ⟨p, hspec.1 hp, hsub (hs (intrinsicInterior_subset hp))⟩
+  refine ⟨t, ht, hspec.1, hspec.2, ?_⟩
+  obtain ⟨hg', _, hbp⟩ := H.provider_inherited q c r hc f g hf hsub
+  have hser := active_flags_hereditary_step1_serving H q c r hc f g hf hg hbp
+  exact restriction_det_inherited_step4_cell_eq H _ _ hser.symm _ _ _ hne
+    (hspec.1.trans (stratumMap_spec_step1_spec q f hf t ht))
+    (stratumMap_spec_step1_spec c g hg s hs)
+
+/-- Step 3 of the V4 proof of `active_flags_hereditary` (V4 1.7(d)):
+"`τ_f(t_j) = F_j` has dimension `j`". Equality of placed cell carriers
+preserves their dimensions, since the prototype frames are invertible affine maps. -/
+private theorem active_flags_hereditary_step3_dimension
+    (N M : FramedNode S) (n m : ℕ) (a b : Cell d)
+    (heq : N.cell n a = M.cell m b) : a.dim = b.dim := by
+  have ha : Module.finrank ℝ (cellDirection (N.cell n a)) = a.dim :=
+    (sibling_facet_eq_step0_finrank_image (N.prototypeFrame n) a.carrier).trans
+      a.flat.dimension
+  have hb : Module.finrank ℝ (cellDirection (M.cell m b)) = b.dim :=
+    (sibling_facet_eq_step0_finrank_image (M.prototypeFrame m) b.carrier).trans
+      b.flat.dimension
+  rw [heq] at ha
+  exact ha.symm.trans hb
+
 /-- P7, V4 1.7(d): active descendant flags lift through every intermediate
 ancestor with exact dimensions and nestedness, and the provider strata stay equal. -/
 theorem active_flags_hereditary (q c : H.Node) (r : ℕ) (hc : H.ancestor c r = q)
@@ -2728,7 +2814,53 @@ theorem active_flags_hereditary (q c : H.Node) (r : ℕ) (hc : H.ancestor c r = 
         (H.servingChild q f hf).2.val.cell (H.servingChild q f hf).1
           (H.stratumMap q f hf (t.cell j) ht).val =
         (H.servingChild c g hg).2.val.cell (H.servingChild c g hg).1 (F.cell j).val := by
-  sorry
+  classical
+  have hC : c.2.val.IsDescendant c.1 q.2.val q.1 := by
+    have h := H.ancestor_descendant c r
+    rw [hc] at h
+    exact h
+  have hlift : ∀ j, ∃ (t : CellName S q.2.val.ty)
+      (ht : q.2.val.cell q.1 t.val ⊆ q.2.val.cell q.1 f.val),
+      relint (c.2.val.cell c.1 (s.cell j).val) ⊆ relint (q.2.val.cell q.1 t.val) ∧
+      (s.cell j).val.dim ≤ t.val.dim ∧
+      (H.servingChild q f hf).2.val.cell (H.servingChild q f hf).1
+          (H.stratumMap q f hf t ht).val =
+        (H.servingChild c g hg).2.val.cell (H.servingChild c g hg).1 (F.cell j).val := by
+    intro j
+    obtain ⟨hs, hactive⟩ := ha j
+    obtain ⟨t, ht, hrel, hdim, hstratum⟩ :=
+      active_flags_hereditary_step2_cell H q c r hc f g hf hg hsub (s.cell j) hs
+    exact ⟨t, ht, hrel, hdim, by rwa [hactive] at hstratum⟩
+  choose t ht hrel hdim hstratum using hlift
+  have hdimension : ∀ j, (t j).val.dim = j.val := by
+    intro j
+    have heq := active_flags_hereditary_step3_dimension
+      (H.servingChild q f hf).2.val (H.servingChild c g hg).2.val
+      (H.servingChild q f hf).1 (H.servingChild c g hg).1
+      (H.stratumMap q f hf (t j) (ht j)).val (F.cell j).val (hstratum j)
+    have hupper := stratumMap_spec_step2_dim q f hf (t j) (ht j)
+    rw [heq, F.dimension j] at hupper
+    have hlower := hdim j
+    rw [s.dimension j] at hlower
+    exact Nat.le_antisymm hupper hlower
+  have hnonempty (j) : (relint (c.2.val.cell c.1 (s.cell j).val)).Nonempty := by
+    rw [FramedNode.cell, hereditary_trace_step1_relint_image]
+    exact (s.cell j).val.flat.relint_nonempty.image _
+  have hcontained (j) : c.2.val.cell c.1 (s.cell j).val ⊆
+      q.2.val.cell q.1 (t j).val := by
+    obtain ⟨p, hp⟩ := hnonempty j
+    exact hereditary_trace _ _ _ _ hC (t j).val (s.cell j).val
+      (t j).property (s.cell j).property ⟨p, hp, intrinsicInterior_subset (hrel j hp)⟩
+  have hnested : ∀ i j, i.val ≤ j.val → (t i).val.carrier ⊆ (t j).val.carrier := by
+    intro i j hij
+    apply (Set.image_subset_image_iff (q.2.val.prototypeFrame q.1).injective).mp
+    obtain ⟨p, hp⟩ := hnonempty i
+    have hsij : c.2.val.cell c.1 (s.cell i).val ⊆ c.2.val.cell c.1 (s.cell j).val :=
+      Set.image_mono (s.nested i j hij)
+    exact hereditary_trace _ _ _ _ (ancestor_descendant_refl _ _) (t j).val (t i).val
+      (t j).property (t i).property
+      ⟨p, hrel i hp, hcontained j (hsij (intrinsicInterior_subset hp))⟩
+  exact ⟨⟨t, hdimension, hnested⟩, fun j => ⟨hrel j, ht j, hstratum j⟩⟩
 
 end CoherentHierarchy
 

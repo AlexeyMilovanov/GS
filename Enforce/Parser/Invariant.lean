@@ -137,7 +137,23 @@ theorem union_tiles : B.carrier =
 /-- R1, V4 §3.0: a block has compact, regular closed support and nonempty interior. -/
 theorem carrier_regular : IsCompact B.carrier ∧ IsRegularClosed B.carrier ∧
     (interior B.carrier).Nonempty := by
-  sorry
+  simp only [Block.carrier, FramedNode.carrier, placedSet, SubstSystem.supertile, Set.image_image]
+  let e1 := (S.σ ^ n).toContinuousLinearEquiv.toHomeomorph
+  let e2 := B.node.frame.toHomeomorph
+  let e := e1.trans e2
+  have heq : (fun (x : E d) => B.node.frame ((S.σ ^ n) x)) '' (S.proto B.node.ty).carrier =
+             e '' (S.proto B.node.ty).carrier := rfl
+  rw [heq]
+  have Hc : IsCompact (e '' (S.proto B.node.ty).carrier) :=
+    (S.proto B.node.ty).compact.image e.continuous
+  have Hr : IsRegularClosed (e '' (S.proto B.node.ty).carrier) := by
+    change closure (interior (e '' _)) = e '' _
+    rw [← Homeomorph.image_interior, ← Homeomorph.image_closure]
+    rw [(S.proto _).regularClosed]
+  have Hn : (interior (e '' (S.proto B.node.ty).carrier)).Nonempty := by
+    rw [← Homeomorph.image_interior]
+    exact (S.proto _).interior_nonempty.image e
+  exact ⟨Hc, Hr, Hn⟩
 
 end Block
 

@@ -41,10 +41,21 @@ structure EventIndex (S : SubstSystem d) (P : Params S) where
   /-- M3, V4 2.11: the configuration satisfies the slot's row. -/
   allowed : template ∈ allowedTemplates slot
 
+private def EventIndex.equiv (S : SubstSystem d) (P : Params S) : EventIndex S P ≃
+    Σ l : LeafType P, Σ slot : EventSlot l, (allowedTemplates slot : Set (Template P)) where
+  toFun e := ⟨e.leaf, e.slot, ⟨e.template, e.allowed⟩⟩
+  invFun s := { leaf := s.1, slot := s.2.1, template := s.2.2.1, allowed := s.2.2.2 }
+  left_inv e := by cases e; rfl
+  right_inv s := by rcases s with ⟨leaf, slot, template, allowed⟩; rfl
+
 /-- M3, V4 2.11: the indexed allowed template family is finite. -/
 theorem eventIndices_finite (S : SubstSystem d) (P : Params S) :
     Finite (EventIndex S P) := by
-  sorry
+  have inst1 : Finite (LeafType P) := Finite.of_fintype _
+  have inst2 (l : LeafType P) : Finite (EventSlot l) := Finite.of_fintype _
+  have inst3 (l : LeafType P) (slot : EventSlot l) :
+    Finite (allowedTemplates slot : Set (Template P)) := allowedTemplates_finite P l slot
+  exact Finite.of_equiv _ (EventIndex.equiv S P).symm
 
 /-- M3, V4 2.11: enumeration of EVENT rule indices. -/
 instance eventIndexFintype (S : SubstSystem d) (P : Params S) :

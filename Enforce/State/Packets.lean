@@ -1325,13 +1325,35 @@ theorem certificateAncestor_mem (P : Params S) (t : U.Node) (ht : t.1 = 0) :
     rw [U.hierarchy.ancestor_height, ht, zero_add]
   simpa only [hh] using h
 
+open private birth_ascent_routing_step2_descendant_injective from Enforce.Source.Routing in
 /-- Q11, V4 2.7: the native tile has one exact role-word address below its K-ancestor.
 Frames, rather than just carriers, are identified by the coherent hierarchy. -/
 theorem leafIndex_exists (P : Params S) (t : U.Node) (ht : t.1 = 0) :
     ∃! w : S.RoleWord (U.hierarchy.ancestor t P.K).2.val.ty P.K,
       (S.nativeTile (U.hierarchy.ancestor t P.K).2.val.ty P.K w).move
         (U.hierarchy.ancestor t P.K).2.val.frame = t.2.val := by
-  sorry
+  obtain ⟨r, hr, w, hw⟩ := U.hierarchy.ancestor_descendant t P.K
+  have hK : r = P.K := by
+    have hah := U.hierarchy.ancestor_height t P.K
+    omega
+  subst hK
+  have hnat : S.descendantNode (U.hierarchy.ancestor t P.K).2.val.ty t.1 P.K w =
+      S.nativeTile (U.hierarchy.ancestor t P.K).2.val.ty P.K w := by
+    rw [ht]; rfl
+  rw [hnat] at hw
+  refine ⟨w, hw.symm, ?_⟩
+  intro v hv
+  have hmove : S.nativeTile (U.hierarchy.ancestor t P.K).2.val.ty P.K v =
+      S.nativeTile (U.hierarchy.ancestor t P.K).2.val.ty P.K w := by
+    have h := hv.trans hw
+    have hty := congrArg FramedNode.ty h
+    have hf := congrArg FramedNode.frame h
+    apply FramedNode.ext
+    · exact hty
+    · refine AffineIsometryEquiv.ext fun x => ?_
+      have hx := congrArg (fun φ : Iso d => φ x) hf
+      exact (U.hierarchy.ancestor t P.K).2.val.frame.injective hx
+  exact birth_ascent_routing_step2_descendant_injective _ 0 P.K hmove
 
 /-- Q11, V4 2.7: the actual role-word address of a native leaf. -/
 def leafIndex (P : Params S) (t : U.Node) (ht : t.1 = 0) :

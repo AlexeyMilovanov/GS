@@ -482,8 +482,51 @@ private lemma honest_translate_exists_step3_contexts (U : HonestSource S) (v : E
       (H.parent n ⟨N.val.move (translation v), hN⟩).val = (U.hierarchy.parent n N).val.move (translation v))
     (hroles : ∀ n (N : {N // N ∈ U.hierarchy.nodes n}) (hN : N.val.move (translation v) ∈ H.nodes n),
       H.nodeRole ⟨n, ⟨N.val.move (translation v), hN⟩⟩ = U.hierarchy.nodeRole ⟨n, N⟩) :
-    ∀ F : Finset H.Node, Nonempty (LegalContext H F) :=
-  sorry
+    ∀ F : Finset H.Node, Nonempty (LegalContext H F) := by
+  classical
+  intro F
+  let g := translation v
+  have hpull : ∀ q : H.Node, ∃ N, N ∈ U.hierarchy.nodes q.1 ∧ N.move g = q.2.val := by
+    intro q
+    exact (Set.ext_iff.mp (hnodes q.1) q.2.val).mp q.2.2
+  let pull : H.Node → U.hierarchy.Node := fun q =>
+    ⟨q.1, ⟨Classical.choose (hpull q), (Classical.choose_spec (hpull q)).1⟩⟩
+  have hpull_spec : ∀ q : H.Node, (pull q).2.val.move g = q.2.val := fun q =>
+    (Classical.choose_spec (hpull q)).2
+  obtain ⟨C'⟩ := U.contexts (F.image pull)
+  have hmove : ∀ N : FramedNode S,
+      (N.move g).move (g.symm.trans C'.placement) = N.move C'.placement := by
+    intro N
+    cases N
+    simp only [FramedNode.move, FramedNode.mk.injEq, true_and]
+    ext x
+    simp
+  have hcarrier : ∀ (φ : Iso d) (N : FramedNode S) (n : ℕ),
+      φ '' N.carrier n = (N.move φ).carrier n := by
+    intro φ N n
+    simp only [FramedNode.carrier, FramedNode.move, placedSet, Set.image_image]
+    rfl
+  have hq : ∀ q : H.Node,
+      q.2.val.move (g.symm.trans C'.placement) = (pull q).2.val.move C'.placement := by
+    intro q
+    rw [← hpull_spec q, hmove]
+  refine ⟨{
+    height := C'.height
+    ty := C'.ty
+    placement := g.symm.trans C'.placement
+    standard := ?_
+    interior := ?_
+    edges := ?_ }⟩
+  · intro q hqF
+    rw [hq q]
+    exact C'.standard (pull q) (Finset.mem_image_of_mem pull hqF)
+  · intro q hqF
+    rw [hcarrier, hq q, ← hcarrier]
+    exact C'.interior (pull q) (Finset.mem_image_of_mem pull hqF)
+  · intro q _ _
+    exact (congrArg (fun N : FramedNode S => N.move (g.symm.trans C'.placement))
+      (H.child_eq q.1 q.2)).trans
+      (honest_translate_exists_step2_translated_hierarchy_step3_tree_child_move _ _ _ _)
 
 /-- Step 4 of the V4 proof of `honest_translate_exists` (V4 1.27):
 the translated nodes have frames in the same coset. -/

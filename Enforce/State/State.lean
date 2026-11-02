@@ -344,12 +344,186 @@ def recordIncidence (P : Params S) (q : U.Node) (f : FacetName S q.2.val.ty)
     (hf : ¬ U.hierarchy.IsFault q f) : P.Incidence :=
   P.canonical (U.hierarchy.providerIncidence q f hf)
 
+/-- Step 1 of the V4 proof of `recordSide_exists` (V4 1.4(b), facet measure):
+relint commutes with the full invertible affine frame. -/
+private theorem recordSide_exists_step1_relint_image
+    (e : E d ≃ᵃ[ℝ] E d) (K : Set (E d)) :
+    relint (e '' K) = e '' relint K := by
+  let h := e.toHomeomorphOfFiniteDimensional
+  have hspan : h '' (affineSpan ℝ K : Set (E d)) =
+      (affineSpan ℝ (e '' K) : Set (E d)) := by
+    exact congrArg (fun A : AffineSubspace ℝ (E d) => (A : Set (E d)))
+      (AffineSubspace.map_span e.toAffineMap K)
+  let f : (affineSpan ℝ K) ≃ₜ (affineSpan ℝ (e '' K)) :=
+    (h.image _).trans (Homeomorph.setCongr hspan)
+  have hf (x : affineSpan ℝ K) : (f x).val = e x.val := rfl
+  have hp : (f ⁻¹' ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))) =
+      ((↑) ⁻¹' K : Set (affineSpan ℝ K)) := by
+    ext x
+    change e x.val ∈ e '' K ↔ x.val ∈ K
+    exact e.injective.mem_set_image
+  have hi := f.preimage_interior ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))
+  rw [hp] at hi
+  ext x
+  constructor
+  · rintro ⟨y, hy, rfl⟩
+    have hm : f.symm y ∈ interior ((↑) ⁻¹' K : Set (affineSpan ℝ K)) := by
+      rw [← hi]
+      simpa using hy
+    refine ⟨(f.symm y).val, ⟨f.symm y, hm, rfl⟩, ?_⟩
+    simpa only [f.apply_symm_apply] using (hf (f.symm y)).symm
+  · rintro ⟨z, ⟨w, hw, rfl⟩, rfl⟩
+    refine ⟨f w, ?_, hf w⟩
+    change w ∈ f ⁻¹' interior ((↑) ⁻¹' (e '' K) : Set (affineSpan ℝ (e '' K)))
+    rwa [hi]
+
+/-- Step 1 of the V4 proof of `recordSide_exists` (V4 1.4(b), facet measure):
+a nonempty relative interior has positive Hausdorff measure in its affine dimension. -/
+private theorem recordSide_exists_step1_relint_measure (K : Set (E d))
+    (hne : (relint K).Nonempty) :
+    0 < (MeasureTheory.Measure.hausdorffMeasure
+      (Module.finrank ℝ (affineSpan ℝ K).direction : ℝ)) K := by
+  classical
+  let A := affineSpan ℝ K
+  obtain ⟨z, x, hx, rfl⟩ := hne
+  letI : Nonempty A := ⟨x⟩
+  let e := AffineIsometryEquiv.vaddConst ℝ x
+  let W : Set A := interior ((↑) ⁻¹' K)
+  let V : Set A.direction := e ⁻¹' W
+  have hV : IsOpen V := isOpen_interior.preimage e.continuous
+  have hVne : V.Nonempty := ⟨e.symm x, by simpa [V, W] using hx⟩
+  letI : (MeasureTheory.Measure.hausdorffMeasure (Module.finrank ℝ A.direction : ℝ) :
+      MeasureTheory.Measure A.direction).IsAddHaarMeasure :=
+    MeasureTheory.isAddHaarMeasure_hausdorffMeasure
+  have hpos : 0 < (MeasureTheory.Measure.hausdorffMeasure
+      (Module.finrank ℝ A.direction : ℝ)) V := hV.measure_pos _ hVne
+  have heV : e '' V = W := e.surjective.image_preimage W
+  have hm := e.isometry.hausdorffMeasure_image
+    (Or.inl (Nat.cast_nonneg (Module.finrank ℝ A.direction))) V
+  rw [heV] at hm
+  have hi : Isometry (Subtype.val : A → E d) := fun _ _ => rfl
+  have hm' := hi.hausdorffMeasure_image
+    (Or.inl (Nat.cast_nonneg (Module.finrank ℝ A.direction))) W
+  have hsub : (Subtype.val '' W : Set (E d)) ⊆ K := by
+    rintro y ⟨x, hx, rfl⟩
+    exact interior_subset (s := (Subtype.val ⁻¹' K : Set A)) hx
+  exact (hpos.trans_eq (hm'.trans hm).symm).trans_le (MeasureTheory.measure_mono hsub)
+
+/-- Step 1 of the V4 proof of `recordSide_exists` (V4 1.4(b)): a placed
+facet has strictly positive facet measure. -/
+private theorem recordSide_exists_step1_facet_measure
+    (N : FramedNode S) (n : ℕ) (f : FacetName S N.ty) :
+    0 < MeasureTheory.Measure.hausdorffMeasure (d - 1 : ℝ) (N.cell n f.val) := by
+  have hdim : Module.finrank ℝ (affineSpan ℝ (N.cell n f.val)).direction = d - 1 := by
+    change Module.finrank ℝ
+      (affineSpan ℝ ((N.prototypeFrame n).toAffineMap '' f.val.carrier)).direction = _
+    rw [← AffineSubspace.map_span, AffineSubspace.map_direction]
+    exact ((N.prototypeFrame n).linear.finrank_map_eq _).trans
+      (f.val.flat.dimension.trans (Finset.mem_filter.mp f.property).2)
+  have hne : (relint (N.cell n f.val)).Nonempty := by
+    rw [FramedNode.cell, recordSide_exists_step1_relint_image]
+    exact f.val.flat.relint_nonempty.image _
+  have h := recordSide_exists_step1_relint_measure _ hne
+  have hd : 1 ≤ d := by have := (Fact.out : 2 ≤ d); omega
+  simpa only [hdim, Nat.cast_sub hd, Nat.cast_one] using h
+
+/-- Step 1 of the V4 proof of `recordSide_exists` (V4 1.4(c)): every named
+placed boundary cell lies in its closed block carrier. -/
+private theorem recordSide_exists_step1_cell_subset (N : FramedNode S) (n : ℕ)
+    (f : CellName S N.ty) : N.cell n f.val ⊆ N.carrier n := by
+  have hf : f.val.carrier ⊆ (S.proto N.ty).carrier := by
+    have hrel : relint f.val.carrier ⊆ frontier (S.proto N.ty).carrier := by
+      intro x hx
+      rw [← (S.cx N.ty).cover]
+      exact Set.mem_iUnion₂.mpr ⟨f.val, f.property, hx⟩
+    have hcl := closure_mono hrel
+    rw [f.val.flat.regularClosed, isClosed_frontier.closure_eq] at hcl
+    exact hcl.trans (S.proto N.ty).compact.isClosed.frontier_subset
+  change N.prototypeFrame n '' f.val.carrier ⊆ _
+  have hcarrier : N.carrier n = N.prototypeFrame n '' (S.proto N.ty).carrier := by
+    simp only [FramedNode.carrier, FramedNode.prototypeFrame, SubstSystem.supertile,
+      placedSet, Set.image_image]
+    rfl
+  rw [hcarrier]
+  exact Set.image_mono hf
+
+/-- Step 2 of the V4 proof of `recordSide_exists` (V4 §2.1 (P2), V4 1.4(c)):
+"Equal positioned primitive facets have the same unordered pair of child roles".
+Whole-facet pairing allows only one owner other than the given child, so the
+role of one incidence is one of the two roles of any `SameIncidence` partner. -/
+private theorem recordSide_exists_step2_side (a b : PrimitiveIncidence S)
+    (h : SameIncidence a b) :
+    ∃ c : Bool, b.sideRole c = (⟨a.ty, a.left⟩ : S.Role) := by
+  rcases a with ⟨A, i, j, hij, F, G, hFG, hint⟩
+  rcases b with ⟨B, i', j', hij', F', G', hFG', hint'⟩
+  obtain ⟨hAB, hpos⟩ := h
+  dsimp only at hAB
+  subst hAB
+  change placedSet (S.child A i).frame F.val.carrier =
+    placedSet (S.child A i').frame F'.val.carrier at hpos
+  by_cases hl : i' = i
+  · subst hl
+    exact ⟨false, rfl⟩
+  by_cases hr : j' = i
+  · subst hr
+    exact ⟨true, rfl⟩
+  exfalso
+  let N : FramedNode S := ⟨A, AffineIsometryEquiv.refl ℝ (E d)⟩
+  have hcell (l : S.I A) (e : FacetName S (S.child A l).ty) :
+      (N.child 0 l).cell 0 e.val = placedSet (S.child A l).frame e.val.carrier := by
+    ext x
+    rfl
+  have hroot : N.carrier (0 + 1) = S.supertile 1 A := image_id _
+  obtain ⟨x, hx⟩ : (relint ((N.child 0 i).cell 0 F.val)).Nonempty := by
+    rw [FramedNode.cell, recordSide_exists_step1_relint_image]
+    exact F.val.flat.relint_nonempty.image _
+  have hmeet : (relint ((N.child 0 i).cell 0 F.val) ∩
+      interior (N.carrier (0 + 1))).Nonempty := by
+    refine ⟨x, hx, ?_⟩
+    rw [hroot]
+    rw [hcell] at hx
+    exact hint hx
+  obtain ⟨k, ⟨-, -, -, hzero⟩, -⟩ := (internal_facet_pairing N 0 i F hmeet).2
+  have howner (l : S.I A) (hli : l ≠ i) (g : FacetName S (S.child A l).ty)
+      (hg : placedSet (S.child A l).frame g.val.carrier =
+        placedSet (S.child A i).frame F.val.carrier) : l = k := by
+    by_contra hlk
+    have hz := hzero l hli hlk
+    have hsub : (N.child 0 l).cell 0 g.val ⊆
+        (N.child 0 l).carrier 0 ∩ (N.child 0 i).cell 0 F.val := by
+      intro y hy
+      refine ⟨recordSide_exists_step1_cell_subset (N.child 0 l) 0 (facetCell g) hy, ?_⟩
+      rw [hcell] at hy ⊢
+      rwa [hg] at hy
+    exact (ne_of_gt (recordSide_exists_step1_facet_measure (N.child 0 l) 0 g))
+      (MeasureTheory.measure_mono_null hsub hz)
+  have h1 := howner i' hl F' hpos.symm
+  have h2 := howner j' hr G' (hFG'.symm.trans hpos.symm)
+  exact hij' (h1.trans h2.symm)
+
+/-- Step 3 of the V4 proof of `recordSide_exists` (V4 §2.1 (P2)):
+"distinct paired roles then select exactly one Boolean side". -/
+private theorem recordSide_exists_step3_unique (η : PrimitiveIncidence S) (b c : Bool)
+    (h : η.sideRole b = η.sideRole c) : b = c := by
+  have hi : η.sideIndex b = η.sideIndex c := eq_of_heq (Sigma.mk.inj_iff.mp h).2
+  cases b <;> cases c
+  · rfl
+  · simp only [PrimitiveIncidence.sideIndex, Bool.false_eq_true, ↓reduceIte] at hi
+    exact absurd hi η.distinct
+  · simp only [PrimitiveIncidence.sideIndex, Bool.false_eq_true, ↓reduceIte] at hi
+    exact absurd hi.symm η.distinct
+  · rfl
+
 /-- Q3, V4 §2.2 (S4a): the actual serving role selects exactly one canonical side. -/
 theorem recordSide_exists (P : Params S) (q : U.Node) (f : FacetName S q.2.val.ty)
     (hf : ¬ U.hierarchy.IsFault q f) :
     ∃! b : Bool, (U.recordIncidence P q f hf).val.sideRole b =
       U.hierarchy.nodeRole (U.hierarchy.servingChild q f hf) := by
-  sorry
+  have hs := U.hierarchy.providerIncidence_spec q f hf
+  rw [← hs.2.1]
+  obtain ⟨c, hc⟩ := recordSide_exists_step2_side _ _
+    (P.canonical_spec (U.hierarchy.providerIncidence q f hf))
+  exact ⟨c, hc, fun b hb => recordSide_exists_step3_unique _ b c (hb.trans hc.symm)⟩
 
 /-- Q3, V4 §2.2 (S4a): the separate serving-side datum. -/
 def recordSide (P : Params S) (q : U.Node) (f : FacetName S q.2.val.ty)

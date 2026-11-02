@@ -3311,8 +3311,8 @@ theorem compilerFrame_carrier (C : ClusterData S P)
 /-- M3/M5, V4 2.11, 2.13: every point of a physical tile reads its augmented marking. -/
 theorem compilerFrame_marking (C : ClusterData S P)
     (t : PlacedMarkedTile (systemM S P C)) (x : t.carrier) :
-    t.mark x = augmentedColour C (compilerLeaf C t) ((compilerFrame C t).symm x.val) := by
-  sorry
+    t.mark x = augmentedColour C (compilerLeaf C t) ((compilerFrame C t).symm x.val) :=
+  (colour_disjointness_iii_decode C t x.val).2 x.property
 
 /-- M4, V4 2.12(iii): every tile boundary in any compiler tiling has colour @. -/
 theorem compiler_boundary (C : ClusterData S P) (Y : MarkedTiling (systemM S P C))

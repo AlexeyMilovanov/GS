@@ -4840,7 +4840,59 @@ private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step
     let x := Finset.centroid ℝ σ id
     x ∈ convexHull ℝ (σ : Set (E d)) ∧
       ∀ τ ∈ K.faces, ¬ σ ⊆ τ → x ∉ convexHull ℝ (τ : Set (E d)) := by
-  sorry
+  have h_ne : σ.Nonempty := K.nonempty_of_mem_faces hσ
+  refine ⟨Finset.centroid_mem_convexHull _ h_ne, fun τ hτ h_not_subset h_in_τ => ?_⟩
+  have h_in_inter : Finset.centroid ℝ σ id ∈ convexHull ℝ (σ : Set (E d)) ∩ convexHull ℝ (τ : Set (E d)) := 
+    ⟨Finset.centroid_mem_convexHull _ h_ne, h_in_τ⟩
+  have h_in_inter2 := K.inter_subset_convexHull hσ hτ h_in_inter
+  have h_inter_subset : σ ∩ τ ⊂ σ := Finset.ssubset_iff_subset_ne.mpr ⟨Finset.inter_subset_left, fun h_eq => h_not_subset (h_eq ▸ Finset.inter_subset_right)⟩
+  rw [← Finset.coe_inter] at h_in_inter2
+  have h_indep : AffineIndependent ℝ ((↑) : σ → E d) := K.indep hσ
+  let c : ℝ := (σ.card : ℝ)⁻¹
+  have hxσ : ∑ y ∈ σ, c • y = Finset.centroid ℝ σ id := by
+    rw [Finset.centroid_eq_centerMass σ h_ne id]
+    have hw_sum : ∑ i ∈ σ, Finset.centroidWeights ℝ σ i = 1 := Finset.sum_centroidWeights_eq_one_of_nonempty ℝ σ h_ne
+    rw [Finset.centerMass_eq_of_sum_1 σ id hw_sum]
+    apply Finset.sum_congr rfl
+    intro y hy
+    rw [Finset.centroidWeights_apply ℝ σ y]
+    simp [c]
+  rw [Finset.mem_convexHull'] at h_in_inter2
+  rcases h_in_inter2 with ⟨w₂, hw₂_nonneg, hw₂_sum, hw₂_centerMass⟩
+  classical
+  let w : E d → ℝ := fun y => (if y ∈ σ then c else 0) - (if y ∈ σ ∩ τ then w₂ y else 0)
+  have hw1 : ∑ y ∈ σ, w y = 0 := by
+    simp only [w, Finset.sum_sub_distrib]
+    have h_c : ∑ y ∈ σ, (if y ∈ σ then c else 0) = 1 := by
+      have h1 : ∑ y ∈ σ, (if y ∈ σ then c else 0) = ∑ y ∈ σ, c := Finset.sum_congr rfl (fun y hy => if_pos hy)
+      rw [h1]
+      have : ∑ y ∈ σ, c = (σ.card : ℝ) * c := by simp
+      rw [this, mul_inv_cancel₀ (ne_of_gt (Nat.cast_pos.mpr (Finset.card_pos.mpr h_ne)))]
+    have h_w2 : ∑ y ∈ σ, (if y ∈ σ ∩ τ then w₂ y else 0) = 1 := by
+      rw [← Finset.sum_filter, Finset.filter_mem_eq_inter, Finset.inter_eq_right.mpr Finset.inter_subset_left]
+      exact hw₂_sum
+    rw [h_c, h_w2, sub_self]
+  have hw2 : ∑ y ∈ σ, w y • y = 0 := by
+    simp only [w, sub_smul, ite_smul, zero_smul, Finset.sum_sub_distrib]
+    have h_c : ∑ y ∈ σ, (if y ∈ σ then c • y else 0) = Finset.centroid ℝ σ id := by
+      have h1 : ∑ y ∈ σ, (if y ∈ σ then c • y else 0) = ∑ y ∈ σ, c • y := Finset.sum_congr rfl (fun y hy => if_pos hy)
+      rw [h1]
+      exact hxσ
+    have h_w2 : ∑ y ∈ σ, (if y ∈ σ ∩ τ then w₂ y • y else 0) = Finset.centroid ℝ σ id := by
+      rw [← Finset.sum_filter, Finset.filter_mem_eq_inter, Finset.inter_eq_right.mpr Finset.inter_subset_left]
+      exact hw₂_centerMass
+    rw [h_c, h_w2, sub_self]
+  have h_eq_zero : ∀ i ∈ σ, w i = 0 := h_indep.eq_zero_of_sum_eq_zero_subtype hw1 hw2
+  obtain ⟨y, hyσ, hyτ⟩ := Finset.not_subset.mp h_not_subset
+  have h_not_inter : y ∉ σ ∩ τ := by
+    intro h
+    exact hyτ (Finset.mem_inter.mp h).2
+  have h_wy := h_eq_zero y hyσ
+  have h_w_def : w y = c := by
+    simp only [w, if_pos hyσ, if_neg h_not_inter, sub_zero]
+  rw [h_w_def] at h_wy
+  have hc : 0 < c := inv_pos.mpr (Nat.cast_pos.mpr (Finset.card_pos.mpr h_ne))
+  linarith
 
 /-- Step 2 of the V4 proof of
 `principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step5_face_links`

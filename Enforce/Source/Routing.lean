@@ -4985,7 +4985,108 @@ private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step
           ‖(y : E (σ.card - 1))‖ < 1 → e₀ y ∈ Metric.ball x r') ∧
         (∀ y : ↥(Metric.closedBall (0 : E (σ.card - 1)) 1),
           ‖(y : E (σ.card - 1))‖ = 1 → e₀ y ∈ Metric.sphere x r') := by
-  sorry
+  intro x
+  classical
+  have h_ne : σ.Nonempty := K.nonempty_of_mem_faces hσ
+  haveI : Nonempty σ := h_ne.to_subtype
+  have h_indep : AffineIndependent ℝ ((↑) : σ → E d) := K.indep hσ
+  -- the direction of the affine span of `σ`, of dimension `|σ| - 1`
+  let V : Submodule ℝ (E d) := vectorSpan ℝ (σ : Set (E d))
+  have hcard : Fintype.card σ = (σ.card - 1) + 1 := by
+    simp only [Fintype.card_coe]
+    omega
+  have hfr : Module.finrank ℝ V = σ.card - 1 := by
+    have := h_indep.finrank_vectorSpan hcard
+    rwa [Subtype.range_coe_subtype, Finset.setOf_mem] at this
+  -- an isometric parametrization `g y = x + L y` of the affine span of `σ`
+  let L : E (σ.card - 1) ≃ₗᵢ[ℝ] V :=
+    ((stdOrthonormalBasis ℝ V).reindex (finCongr hfr)).repr.symm
+  let Lm : E (σ.card - 1) →ₗ[ℝ] E d := V.subtype ∘ₗ L.toLinearEquiv.toLinearMap
+  let g : E (σ.card - 1) →ᵃ[ℝ] E d := Lm.toAffineMap + AffineMap.const ℝ (E (σ.card - 1)) x
+  have hg : ∀ y, g y = (L y : E d) + x := fun y => rfl
+  have hgn : ∀ y, ‖(L y : E d)‖ = ‖y‖ := fun y => L.norm_map y
+  have hdist : ∀ y, dist (g y) x = ‖y‖ := by
+    intro y
+    rw [hg, dist_eq_norm, add_sub_cancel_right, hgn]
+  have hg_inj : Function.Injective g := by
+    intro y₁ y₂ h
+    rw [hg, hg] at h
+    have h' : (L y₁ : E d) = L y₂ := add_right_cancel h
+    exact L.injective (Subtype.ext h')
+  have hxA : x ∈ affineSpan ℝ (σ : Set (E d)) :=
+    convexHull_subset_affineSpan _ (Finset.centroid_mem_convexHull _ h_ne)
+  have hmemV : ∀ p ∈ affineSpan ℝ (σ : Set (E d)), p - x ∈ V := by
+    intro p hp
+    have := AffineSubspace.vsub_mem_direction hp hxA
+    rwa [direction_affineSpan] at this
+  -- the vertices of `σ` pulled back by `g` form an affine basis with centroid `0`
+  let u : σ → E (σ.card - 1) := fun i =>
+    L.symm ⟨(i : E d) - x, hmemV _ (subset_affineSpan ℝ _ i.2)⟩
+  have hgu : ∀ i, g (u i) = i := by
+    intro i
+    rw [hg]
+    simp [u]
+  have hgu' : g ∘ u = ((↑) : σ → E d) := funext hgu
+  have hu_ind : AffineIndependent ℝ u := AffineIndependent.of_comp g (hgu' ▸ h_indep)
+  have hu_tot : affineSpan ℝ (Set.range u) = ⊤ := by
+    rw [hu_ind.affineSpan_eq_top_iff_card_eq_finrank_add_one, finrank_euclideanSpace_fin, hcard]
+  let b : AffineBasis σ ℝ (E (σ.card - 1)) := ⟨u, hu_ind, hu_tot⟩
+  have hc0 : Finset.univ.centroid ℝ u = 0 := by
+    apply hg_inj
+    rw [Finset.centroid_def, Finset.map_affineCombination _ _ _
+      (Finset.sum_centroidWeights_eq_one_of_nonempty ℝ _ Finset.univ_nonempty), hgu',
+      ← Finset.centroid_def, Finset.centroid_univ, hg]
+    simp [x]
+  have hint : (0 : E (σ.card - 1)) ∈ interior (convexHull ℝ (Set.range u)) := by
+    have := b.centroid_mem_interior_convexHull
+    have hb : ⇑b = u := rfl
+    rwa [hb, hc0] at this
+  have hconv : g '' convexHull ℝ (Set.range u) = convexHull ℝ (σ : Set (E d)) := by
+    rw [AffineMap.image_convexHull, ← Set.range_comp, hgu']
+    simp
+  -- a ball about `0` inside the pulled-back simplex gives the radius
+  obtain ⟨ε, hε, hball⟩ := Metric.mem_nhds_iff.mp (mem_interior_iff_mem_nhds.mp hint)
+  refine ⟨ε / 2, by positivity, ?_⟩
+  intro r' hr' hr'le
+  have hgc : Continuous g := g.continuous_of_finiteDimensional
+  refine ⟨⟨fun y => g (r' • (y : E (σ.card - 1))),
+    hgc.comp (continuous_subtype_val.const_smul r')⟩, ?_, ?_, ?_, ?_⟩
+  · intro y₁ y₂ h
+    have h1 := hg_inj h
+    exact Subtype.ext (smul_right_injective _ hr'.ne' h1)
+  · ext p
+    constructor
+    · rintro ⟨y, rfl⟩
+      have hy : ‖(y : E (σ.card - 1))‖ ≤ 1 := mem_closedBall_zero_iff.mp y.2
+      refine ⟨?_, ?_⟩
+      · rw [← hconv]
+        refine ⟨r' • (y : E (σ.card - 1)), hball ?_, rfl⟩
+        rw [Metric.mem_ball, dist_zero_right, norm_smul, Real.norm_of_nonneg hr'.le]
+        nlinarith
+      · show dist (g (r' • (y : E (σ.card - 1)))) x ≤ r'
+        rw [hdist, norm_smul, Real.norm_of_nonneg hr'.le]
+        nlinarith [norm_nonneg (y : E (σ.card - 1))]
+    · rintro ⟨hp, hpd⟩
+      have hpV := hmemV p (convexHull_subset_affineSpan _ hp)
+      refine ⟨⟨r'⁻¹ • L.symm ⟨p - x, hpV⟩, ?_⟩, ?_⟩
+      · rw [mem_closedBall_zero_iff, norm_smul, LinearIsometryEquiv.norm_map,
+          Real.norm_of_nonneg (inv_nonneg.mpr hr'.le)]
+        have : ‖(⟨p - x, hpV⟩ : V)‖ ≤ r' := by
+          show ‖p - x‖ ≤ r'
+          rw [← dist_eq_norm]
+          exact hpd
+        rw [inv_mul_le_iff₀ hr']
+        linarith
+      · show g (r' • (r'⁻¹ • L.symm ⟨p - x, hpV⟩)) = p
+        rw [smul_inv_smul₀ hr'.ne', hg, LinearIsometryEquiv.apply_symm_apply]
+        simp
+  · intro y hy
+    show dist (g (r' • (y : E (σ.card - 1)))) x < r'
+    rw [hdist, norm_smul, Real.norm_of_nonneg hr'.le]
+    nlinarith
+  · intro y hy
+    show dist (g (r' • (y : E (σ.card - 1)))) x = r'
+    rw [hdist, norm_smul, Real.norm_of_nonneg hr'.le, hy, mul_one]
 
 /-- Step 5 of the V4 proof of
 `principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step5_face_links`

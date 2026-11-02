@@ -778,7 +778,23 @@ theorem ancestralStratum_mono (P C : FramedNode S) (n h : ℕ)
     (hsub : C.cell h g'.val ⊆ C.cell h g.val) :
     P.cell n (ancestralStratum P C n h hC g' hg').val ⊆
       P.cell n (ancestralStratum P C n h hC g hg).val := by
-  sorry
+  have hne : ∀ e : CellName S C.ty, (relint (C.cell h e.val)).Nonempty := by
+    intro e
+    have h1 := e.val.flat.relint_nonempty
+    rw [FramedNode.cell, hereditary_trace_step1_relint_image]
+    exact h1.image _
+  set Λ := ancestralStratum P C n h hC g hg
+  set Λ' := ancestralStratum P C n h hC g' hg'
+  -- `g ⊆ Λ(g)`: the relative interior of `g` meets `Λ(g)`, so 1.1 applies.
+  have hgΛ : C.cell h g.val ⊆ P.cell n Λ.val := by
+    obtain ⟨q, hq⟩ := hne g
+    exact hereditary_trace P C n h hC Λ.val g.val Λ.property g.property
+      ⟨q, hq, intrinsicInterior_subset ((ancestralStratum_spec P C n h hC g hg).1 hq)⟩
+  -- a point `p` of `relint g'` lies in `relint Λ(g')` and in `Λ(g)`.
+  obtain ⟨p, hp⟩ := hne g'
+  have hpΛ' : p ∈ relint (P.cell n Λ'.val) := (ancestralStratum_spec P C n h hC g' hg').1 hp
+  have hpΛ : p ∈ P.cell n Λ.val := hgΛ (hsub (intrinsicInterior_subset hp))
+  exact hereditary_trace_step6_same P n Λ.val Λ'.val Λ.property Λ'.property ⟨p, hpΛ', hpΛ⟩
 
 /-- P3, V4 1.3: exactly one ancestral facet contains a boundary facet;
 otherwise its entire relative interior is interior to the ancestor. -/

@@ -3060,7 +3060,35 @@ theorem compiler_coverage (C : ClusterData S P) (Y : MarkedTiling (systemM S P C
       (interior u.carrier ∩ interior (Compiler.endSector (compilerFrame C t) j) ∩
         ball (Compiler.endVertex (compilerFrame C t) j) (Compiler.coneRadius S P)).Nonempty →
       ∃ z ∈ θ.tiles, u = placedLeaf C z.2 (z.1.frame.trans (compilerFrame C t)) := by
-  sorry
+  classical
+  have hcov := Compiler.allowedEnd_coverage C (compilerLeaf C t) j θ hθ (compilerFrame C t)
+  refine ⟨hcov, ?_⟩
+  intro u hu hne
+  -- the template tiles, indexed by the finite subtype of `θ.tiles`
+  let K : θ.tiles → Set (E d) :=
+    fun z => (placedLeaf C z.1.2 (z.1.1.frame.trans (compilerFrame C t))).carrier
+  have hK : ∀ z, IsClosed (K z) := fun z =>
+    ((augmentedLeaf C z.1.2).compact.image
+      (z.1.1.frame.trans (compilerFrame C t)).continuous).isClosed
+  have hUopen : IsOpen (interior u.carrier ∩
+      interior (Compiler.endSector (compilerFrame C t) j) ∩
+      ball (Compiler.endVertex (compilerFrame C t) j) (Compiler.coneRadius S P)) :=
+    (isOpen_interior.inter isOpen_interior).inter isOpen_ball
+  have hUsub : interior u.carrier ∩ interior (Compiler.endSector (compilerFrame C t) j) ∩
+      ball (Compiler.endVertex (compilerFrame C t) j) (Compiler.coneRadius S P) ⊆
+        ⋃ z, K z := by
+    intro x hx
+    obtain ⟨z, hz, hxz⟩ := Set.mem_iUnion₂.mp (hcov ⟨interior_subset hx.1.2, hx.2⟩)
+    exact Set.mem_iUnion.mpr ⟨⟨z, hz⟩, hxz⟩
+  -- a point of the open intersection off all template boundaries lies in a template interior
+  obtain ⟨⟨z, hz⟩, x, hxU, hxK⟩ :=
+    compiler_certificates_open_meets_interior K hK _ hUopen hne hUsub
+  refine ⟨z, hz, ?_⟩
+  -- distinct tiles of `Y` have disjoint interiors
+  by_contra hneq
+  have hdisj : Disjoint (interior u.carrier) (interior (K ⟨z, hz⟩)) :=
+    Y.disjoint hu (hactual z hz) hneq
+  exact Set.disjoint_left.mp hdisj hxU.1.1 hxK
 
 /-- M3, V4 2.11: exact physical-catalogue membership, with no additional tiles. -/
 theorem systemM_physical_iff (C : ClusterData S P) (Q : MarkedPrototile d (Colour S P)) :

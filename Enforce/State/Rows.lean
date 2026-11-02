@@ -99,7 +99,68 @@ theorem inheritedCell_exists {P : Params S} (r : FacetRecord P) (i : S.I r.ty)
     ∃! t : CellsInFacet r.ty r.facet,
       relint (placedSet (S.child r.ty i).frame e.val.val.carrier) ⊆
         relint (S.σ '' t.val.val.carrier) := by
-  sorry
+  classical
+  -- The standard parent node of type `r.ty` at height `1`, and its child of role `i`.
+  let N : FramedNode S := ⟨r.ty, AffineIsometryEquiv.refl ℝ (E d)⟩
+  let C : FramedNode S := N.child 0 i
+  have hC : C.IsDescendant 0 N 1 := by
+    refine ⟨1, rfl, ⟨i, ()⟩, ?_⟩
+    simp only [SubstSystem.descendantNode, FramedNode.move, FramedNode.child, C, N]
+    rfl
+  have hNcell : ∀ F : Cell d, N.cell 1 F = S.σ '' F.carrier := by
+    intro F
+    simp [N, FramedNode.cell, FramedNode.prototypeFrame]
+  have hCcell : ∀ c : Cell d, C.cell 0 c = placedSet (S.child r.ty i).frame c.carrier := by
+    intro c
+    simp only [C, N, FramedNode.cell, FramedNode.prototypeFrame, FramedNode.child, placedSet]
+    congr 1
+  -- The named parent facet lies on the frontier of the expanded parent.
+  have hfront : N.cell 1 r.facet.val ⊆ frontier (N.carrier 1) := by
+    have hsub : r.facet.val.carrier ⊆ frontier (S.proto N.ty).carrier := by
+      rw [← (S.cx N.ty).carriers_cover]
+      exact Set.subset_iUnion₂_of_subset r.facet.val (facetCell r.facet).property
+        (Set.Subset.refl _)
+    have hcarrier : N.carrier 1 = N.prototypeFrame 1 '' (S.proto N.ty).carrier := by
+      simp [FramedNode.carrier, FramedNode.prototypeFrame, placedSet,
+        SubstSystem.supertile, Set.image_image]
+    rw [hcarrier]
+    let H := (N.prototypeFrame 1).toHomeomorphOfFiniteDimensional
+    change H '' r.facet.val.carrier ⊆ frontier (H '' (S.proto N.ty).carrier)
+    rw [← H.image_frontier]
+    exact Set.image_mono hsub
+  have hg : C.cell 0 e.val.val ⊆ frontier (N.carrier 1) := by
+    rw [hCcell]
+    refine subset_trans ?_ ((hNcell r.facet.val).symm ▸ hfront)
+    exact (Set.image_mono e.property).trans h
+  -- V4 1.2: the unique ancestral stratum of the child cell.
+  obtain ⟨F, hF, huniq⟩ := ancestralStratum_exists_unique N C 1 0 hC e.val hg
+  rw [hCcell, hNcell] at hF
+  have hne : (relint (placedSet (S.child r.ty i).frame e.val.val.carrier)).Nonempty := by
+    change (relint ((S.child r.ty i).frame.toAffineIsometry '' e.val.val.carrier)).Nonempty
+    rw [relint, AffineIsometry.image_intrinsicInterior]
+    exact e.val.val.flat.relint_nonempty.image _
+  obtain ⟨p, hp⟩ := hne
+  -- V4 1.1: the stratum meets the named facet in its relative interior, so lies in it.
+  have hFsub : F.val.carrier ⊆ r.facet.val.carrier := by
+    have hmeet : (relint (N.cell 1 F.val) ∩ N.cell 1 r.facet.val).Nonempty := by
+      refine ⟨p, ?_, ?_⟩
+      · rw [hNcell]
+        exact hF hp
+      · rw [hNcell]
+        exact h ((Set.image_mono e.property) (intrinsicInterior_subset hp))
+    have hrefl : N.IsDescendant 1 N 1 := by
+      refine ⟨0, rfl, (), ?_⟩
+      rfl
+    have H := hereditary_trace N N 1 1 hrefl r.facet.val F.val (facetCell r.facet).property
+      F.property hmeet
+    rw [hNcell, hNcell] at H
+    exact (Set.image_subset_image_iff S.σ.injective).mp H
+  refine ⟨⟨F, hFsub⟩, hF, ?_⟩
+  rintro ⟨t, ht⟩ htF
+  apply Subtype.ext
+  apply huniq t
+  rw [hCcell, hNcell]
+  exact htF
 
 /-- Q13, V4 2.3: actual deterministic immediate containing-cell lookup. -/
 def inheritedCell {P : Params S} (r : FacetRecord P) (i : S.I r.ty)

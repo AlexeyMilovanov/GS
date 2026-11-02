@@ -2217,6 +2217,32 @@ def renderLeafTuple (C : ClusterData S P) (n : ℕ) (A : S.ι)
     augmentedColour C (labels w) ((S.nativeTile A n w).frame.symm x.val)
     else .boundary
 
+/-- Helper for `renderLeafTuple_source` (V4 2.16): "the native descendants ... in their
+fixed positions". The descendant at a full-depth role word is a ground node of the
+hierarchy, with the native frame composed with the node frame. -/
+private theorem renderLeafTuple_source_ground_mem (U : HonestSource S) (n : ℕ) (A : S.ι)
+    (φ : Iso d) (hN : (⟨A, φ⟩ : FramedNode S) ∈ U.hierarchy.nodes n) (w : S.RoleWord A n) :
+    (S.nativeTile A n w).move φ ∈ U.hierarchy.nodes 0 := by
+  simpa only [Nat.sub_self, SubstSystem.nativeTile] using
+    U.descendant_mem ⟨n, ⟨⟨A, φ⟩, hN⟩⟩ n le_rfl w
+
+/-- Helper for `renderLeafTuple_source` (V4 2.16): "the tuple of leaf types (D_t,i_t) of
+the native descendants t of N". The tuple entry is the leaf type of that ground node. -/
+private theorem renderLeafTuple_source_leaf_eq (U : HonestSource S) (n : ℕ) (A : S.ι)
+    (φ : Iso d) (hN : (⟨A, φ⟩ : FramedNode S) ∈ U.hierarchy.nodes n) (w : S.RoleWord A n) :
+    sourceLeafTypes U P n A φ hN w =
+      leafTypeOf U P ⟨0, ⟨(S.nativeTile A n w).move φ,
+        renderLeafTuple_source_ground_mem U n A φ hN w⟩⟩ rfl := by
+  have key : ∀ (k : ℕ) (hk : k = 0)
+      (hm : (S.descendantNode A k n w).move φ ∈ U.hierarchy.nodes k),
+      leafTypeOf U P ⟨k, ⟨(S.descendantNode A k n w).move φ, hm⟩⟩ hk =
+        leafTypeOf U P ⟨0, ⟨(S.nativeTile A n w).move φ,
+          renderLeafTuple_source_ground_mem U n A φ hN w⟩⟩ rfl := by
+    intro k hk hm
+    subst hk
+    rfl
+  exact key (n - n) (Nat.sub_self n) _
+
 /-- M7, V4 2.16: the complete source pattern is the rendering of its leaf tuple.
 This is equality on the entire closed supertile, so boundary values are retained. -/
 theorem renderLeafTuple_source (C : ClusterData S P) (U : HonestSource S)
@@ -2224,7 +2250,34 @@ theorem renderLeafTuple_source (C : ClusterData S P) (U : HonestSource S)
     (hN : (⟨A, φ⟩ : FramedNode S) ∈ U.hierarchy.nodes n) :
     normalisedPattern (honestLift C U) n A φ =
       renderLeafTuple C n A (sourceLeafTypes U P n A φ hN) := by
-  sorry
+  classical
+  funext x
+  have hcover : ∃ w : S.RoleWord A n,
+      x.val ∈ placedSet (S.nativeTile A n w).frame
+        (S.proto (S.nativeTile A n w).ty).carrier := by
+    have hx := (S.native_cover A n).symm.subset x.property
+    simpa [FramedNode.carrier, SubstSystem.supertile] using hx
+  let w := Classical.choose hcover
+  let t : Compiler.GroundNode U :=
+    ⟨(S.nativeTile A n w).move φ, renderLeafTuple_source_ground_mem U n A φ hN w⟩
+  have hty : (leafTypeOf U P ⟨0, t⟩ rfl).prototype = (S.nativeTile A n w).ty :=
+    leafTypeOf_type U P ⟨0, t⟩ rfl
+  have hx : φ x.val ∈ (Compiler.honestTile C U t).carrier := by
+    change φ x.val ∈ placedSet ((S.nativeTile A n w).frame.trans φ)
+      (S.proto (leafTypeOf U P ⟨0, t⟩ rfl).prototype).carrier
+    rw [hty]
+    obtain ⟨u, hu, he⟩ := Classical.choose_spec hcover
+    exact ⟨u, hu, congrArg φ he⟩
+  change (honestLift C U).marking (φ x.val) = _
+  rw [(honestLift C U).marking_eq_tile _ (honestLift_tile C U t) _ hx]
+  simp only [renderLeafTuple, dif_pos hcover]
+  rw [renderLeafTuple_source_leaf_eq U n A φ hN w]
+  change augmentedColour C (leafTypeOf U P ⟨0, t⟩ rfl)
+      (((S.nativeTile A n w).frame.trans φ).symm (φ x.val)) = _
+  congr 1
+  change (S.nativeTile A n w).frame.symm (φ.symm (φ x.val)) =
+    (S.nativeTile A n w).frame.symm x.val
+  rw [φ.symm_apply_apply]
 
 /-- M7, V4 2.16: the source language lies in the image of one finite tuple space. -/
 theorem sourceLanguage_subset_render (C : ClusterData S P) (n : ℕ) (A : S.ι) :

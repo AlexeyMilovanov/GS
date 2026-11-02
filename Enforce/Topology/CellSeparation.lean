@@ -490,6 +490,370 @@ def restrictUnionLeft {X Z : Type*} [TopologicalSpace X] [TopologicalSpace Z]
     (Y D : Set X) (f : C(↥(Y ∪ D), Z)) : C(↥Y, Z) :=
   f.comp ⟨Set.inclusion subset_union_left, continuous_inclusion subset_union_left⟩
 
+/-- The tail `(z 1, …, z k)` of a point `z` of `E (k + 1)`. -/
+private def nullhomotopic_union_cell_tl (k : ℕ) (z : E (k + 1)) : E k :=
+  WithLp.toLp 2 (fun i => z i.succ)
+
+/-- The point `(s, x)` of `E (k + 1)`. -/
+private def nullhomotopic_union_cell_pt (k : ℕ) (x : E k) (s : ℝ) : E (k + 1) :=
+  WithLp.toLp 2 (Fin.cons s (fun i => x i))
+
+private lemma nullhomotopic_union_cell_norm_sq (k : ℕ) (z : E (k + 1)) :
+    ‖z‖ ^ 2 = z 0 ^ 2 + ‖nullhomotopic_union_cell_tl k z‖ ^ 2 := by
+  rw [EuclideanSpace.norm_sq_eq, EuclideanSpace.norm_sq_eq, Fin.sum_univ_succ]
+  simp [nullhomotopic_union_cell_tl, Real.norm_eq_abs, sq_abs]
+
+private lemma nullhomotopic_union_cell_pt_zero (k : ℕ) (x : E k) (s : ℝ) :
+    nullhomotopic_union_cell_pt k x s 0 = s := by
+  simp [nullhomotopic_union_cell_pt]
+
+private lemma nullhomotopic_union_cell_tl_pt (k : ℕ) (x : E k) (s : ℝ) :
+    nullhomotopic_union_cell_tl k (nullhomotopic_union_cell_pt k x s) = x := by
+  ext i
+  simp [nullhomotopic_union_cell_tl, nullhomotopic_union_cell_pt]
+
+private lemma nullhomotopic_union_cell_norm_pt_sq (k : ℕ) (x : E k) (s : ℝ) :
+    ‖nullhomotopic_union_cell_pt k x s‖ ^ 2 = s ^ 2 + ‖x‖ ^ 2 := by
+  rw [nullhomotopic_union_cell_norm_sq, nullhomotopic_union_cell_pt_zero,
+    nullhomotopic_union_cell_tl_pt]
+
+private lemma nullhomotopic_union_cell_continuous_tl (k : ℕ) :
+    Continuous (nullhomotopic_union_cell_tl k) := by
+  unfold nullhomotopic_union_cell_tl
+  fun_prop
+
+private lemma nullhomotopic_union_cell_continuous_pt (k : ℕ) {X : Type*} [TopologicalSpace X]
+    {x : X → E k} {s : X → ℝ} (hx : Continuous x) (hs : Continuous s) :
+    Continuous fun a => nullhomotopic_union_cell_pt k (x a) (s a) := by
+  unfold nullhomotopic_union_cell_pt
+  exact (PiLp.continuous_toLp _ _).comp
+    (hs.finCons (continuous_pi fun i => (PiLp.continuous_apply _ _ i).comp hx))
+
+private lemma nullhomotopic_union_cell_phi_sq_le (a r : ℝ) (ha0 : 0 ≤ a) (ha1 : a ≤ 1)
+    (hr0 : 0 ≤ r) (hr1 : r ≤ 1) :
+    (√(1 - a ^ 2 * r ^ 2) - 2 * a * √(1 - r ^ 2)) ^ 2 + (a * r) ^ 2 ≤ 1 := by
+  have hv : 0 ≤ 1 - r ^ 2 := by nlinarith
+  have hw : 0 ≤ 1 - a ^ 2 * r ^ 2 := by nlinarith
+  have hsv := Real.sq_sqrt hv
+  have hsw := Real.sq_sqrt hw
+  have hsv0 := Real.sqrt_nonneg (1 - r ^ 2)
+  have hle : a * √(1 - r ^ 2) ≤ √(1 - a ^ 2 * r ^ 2) := by
+    rw [Real.le_sqrt (by positivity) hw, mul_pow, hsv]
+    nlinarith
+  nlinarith [mul_nonneg (mul_nonneg ha0 hsv0) (sub_nonneg.mpr hle)]
+
+private lemma nullhomotopic_union_cell_mem_sphere {m : ℕ} (z : E m) (h : ‖z‖ ^ 2 = 1) :
+    z ∈ sphere (0 : E m) 1 := by
+  rw [mem_sphere_zero_iff_norm]
+  nlinarith [norm_nonneg z]
+
+/-- Step 1 of the V4 proof of `nullhomotopic_union_cell` (V4 CS13, blueprint CS13): "a
+nullhomotopy `H₀` on `Y₀` and `f` on the cell prescribe a map on the boundary of the cylinder
+`closedBall (0 : E k) 1 ×ˢ Icc 0 1` (bottom: `f ∘ θ`; side: `H₀ ∘ θ`; top: constant), i.e. a map
+`S^k → S^{n-1}`; since `k + 1 < n` it is nullhomotopic (CS8) and so extends over the cylinder
+(CS9)". Here the bottom is `g₀`, the side is `Hs`, the top is `c`. -/
+private lemma nullhomotopic_union_cell_step1_cylinder (k n : ℕ) (hkn : k + 2 ≤ n)
+    (g₀ : C(↥(closedBall (0 : E k) 1), ↥(sphere (0 : E n) 1))) (c : ↥(sphere (0 : E n) 1))
+    (Hs : C(unitInterval × ↥(sphere (0 : E k) 1), ↥(sphere (0 : E n) 1)))
+    (hs0 : ∀ u : ↥(sphere (0 : E k) 1), Hs (0, u) = g₀ ⟨u, sphere_subset_closedBall u.2⟩)
+    (hs1 : ∀ u : ↥(sphere (0 : E k) 1), Hs (1, u) = c) :
+    ∃ G : C(unitInterval × ↥(closedBall (0 : E k) 1), ↥(sphere (0 : E n) 1)),
+      (∀ y, G (0, y) = g₀ y) ∧ (∀ y, G (1, y) = c) ∧
+      ∀ (t : unitInterval) (u : ↥(sphere (0 : E k) 1)),
+        G (t, ⟨u, sphere_subset_closedBall u.2⟩) = Hs (t, u) := by
+  classical
+  let g : C(↥(sphere (0 : E k) 1), ↥(sphere (0 : E n) 1)) :=
+    g₀.comp ⟨fun u => ⟨u, sphere_subset_closedBall u.2⟩, by fun_prop⟩
+  let H : g.Homotopy (ContinuousMap.const _ c) :=
+    { toContinuousMap := Hs
+      map_zero_left := hs0
+      map_one_left := hs1 }
+  -- the cone `F₁` over the side and the top of the cylinder (CS9 construction)
+  obtain ⟨F₁, hF₁0, hF₁⟩ :=
+    extend_sphere_to_closedBall_of_nullhomotopic_step3_continuous k g c H
+  have hF₁s : ∀ p : ↥(closedBall (0 : E k) 1), ‖(p : E k)‖ = 1 → F₁ p = g₀ p := by
+    intro p hp
+    have hp0 : (p : E k) ≠ 0 := by
+      intro h
+      rw [h, norm_zero] at hp
+      norm_num at hp
+    rw [hF₁ p hp0]
+    change Hs _ = _
+    rw [show g₀ p = Hs (0, ⟨p, mem_sphere_zero_iff_norm.mpr hp⟩) from
+      (hs0 ⟨p, mem_sphere_zero_iff_norm.mpr hp⟩).symm]
+    congr 1
+    refine Prod.ext (Subtype.ext ?_) (Subtype.ext ?_)
+    · show 1 - ‖(p : E k)‖ = 0
+      rw [hp]
+      norm_num
+    · show ‖(p : E k)‖⁻¹ • (p : E k) = (p : E k)
+      rw [hp, inv_one, one_smul]
+  have hF₁side : ∀ (t : unitInterval) (u : ↥(sphere (0 : E k) 1)) (_ : (t : ℝ) < 1)
+      (hm : (1 - (t : ℝ)) • (u : E k) ∈ closedBall (0 : E k) 1),
+      F₁ ⟨(1 - (t : ℝ)) • (u : E k), hm⟩ = Hs (t, u) := by
+    intro t u ht hm
+    have hu : ‖(u : E k)‖ = 1 := mem_sphere_zero_iff_norm.mp u.2
+    have ht1 : (0 : ℝ) < 1 - t := sub_pos.mpr ht
+    have hnorm : ‖(1 - (t : ℝ)) • (u : E k)‖ = 1 - t := by
+      rw [norm_smul, hu, mul_one, Real.norm_of_nonneg ht1.le]
+    have hp0 : (1 - (t : ℝ)) • (u : E k) ≠ 0 := by
+      intro h
+      rw [h, norm_zero] at hnorm
+      linarith
+    rw [hF₁ ⟨(1 - (t : ℝ)) • (u : E k), hm⟩ hp0]
+    change Hs _ = _
+    congr 1
+    refine Prod.ext (Subtype.ext ?_) (Subtype.ext ?_)
+    · show 1 - ‖(1 - (t : ℝ)) • (u : E k)‖ = t
+      rw [hnorm]
+      ring
+    · show ‖(1 - (t : ℝ)) • (u : E k)‖⁻¹ • ((1 - (t : ℝ)) • (u : E k)) = u
+      rw [hnorm, smul_smul, inv_mul_cancel₀ ht1.ne', one_smul]
+  -- the map `m : S^k → S^{n-1}`: `g₀` on the lower hemisphere, `F₁` on the upper one
+  have htl : ∀ z : ↥(sphere (0 : E (k + 1)) 1),
+      nullhomotopic_union_cell_tl k z ∈ closedBall (0 : E k) 1 := by
+    intro z
+    have h1 := nullhomotopic_union_cell_norm_sq k z
+    have hz : ‖(z : E (k + 1))‖ = 1 := mem_sphere_zero_iff_norm.mp z.2
+    rw [hz] at h1
+    rw [mem_closedBall_zero_iff]
+    nlinarith [norm_nonneg (nullhomotopic_union_cell_tl k z), sq_nonneg ((z : E (k + 1)) 0)]
+  let P : C(↥(sphere (0 : E (k + 1)) 1), ↥(closedBall (0 : E k) 1)) :=
+    ⟨fun z => ⟨nullhomotopic_union_cell_tl k z, htl z⟩,
+      ((nullhomotopic_union_cell_continuous_tl k).comp continuous_subtype_val).subtype_mk _⟩
+  have hagree : ∀ z : ↥(sphere (0 : E (k + 1)) 1), (0 : ℝ) = (z : E (k + 1)) 0 →
+      F₁ (P z) = g₀ (P z) := by
+    intro z hz
+    apply hF₁s
+    have h1 := nullhomotopic_union_cell_norm_sq k z
+    have hz1 : ‖(z : E (k + 1))‖ = 1 := mem_sphere_zero_iff_norm.mp z.2
+    rw [hz1, ← hz] at h1
+    show ‖nullhomotopic_union_cell_tl k z‖ = 1
+    nlinarith [norm_nonneg (nullhomotopic_union_cell_tl k z)]
+  let m : C(↥(sphere (0 : E (k + 1)) 1), ↥(sphere (0 : E n) 1)) :=
+    ⟨fun z => if (0 : ℝ) ≤ (z : E (k + 1)) 0 then F₁ (P z) else g₀ (P z),
+      Continuous.if_le (F₁.continuous.comp P.continuous) (g₀.continuous.comp P.continuous)
+        continuous_const ((PiLp.continuous_apply _ _ 0).comp continuous_subtype_val) hagree⟩
+  have hm_up : ∀ z : ↥(sphere (0 : E (k + 1)) 1), 0 ≤ (z : E (k + 1)) 0 →
+      m z = F₁ (P z) := by
+    intro z hz
+    show (if (0 : ℝ) ≤ (z : E (k + 1)) 0 then F₁ (P z) else g₀ (P z)) = F₁ (P z)
+    rw [if_pos hz]
+  have hm_low : ∀ z : ↥(sphere (0 : E (k + 1)) 1), (z : E (k + 1)) 0 ≤ 0 →
+      m z = g₀ (P z) := by
+    intro z hz
+    show (if (0 : ℝ) ≤ (z : E (k + 1)) 0 then F₁ (P z) else g₀ (P z)) = g₀ (P z)
+    split_ifs with h
+    · exact hagree z (le_antisymm h hz)
+    · rfl
+  -- `k + 1 < n`: `m` is nullhomotopic (CS8), hence extends over the ball (CS9)
+  obtain ⟨M, hM⟩ := extend_sphere_to_closedBall_of_nullhomotopic (k + 1) (by omega) m
+    (nullhomotopic_sphere_to_sphere (k + 1) n (by omega) (by omega) m)
+  -- the cylinder mapped onto the ball of `E (k + 1)`, boundary to the sphere
+  let σ : unitInterval × ↥(closedBall (0 : E k) 1) → ℝ := fun p =>
+    √(1 - (1 - (p.1 : ℝ)) ^ 2 * ‖(p.2 : E k)‖ ^ 2) -
+      2 * (1 - (p.1 : ℝ)) * √(1 - ‖(p.2 : E k)‖ ^ 2)
+  have hσ : Continuous σ := by fun_prop
+  have hΦ : ∀ p : unitInterval × ↥(closedBall (0 : E k) 1),
+      nullhomotopic_union_cell_pt k ((1 - (p.1 : ℝ)) • (p.2 : E k)) (σ p) ∈
+        closedBall (0 : E (k + 1)) 1 := by
+    intro p
+    have ht0 : 0 ≤ (p.1 : ℝ) := p.1.2.1
+    have ht1 : (p.1 : ℝ) ≤ 1 := p.1.2.2
+    have hr1 : ‖(p.2 : E k)‖ ≤ 1 := mem_closedBall_zero_iff.mp p.2.2
+    have h := nullhomotopic_union_cell_phi_sq_le (1 - (p.1 : ℝ)) ‖(p.2 : E k)‖
+      (by linarith) (by linarith) (norm_nonneg _) hr1
+    have hn := nullhomotopic_union_cell_norm_pt_sq k ((1 - (p.1 : ℝ)) • (p.2 : E k)) (σ p)
+    rw [norm_smul, Real.norm_of_nonneg (by linarith : (0 : ℝ) ≤ 1 - p.1)] at hn
+    have h2 : ‖nullhomotopic_union_cell_pt k ((1 - (p.1 : ℝ)) • (p.2 : E k)) (σ p)‖ ^ 2 ≤ 1 := by
+      rw [hn]
+      exact h
+    rw [mem_closedBall_zero_iff]
+    nlinarith [norm_nonneg (nullhomotopic_union_cell_pt k ((1 - (p.1 : ℝ)) • (p.2 : E k)) (σ p))]
+  let Φ : C(unitInterval × ↥(closedBall (0 : E k) 1), ↥(closedBall (0 : E (k + 1)) 1)) :=
+    ⟨fun p => ⟨nullhomotopic_union_cell_pt k ((1 - (p.1 : ℝ)) • (p.2 : E k)) (σ p), hΦ p⟩,
+      (nullhomotopic_union_cell_continuous_pt k (by fun_prop) hσ).subtype_mk _⟩
+  have hMΦ : ∀ p (hp : nullhomotopic_union_cell_pt k ((1 - (p.1 : ℝ)) • (p.2 : E k)) (σ p) ∈
+      sphere (0 : E (k + 1)) 1), M (Φ p) = m ⟨_, hp⟩ := fun p hp => hM _ hp
+  refine ⟨M.comp Φ, ?_, ?_, ?_⟩
+  · -- bottom: the lower hemisphere, where `m = g₀`
+    intro y
+    have hr1 : ‖(y : E k)‖ ≤ 1 := mem_closedBall_zero_iff.mp y.2
+    have hσ0 : σ (0, y) = -√(1 - ‖(y : E k)‖ ^ 2) := by
+      simp only [σ, Set.Icc.coe_zero, sub_zero, one_pow, one_mul]
+      ring
+    have hpt : nullhomotopic_union_cell_pt k ((1 - ((0 : unitInterval) : ℝ)) • (y : E k))
+        (σ (0, y)) = nullhomotopic_union_cell_pt k (y : E k) (-√(1 - ‖(y : E k)‖ ^ 2)) := by
+      rw [hσ0]
+      simp
+    have hz : nullhomotopic_union_cell_pt k ((1 - ((0 : unitInterval) : ℝ)) • (y : E k))
+        (σ (0, y)) ∈ sphere (0 : E (k + 1)) 1 := by
+      apply nullhomotopic_union_cell_mem_sphere
+      rw [hpt, nullhomotopic_union_cell_norm_pt_sq, neg_sq,
+        Real.sq_sqrt (by nlinarith [norm_nonneg (y : E k)])]
+      ring
+    have hz0 : nullhomotopic_union_cell_pt k ((1 - ((0 : unitInterval) : ℝ)) • (y : E k))
+        (σ (0, y)) 0 ≤ 0 := by
+      rw [hpt, nullhomotopic_union_cell_pt_zero]
+      exact neg_nonpos.mpr (Real.sqrt_nonneg _)
+    show M (Φ (0, y)) = g₀ y
+    rw [hMΦ (0, y) hz, hm_low ⟨_, hz⟩ hz0]
+    congr 1
+    apply Subtype.ext
+    show nullhomotopic_union_cell_tl k (nullhomotopic_union_cell_pt k
+      ((1 - ((0 : unitInterval) : ℝ)) • (y : E k)) (σ (0, y))) = (y : E k)
+    rw [hpt, nullhomotopic_union_cell_tl_pt]
+  · -- top: the north pole, where `m = F₁ 0 = c`
+    intro y
+    have hσ1 : σ (1, y) = 1 := by
+      simp [σ]
+    have hpt : nullhomotopic_union_cell_pt k ((1 - ((1 : unitInterval) : ℝ)) • (y : E k))
+        (σ (1, y)) = nullhomotopic_union_cell_pt k 0 1 := by
+      rw [hσ1]
+      simp
+    have hz : nullhomotopic_union_cell_pt k ((1 - ((1 : unitInterval) : ℝ)) • (y : E k))
+        (σ (1, y)) ∈ sphere (0 : E (k + 1)) 1 := by
+      apply nullhomotopic_union_cell_mem_sphere
+      rw [hpt, nullhomotopic_union_cell_norm_pt_sq]
+      simp
+    have hz0 : 0 ≤ nullhomotopic_union_cell_pt k ((1 - ((1 : unitInterval) : ℝ)) • (y : E k))
+        (σ (1, y)) 0 := by
+      rw [hpt, nullhomotopic_union_cell_pt_zero]
+      norm_num
+    show M (Φ (1, y)) = c
+    rw [hMΦ (1, y) hz, hm_up ⟨_, hz⟩ hz0, ← hF₁0]
+    congr 1
+    apply Subtype.ext
+    show nullhomotopic_union_cell_tl k (nullhomotopic_union_cell_pt k
+      ((1 - ((1 : unitInterval) : ℝ)) • (y : E k)) (σ (1, y))) = (0 : E k)
+    rw [hpt, nullhomotopic_union_cell_tl_pt]
+  · -- side: the upper hemisphere, where `m = F₁` is the cone of `Hs`
+    intro t u
+    have hu : ‖(u : E k)‖ = 1 := mem_sphere_zero_iff_norm.mp u.2
+    have ht0 : 0 ≤ (t : ℝ) := t.2.1
+    have ht1 : (t : ℝ) ≤ 1 := t.2.2
+    set y : ↥(closedBall (0 : E k) 1) := ⟨u, sphere_subset_closedBall u.2⟩ with hy
+    have hσt : σ (t, y) = √(1 - (1 - (t : ℝ)) ^ 2) := by
+      simp [σ, hy, hu]
+    have hpt : nullhomotopic_union_cell_pt k ((1 - (t : ℝ)) • (y : E k)) (σ (t, y)) =
+        nullhomotopic_union_cell_pt k ((1 - (t : ℝ)) • (u : E k)) (√(1 - (1 - (t : ℝ)) ^ 2)) := by
+      rw [hσt]
+    have hz : nullhomotopic_union_cell_pt k ((1 - ((t, y).1 : ℝ)) • ((t, y).2 : E k))
+        (σ (t, y)) ∈ sphere (0 : E (k + 1)) 1 := by
+      apply nullhomotopic_union_cell_mem_sphere
+      show ‖nullhomotopic_union_cell_pt k ((1 - (t : ℝ)) • (y : E k)) (σ (t, y))‖ ^ 2 = 1
+      rw [hpt, nullhomotopic_union_cell_norm_pt_sq, Real.sq_sqrt (by nlinarith), norm_smul, hu,
+        Real.norm_of_nonneg (by linarith : (0 : ℝ) ≤ 1 - t)]
+      ring
+    have hz0 : 0 ≤ nullhomotopic_union_cell_pt k ((1 - ((t, y).1 : ℝ)) • ((t, y).2 : E k))
+        (σ (t, y)) 0 := by
+      show 0 ≤ nullhomotopic_union_cell_pt k ((1 - (t : ℝ)) • (y : E k)) (σ (t, y)) 0
+      rw [hpt, nullhomotopic_union_cell_pt_zero]
+      exact Real.sqrt_nonneg _
+    show M (Φ (t, y)) = Hs (t, u)
+    rw [hMΦ (t, y) hz, hm_up ⟨_, hz⟩ hz0]
+    have hP : ((P ⟨_, hz⟩ : ↥(closedBall (0 : E k) 1)) : E k) = (1 - (t : ℝ)) • (u : E k) := by
+      show nullhomotopic_union_cell_tl k
+        (nullhomotopic_union_cell_pt k ((1 - (t : ℝ)) • (y : E k)) (σ (t, y))) = _
+      rw [hpt, nullhomotopic_union_cell_tl_pt]
+    have hmem : (1 - (t : ℝ)) • (u : E k) ∈ closedBall (0 : E k) 1 := by
+      rw [← hP]
+      exact (P ⟨_, hz⟩).2
+    rw [show P ⟨_, hz⟩ = ⟨_, hmem⟩ from Subtype.ext hP]
+    rcases lt_or_eq_of_le ht1 with ht | ht
+    · exact hF₁side t u ht hmem
+    · have ht' : t = 1 := Subtype.ext ht
+      rw [show (⟨(1 - (t : ℝ)) • (u : E k), hmem⟩ : ↥(closedBall (0 : E k) 1)) =
+        ⟨0, by simp⟩ from Subtype.ext (by
+          show (1 - (t : ℝ)) • (u : E k) = 0
+          rw [ht]
+          simp), hF₁0, ht', hs1]
+
+/-- Step 2 of the V4 proof of `nullhomotopic_union_cell` (V4 CS13, blueprint CS13): "Define `H`
+on `(Y₀ ∪ range θ) × I`: `H₀` on `Y₀ × I`, `M̂ ∘ (θ⁻¹ × id)` on `range θ × I` (`θ` is a closed
+embedding: compact to Hausdorff); overlaps agree by `hθ`; pasting on two closed sets.
+`H (·, 0) = f`, `H (·, 1) = c₀`". Here `G` is the extension `M̂` over the cylinder. -/
+private lemma nullhomotopic_union_cell_step2_glue (k n : ℕ) (Y₀ : Set (E n))
+    (hY₀ : IsCompact Y₀) (θ : C(↥(closedBall (0 : E k) 1), E n))
+    (hθinj : Function.Injective θ)
+    (f : C(↥(Y₀ ∪ range θ), ↥(sphere (0 : E n) 1))) (c : ↥(sphere (0 : E n) 1))
+    (H₀ : (restrictUnionLeft Y₀ (range θ) f).Homotopy (ContinuousMap.const _ c))
+    (G : C(unitInterval × ↥(closedBall (0 : E k) 1), ↥(sphere (0 : E n) 1)))
+    (hG0 : ∀ y, G (0, y) = f ⟨θ y, Or.inr (mem_range_self y)⟩)
+    (hG1 : ∀ y, G (1, y) = c)
+    (hGs : ∀ t y (hy : θ y ∈ Y₀), G (t, y) = H₀ (t, ⟨θ y, hy⟩)) : f.Nullhomotopic := by
+  classical
+  haveI : CompactSpace ↥(closedBall (0 : E k) 1) :=
+    isCompact_iff_compactSpace.mp (isCompact_closedBall _ _)
+  -- `θ` is a homeomorphism onto its range
+  have hecont : Continuous (Equiv.ofInjective θ hθinj) := θ.continuous.subtype_mk _
+  let e : ↥(closedBall (0 : E k) 1) ≃ₜ ↥(range θ) := hecont.homeoOfEquivCompactToT2
+  have he : ∀ z : ↥(range θ), θ (e.symm z) = z := fun z =>
+    congrArg Subtype.val (e.apply_symm_apply z)
+  have hD : ∀ z : ↥(Y₀ ∪ range θ), (z : E n) ∉ Y₀ → (z : E n) ∈ range θ :=
+    fun z h => z.2.resolve_left h
+  let Hf : unitInterval × ↥(Y₀ ∪ range θ) → ↥(sphere (0 : E n) 1) := fun p =>
+    if h : (p.2 : E n) ∈ Y₀ then H₀ (p.1, ⟨p.2, h⟩) else G (p.1, e.symm ⟨p.2, hD p.2 h⟩)
+  have hHfD : ∀ p : unitInterval × ↥(Y₀ ∪ range θ), ∀ hr : (p.2 : E n) ∈ range θ,
+      Hf p = G (p.1, e.symm ⟨p.2, hr⟩) := by
+    intro p hr
+    by_cases h : (p.2 : E n) ∈ Y₀
+    · simp only [Hf, dif_pos h]
+      have hθy : θ (e.symm ⟨p.2, hr⟩) ∈ Y₀ := by rw [he]; exact h
+      rw [hGs p.1 _ hθy]
+      congr 2
+      exact Subtype.ext (he ⟨(p.2 : E n), hr⟩).symm
+    · simp only [Hf, dif_neg h]
+  have hA : IsClosed {p : unitInterval × ↥(Y₀ ∪ range θ) | (p.2 : E n) ∈ Y₀} :=
+    hY₀.isClosed.preimage (continuous_subtype_val.comp continuous_snd)
+  have hB : IsClosed {p : unitInterval × ↥(Y₀ ∪ range θ) | (p.2 : E n) ∈ range θ} :=
+    (isCompact_range θ.continuous).isClosed.preimage (continuous_subtype_val.comp continuous_snd)
+  have hcont : Continuous Hf := by
+    rw [← continuousOn_univ]
+    have hU : (univ : Set (unitInterval × ↥(Y₀ ∪ range θ))) =
+        {p | (p.2 : E n) ∈ Y₀} ∪ {p | (p.2 : E n) ∈ range θ} := by
+      ext p
+      simp only [mem_univ, mem_union, mem_setOf_eq, true_iff]
+      exact p.2.2
+    rw [hU]
+    refine ContinuousOn.union_of_isClosed ?_ ?_ hA hB
+    · rw [continuousOn_iff_continuous_restrict]
+      have hr : restrict {p : unitInterval × ↥(Y₀ ∪ range θ) | (p.2 : E n) ∈ Y₀} Hf =
+          fun p => H₀ (p.1.1, ⟨p.1.2, p.2⟩) := by
+        funext p
+        simp only [restrict_apply, Hf]
+        exact dif_pos p.2
+      rw [hr]
+      exact H₀.continuous.comp ((continuous_fst.comp continuous_subtype_val).prodMk
+        ((continuous_subtype_val.comp (continuous_snd.comp continuous_subtype_val)).subtype_mk _))
+    · rw [continuousOn_iff_continuous_restrict]
+      have hr : restrict {p : unitInterval × ↥(Y₀ ∪ range θ) | (p.2 : E n) ∈ range θ} Hf =
+          fun p => G (p.1.1, e.symm ⟨p.1.2, p.2⟩) := by
+        funext p
+        exact hHfD p.1 p.2
+      rw [hr]
+      exact G.continuous.comp ((continuous_fst.comp continuous_subtype_val).prodMk
+        (e.symm.continuous.comp
+          ((continuous_subtype_val.comp (continuous_snd.comp continuous_subtype_val)).subtype_mk _)))
+  refine ⟨c, ⟨{ toFun := Hf
+                continuous_toFun := hcont
+                map_zero_left := ?_
+                map_one_left := ?_ }⟩⟩
+  · intro z
+    by_cases h : (z : E n) ∈ Y₀
+    · simp only [Hf, dif_pos h]
+      exact H₀.apply_zero _
+    · simp only [Hf, dif_neg h]
+      rw [hG0]
+      congr 1
+      exact Subtype.ext (he _)
+  · intro z
+    by_cases h : (z : E n) ∈ Y₀
+    · simp only [Hf, dif_pos h]
+      exact H₀.apply_one _
+    · simp only [Hf, dif_neg h]
+      exact hG1 _
+
 /-- CS13: `k + 2 ≤ n`, `Y₀ ⊆ E n` compact, `θ` a continuous injective closed
 `k`-cell with `range θ ∩ Y₀` exactly its boundary image, and
 `f : C(↥(Y₀ ∪ range θ), ↥(sphere (0 : E n) 1))` nullhomotopic on `Y₀` ⇒
@@ -500,7 +864,38 @@ theorem nullhomotopic_union_cell (k n : ℕ) (hkn : k + 2 ≤ n) (Y₀ : Set (E 
     (hθ : range θ ∩ Y₀ = θ '' {y | ‖(y : E k)‖ = 1})
     (f : C(↥(Y₀ ∪ range θ), ↥(sphere (0 : E n) 1)))
     (hf : (restrictUnionLeft Y₀ (range θ) f).Nullhomotopic) : f.Nullhomotopic := by
-  sorry
+  obtain ⟨c, ⟨H₀⟩⟩ := hf
+  -- a point of the cell lies in `Y₀` iff it is on the boundary sphere
+  have hmem : ∀ y : ↥(closedBall (0 : E k) 1), θ y ∈ Y₀ ↔ ‖(y : E k)‖ = 1 := by
+    intro y
+    constructor
+    · intro hy
+      have h : θ y ∈ θ '' {y | ‖(y : E k)‖ = 1} := hθ ▸ ⟨mem_range_self y, hy⟩
+      obtain ⟨y', hy', hyy'⟩ := h
+      rw [← hθinj hyy']
+      exact hy'
+    · intro hy
+      have h : θ y ∈ range θ ∩ Y₀ := hθ ▸ mem_image_of_mem θ hy
+      exact h.2
+  let g₀ : C(↥(closedBall (0 : E k) 1), ↥(sphere (0 : E n) 1)) :=
+    f.comp ⟨fun y => ⟨θ y, Or.inr (mem_range_self y)⟩, by fun_prop⟩
+  let ι : C(unitInterval × ↥(sphere (0 : E k) 1), unitInterval × ↥(Y₀)) :=
+    ⟨fun p => (p.1, ⟨θ ⟨p.2, sphere_subset_closedBall p.2.2⟩,
+      (hmem _).2 (mem_sphere_zero_iff_norm.mp p.2.2)⟩), by fun_prop⟩
+  let Hs : C(unitInterval × ↥(sphere (0 : E k) 1), ↥(sphere (0 : E n) 1)) :=
+    H₀.toContinuousMap.comp ι
+  have hs0 : ∀ u : ↥(sphere (0 : E k) 1), Hs (0, u) = g₀ ⟨u, sphere_subset_closedBall u.2⟩ := by
+    intro u
+    exact H₀.apply_zero _
+  have hs1 : ∀ u : ↥(sphere (0 : E k) 1), Hs (1, u) = c := by
+    intro u
+    exact H₀.apply_one _
+  obtain ⟨G, hG0, hG1, hGs⟩ :=
+    nullhomotopic_union_cell_step1_cylinder k n hkn g₀ c Hs hs0 hs1
+  refine nullhomotopic_union_cell_step2_glue k n Y₀ hY₀ θ hθinj f c H₀ G hG0 hG1 ?_
+  intro t y hy
+  have hy1 : (y : E k) ∈ sphere (0 : E k) 1 := by simpa using (hmem y).1 hy
+  exact hGs t ⟨y, hy1⟩
 
 /-- Step 1 of the V4 proof of `isPreconnected_diff_cell` (V4 CS14, step 1 / CS14b): `U` is
 path connected; a path from `a` to `b` in `U`, cut just before it first reaches `b`, joins `a`

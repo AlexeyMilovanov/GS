@@ -4852,7 +4852,27 @@ private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step
     let x := Finset.centroid ℝ σ id
     ∃ r > 0, ∀ τ ∈ K.faces,
       (convexHull ℝ (τ : Set (E d)) ∩ Metric.ball x r).Nonempty → σ ⊆ τ := by
-  sorry
+  intro x
+  have h_prev := principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step5_face_links_step1_centroid_relint K hσ
+  let T := {τ ∈ K.faces | ¬ σ ⊆ τ}
+  have hT_fin : T.Finite := hfin.subset (fun _ h => h.1)
+  have H : IsClosed (⋃ τ ∈ T, convexHull ℝ (τ : Set (E d))) := by
+    apply Set.Finite.isClosed_biUnion hT_fin
+    intro τ _
+    exact τ.finite_toSet.isCompact_convexHull.isClosed
+  have Hx : x ∉ ⋃ τ ∈ T, convexHull ℝ (τ : Set (E d)) := by
+    simp only [mem_iUnion, mem_setOf_eq, exists_prop, not_exists, not_and]
+    intro τ hτ_and_notsubset
+    exact h_prev.2 τ hτ_and_notsubset.1 hτ_and_notsubset.2
+  have := isOpen_compl_iff.mpr H
+  rcases Metric.isOpen_iff.mp this x Hx with ⟨r, hr, Hball⟩
+  use r, hr
+  intro τ hτ h_inter
+  by_contra h_notsubset
+  rcases h_inter with ⟨y, hy_hull, hy_ball⟩
+  apply Hball hy_ball
+  simp only [mem_compl_iff, mem_iUnion, mem_setOf_eq, exists_prop]
+  exact ⟨τ, ⟨hτ, h_notsubset⟩, hy_hull⟩
 
 /-- Step 3 of the V4 proof of
 `principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step5_face_links`

@@ -4936,7 +4936,21 @@ private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step
     let x := Finset.centroid ℝ σ id
     ∃ (W : Set (E d)) (V : Set (E (d - 1))), IsOpen W ∧ IsOpen V ∧ x ∈ W ∧
       Nonempty ((K.space ∩ W : Set (E d)) ≃ₜ V) := by
-  sorry
+  intro x
+  have h_ne : σ.Nonempty := K.nonempty_of_mem_faces hσ
+  have hx : x ∈ K.space :=
+    K.convexHull_subset_space hσ (Finset.centroid_mem_convexHull _ h_ne)
+  obtain ⟨U, hU, hxU, V, hV, ⟨e⟩⟩ := hman ⟨x, hx⟩
+  obtain ⟨W, hW, rfl⟩ := isOpen_induced_iff.mp hU
+  refine ⟨W, V, hW, hV, hxU, ⟨Homeomorph.trans ?_ e⟩⟩
+  exact
+    { toFun := fun y => ⟨⟨y.1, y.2.1⟩, y.2.2⟩
+      invFun := fun u => ⟨u.1.1, u.1.2, u.2⟩
+      left_inv := fun _ => rfl
+      right_inv := fun _ => rfl
+      continuous_toFun := (continuous_subtype_val.subtype_mk _).subtype_mk _
+      continuous_invFun :=
+        (continuous_subtype_val.comp continuous_subtype_val).subtype_mk _ }
 
 /-- Step 3, part 2 of the V4 proof of
 `principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step5_face_links`

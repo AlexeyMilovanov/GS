@@ -5903,6 +5903,156 @@ theorem positioned_stars_finite (Y : Type) [Finite Y] (p : E d)
         (P.native n a.val).frame.trans (P.native n anchor.val).frame.symm), v, label a),
       ⟨⟨trivial, n, a, anchor, rfl⟩, Set.mem_iUnion.mpr ⟨_, hv⟩, trivial⟩, rfl⟩
 
+open private tangentCone_polyhedral_step2_halfspace_presentation
+  tangentCone_polyhedral_step3_local_cone tangentCone_polyhedral_step5_radial_germ
+  from Enforce.Geometry.Polyhedral in
+/-- Step 1 of the V4 proof of `uniform_cone_radius_step1_catalogue` (V4 1.19):
+"For a prototile A and a vertex v there is ρ(A,v)>0 with
+A∩B(v,ρ)=(v+T_vA)∩B(v,ρ)". A polyhedron agrees near any point with its
+radial tangent cone placed at that point. -/
+private lemma uniform_cone_radius_step1_catalogue_step1_local_cone
+    {k : ℕ} {K : Set (E k)} (hK : Polyhedron K) (v : E k) :
+    ∃ ρ : ℝ, 0 < ρ ∧
+      K ∩ ball v ρ = ((fun x => v + x) '' tangentCone K v) ∩ ball v ρ := by
+  obtain ⟨s, hs⟩ := tangentCone_polyhedral_step2_halfspace_presentation hK
+  obtain ⟨C, hC, hloc⟩ := tangentCone_polyhedral_step3_local_cone s v
+  rw [← hs] at hloc
+  have ht := tangentCone_polyhedral_step5_radial_germ v hC hloc
+  obtain ⟨ρ, hρ, hnear⟩ := Metric.eventually_nhds_iff.mp hloc
+  refine ⟨ρ, hρ, ?_⟩
+  have himage (x : E k) :
+      x ∈ (fun u => v + u) '' tangentCone K v ↔ x - v ∈ C := by
+    rw [ht]
+    constructor
+    · rintro ⟨u, hu, rfl⟩
+      simpa only [add_sub_cancel_left] using hu
+    · intro hx
+      exact ⟨x - v, hx, add_sub_cancel _ _⟩
+  ext x
+  by_cases hx : x ∈ ball v ρ
+  · simpa only [Set.mem_inter_iff, himage, hx, and_true] using
+      (hnear (Metric.mem_ball.mp hx))
+  · simp only [Set.mem_inter_iff, hx, and_false]
+
+open scoped Topology in
+/-- Step 2 of the V4 proof of `uniform_cone_radius_step1_catalogue` (V4 1.19):
+"take r₀ the minimum over the finite catalogue". A finite family of positive
+radii has a common positive lower bound, also when the family is empty. -/
+private lemma uniform_cone_radius_step1_catalogue_step2_finite_min
+    {J : Type*} [Finite J] (ρ : J → ℝ) (hρ : ∀ j, 0 < ρ j) :
+    ∃ r : ℝ, 0 < r ∧ ∀ j, r < ρ j := by
+  have he : ∀ᶠ r : ℝ in 𝓝 (0 : ℝ), ∀ j, r < ρ j :=
+    Filter.eventually_all.mpr (fun j => eventually_lt_nhds (hρ j))
+  obtain ⟨δ, hδ, hall⟩ := Metric.eventually_nhds_iff.mp he
+  refine ⟨δ / 2, by positivity, ?_⟩
+  apply hall
+  rw [Real.dist_eq, sub_zero, abs_of_pos (by positivity : 0 < δ / 2)]
+  linarith
+
+/-- Step 3 of the V4 proof of `uniform_cone_radius_step1_catalogue` (V4 1.19):
+"take r₀ the minimum over the finite catalogue". Listed vertices are single
+points, so finitely many pairs of a prototile and a listed vertex occur, and
+the radius `ρ(A,v)` of Step 1 is shrunk to a common one. -/
+private lemma uniform_cone_radius_step1_catalogue_step3_catalogue
+    {k : ℕ} [Fact (2 ≤ k)] (T : SubstSystem k) :
+    ∃ r : ℝ, 0 < r ∧ ∀ (A : T.ι) (e : Cell k), e ∈ (T.cx A).vertices →
+      ∀ v ∈ e.carrier,
+        (T.proto A).carrier ∩ ball v r =
+          ((fun x => v + x) '' tangentCone (T.proto A).carrier v) ∩ ball v r := by
+  classical
+  have hsing : ∀ (A : T.ι) (e : Cell k),
+      e ∈ (T.cx A).vertices → e.carrier.Subsingleton := by
+    intro A e he
+    have hd : e.dim = 0 := (Finset.mem_filter.mp he).2
+    have hb : cellDirection e.carrier = ⊥ :=
+      Submodule.finrank_eq_zero.mp (e.flat.dimension.trans hd)
+    apply (vectorSpan_eq_bot_iff_subsingleton ℝ).mp
+    simpa only [cellDirection, direction_affineSpan] using hb
+  let Pts : Set (E k) := ⋃ A : T.ι, ⋃ e ∈ (T.cx A).vertices, e.carrier
+  have hf : Pts.Finite := Set.finite_iUnion fun A =>
+    (T.cx A).vertices.finite_toSet.biUnion fun e he => (hsing A e he).finite
+  letI : Fintype Pts := hf.fintype
+  have hex (j : T.ι × Pts) :=
+    uniform_cone_radius_step1_catalogue_step1_local_cone
+      (T.proto j.1).polyhedral j.2.val
+  choose ρ hρ hc using hex
+  obtain ⟨r, hr, hb⟩ :=
+    uniform_cone_radius_step1_catalogue_step2_finite_min ρ hρ
+  refine ⟨r, hr, ?_⟩
+  intro A e he v hv
+  have hvPts : v ∈ Pts :=
+    Set.mem_iUnion.mpr ⟨A, Set.mem_iUnion₂.mpr ⟨e, he, hv⟩⟩
+  let j : T.ι × Pts := ⟨A, ⟨v, hvPts⟩⟩
+  have hj : (T.proto A).carrier ∩ ball v (ρ j) =
+      ((fun x => v + x) '' tangentCone (T.proto A).carrier v) ∩ ball v (ρ j) := hc j
+  ext x
+  by_cases hx : x ∈ ball v r
+  · have hlarge : x ∈ ball v (ρ j) := ball_subset_ball (hb j).le hx
+    have hh := Set.ext_iff.mp hj x
+    simpa only [Set.mem_inter_iff, hx, hlarge, and_true] using hh
+  · simp only [Set.mem_inter_iff, hx, and_false]
+
+/-- Step 4 of the V4 proof of `uniform_cone_radius_step1_catalogue` (V4 1.19):
+"Every t ∈ I_n is a placed prototile"; the cone equality on a ball is
+invariant under an isometric affine placement, with the same radius. -/
+private lemma uniform_cone_radius_step1_catalogue_step4_placed
+    {k : ℕ} {K : Set (E k)} {v : E k} {r : ℝ}
+    (h : K ∩ ball v r = ((fun x => v + x) '' tangentCone K v) ∩ ball v r)
+    (g : E k ≃ᵃ[ℝ] E k) (hg : Isometry g) :
+    (g '' K) ∩ ball (g v) r =
+      ((fun x => g v + x) '' tangentCone (g '' K) (g v)) ∩ ball (g v) r := by
+  have h1 : tangentCone (g '' K) (g v) = g.linear '' tangentCone K v := by
+    ext u
+    simp only [tangentCone, mem_image, mem_setOf_eq]
+    constructor
+    · rintro ⟨ε, hε, hu⟩
+      refine ⟨g.linear.symm u, ⟨ε, hε, ?_⟩, g.linear.apply_symm_apply u⟩
+      intro t ht htε
+      have h1 := hu t ht htε
+      rcases h1 with ⟨y, hy, hy2⟩
+      have hy3 : y = v + t • g.linear.symm u := by
+        apply g.injective
+        rw [hy2]
+        have hmap (y u : E k) (t : ℝ) : g (y + t • u) = g y + t • g.linear u := by
+          simpa only [vadd_eq_add, add_comm, map_smul] using g.map_vadd y (t • u)
+        rw [hmap v (g.linear.symm u) t, g.linear.apply_symm_apply u]
+      rwa [hy3] at hy
+    · rintro ⟨u', ⟨ε, hε, hu⟩, rfl⟩
+      refine ⟨ε, hε, ?_⟩
+      intro t ht htε
+      have h1 := hu t ht htε
+      use v + t • u'
+      refine ⟨h1, ?_⟩
+      have hmap (y u : E k) (t : ℝ) : g (y + t • u) = g y + t • g.linear u := by
+        simpa only [vadd_eq_add, add_comm, map_smul] using g.map_vadd y (t • u)
+      exact hmap v u' t
+  rw [h1]
+  ext x
+  simp only [mem_inter_iff, mem_image, mem_ball]
+  constructor
+  · rintro ⟨⟨y, hy, rfl⟩, hdist⟩
+    have hdist2 : dist y v < r := by
+      rwa [← hg.dist_eq y v]
+    have hy2 : y ∈ K ∩ ball v r := ⟨hy, hdist2⟩
+    rw [h] at hy2
+    rcases hy2.1 with ⟨z, hz, hz2⟩
+    refine ⟨⟨g.linear z, ⟨z, hz, rfl⟩, ?_⟩, hdist⟩
+    have hmap (y u : E k) : g (y + u) = g y + g.linear u := by
+      simpa only [vadd_eq_add, add_comm] using g.map_vadd y u
+    rw [← hmap, ← hz2]
+  · rintro ⟨⟨y, ⟨z, hz, rfl⟩, rfl⟩, hdist⟩
+    have hmap (y u : E k) : g (y + u) = g y + g.linear u := by
+      simpa only [vadd_eq_add, add_comm] using g.map_vadd y u
+    have hz3 : g v + g.linear z = g (v + z) := (hmap v z).symm
+    have hdist2 : dist (v + z) v < r := by
+      rw [← hg.dist_eq (v + z) v]
+      rw [← hz3]
+      exact hdist
+    have hz4 : v + z ∈ K ∩ ball v r := by
+      rw [h]
+      exact ⟨⟨z, hz, rfl⟩, hdist2⟩
+    refine ⟨⟨v + z, hz4.1, hz3.symm⟩, hdist⟩
+
 /-- Step 1 of the V4 proof of `uniform_cone_radius` (V4 1.19):
 "take r₀ the minimum over the finite catalogue";
 isometric placement preserves the radius. -/
@@ -5913,7 +6063,23 @@ private theorem uniform_cone_radius_step1_catalogue
         t.carrier 0 ∩ ball q r =
           ((fun v => q + v) '' tangentCone (t.carrier 0) q)
             ∩ ball q r := by
-  sorry
+  obtain ⟨r, hr, hmin⟩ := uniform_cone_radius_step1_catalogue_step3_catalogue T
+  refine ⟨r, hr, fun t q hlists => ?_⟩
+  rcases hlists with ⟨e, he, hq⟩
+  have hc : t.carrier 0 = t.prototypeFrame 0 '' (T.proto t.ty).carrier := by
+    simp [FramedNode.carrier, FramedNode.prototypeFrame, placedSet, SubstSystem.supertile]
+  have hce : t.cell 0 e = t.prototypeFrame 0 '' e.carrier := rfl
+  rw [hce] at hq
+  rcases hq with ⟨y, hy, hy_eq⟩
+  have h_base := hmin t.ty e he _ hy
+  have h_iso : Isometry (t.prototypeFrame 0) := by
+    have : t.prototypeFrame 0 = (T.σ ^ 0).toAffineEquiv.trans t.frame.toAffineEquiv := rfl
+    rw [this, pow_zero]
+    exact t.frame.isometry
+  have h_trans :=
+    uniform_cone_radius_step1_catalogue_step4_placed h_base (t.prototypeFrame 0) h_iso
+  rw [hy_eq] at h_trans
+  rwa [hc]
 
 /-- Step 2 of the V4 proof of `uniform_cone_radius` (V4 1.19):
 "its tangent cone ... is σⁿG = ⋃ T ... over the descendants";

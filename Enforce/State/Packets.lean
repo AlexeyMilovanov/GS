@@ -473,7 +473,63 @@ private theorem packet_attached_step1_owner_hint (U : HonestSource S) (P : Param
   rw [← H.image_interior]
   exact Set.image_mono g.incidence.val.internal
 
-private theorem packet_attached_step1_owner_hxc (U : HonestSource S) (P : Params S) (g : PrimitiveOccurrence U P) (t : U.Node) (f : FacetName S t.2.val.ty) (hfg : t.2.val.cell t.1 f.val ⊆ g.carrier) : ∃ x ∈ t.2.val.cell t.1 f.val, x ∈ relint g.carrier := by sorry
+omit [Fact (2 ≤ d)] in
+/-- Step 1 of the V4 proof of `packet_attached_step1_owner_hxc` (V4 1.0 (H2), used in
+2.6(c)): invertible affine maps preserve the dimension of the affine hull. -/
+private theorem packet_attached_step1_owner_hxc_step1_finrank_image
+    (e : E d ≃ᵃ[ℝ] E d) (K : Set (E d)) :
+    Module.finrank ℝ (affineSpan ℝ (e '' K)).direction =
+      Module.finrank ℝ (affineSpan ℝ K).direction := by
+  have h' : affineSpan ℝ (e '' K) = (affineSpan ℝ K).map e.toAffineMap :=
+    (AffineSubspace.map_span e.toAffineMap K).symm
+  rw [h', AffineSubspace.map_direction]
+  exact LinearEquiv.finrank_map_eq e.linear _
+
+omit [Fact (2 ≤ d)] in
+/-- Step 2 of the V4 proof of `packet_attached_step1_owner_hxc` (V4 1.0 (H2), used in
+2.6(c)): a placed cell inside a placed cell of the same dimension has the same affine
+hull, so its (nonempty) relative interior lies in the relative interior of the larger. -/
+private theorem packet_attached_step1_owner_hxc_step2_meets
+    (e₁ e₂ : E d ≃ᵃ[ℝ] E d) (c₁ c₂ : Cell d)
+    (hdim : c₁.dim = c₂.dim) (hsub : e₁ '' c₁.carrier ⊆ e₂ '' c₂.carrier) :
+    ∃ x ∈ e₁ '' c₁.carrier, x ∈ relint (e₂ '' c₂.carrier) := by
+  obtain ⟨y, hy⟩ := c₁.flat.relint_nonempty
+  have hyK : y ∈ c₁.carrier := intrinsicInterior_subset hy
+  have hle : affineSpan ℝ (e₁ '' c₁.carrier) ≤ affineSpan ℝ (e₂ '' c₂.carrier) :=
+    affineSpan_mono ℝ hsub
+  have hfin : Module.finrank ℝ (affineSpan ℝ (e₁ '' c₁.carrier)).direction =
+      Module.finrank ℝ (affineSpan ℝ (e₂ '' c₂.carrier)).direction := by
+    rw [packet_attached_step1_owner_hxc_step1_finrank_image,
+      packet_attached_step1_owner_hxc_step1_finrank_image]
+    have h1 := c₁.flat.dimension
+    have h2 := c₂.flat.dimension
+    simp only [cellDirection] at h1 h2
+    rw [h1, h2, hdim]
+  have hdir : (affineSpan ℝ (e₁ '' c₁.carrier)).direction =
+      (affineSpan ℝ (e₂ '' c₂.carrier)).direction :=
+    Submodule.eq_of_le_of_finrank_eq (AffineSubspace.direction_le hle) hfin
+  have hspan : affineSpan ℝ (e₁ '' c₁.carrier) = affineSpan ℝ (e₂ '' c₂.carrier) := by
+    apply AffineSubspace.ext_of_direction_eq hdir
+    exact ⟨e₁ y, subset_affineSpan ℝ _ ⟨y, hyK, rfl⟩,
+      subset_affineSpan ℝ _ (hsub ⟨y, hyK, rfl⟩)⟩
+  have key : ∀ (V W : AffineSubspace ℝ (E d)), V = W → ∀ A B : Set (E d), A ⊆ B →
+      (((↑) : V → E d) '' interior ((↑) ⁻¹' A : Set V) : Set (E d)) ⊆
+        ((↑) : W → E d) '' interior ((↑) ⁻¹' B : Set W) := by
+    rintro V W rfl A B hAB
+    exact Set.image_mono (interior_mono (Set.preimage_mono hAB))
+  have hrel : relint (e₁ '' c₁.carrier) ⊆ relint (e₂ '' c₂.carrier) :=
+    key _ _ hspan _ _ hsub
+  refine ⟨e₁ y, ⟨y, hyK, rfl⟩, hrel ?_⟩
+  rw [packet_attached_step1_owner_hint_step1_relint_image]
+  exact ⟨y, hy, rfl⟩
+
+private theorem packet_attached_step1_owner_hxc (U : HonestSource S) (P : Params S) (g : PrimitiveOccurrence U P) (t : U.Node) (f : FacetName S t.2.val.ty) (hfg : t.2.val.cell t.1 f.val ⊆ g.carrier) : ∃ x ∈ t.2.val.cell t.1 f.val, x ∈ relint g.carrier := by
+  have hfdim : f.val.dim = d - 1 := (Finset.mem_filter.mp f.2).2
+  have hgdim : g.incidence.val.leftFacet.val.dim = d - 1 :=
+    (Finset.mem_filter.mp g.incidence.val.leftFacet.2).2
+  exact packet_attached_step1_owner_hxc_step2_meets (t.2.val.prototypeFrame t.1)
+    (P.incidencePlacement g.birth.2.val g.birth.1 g.incidence) f.val
+    g.incidence.val.leftFacet.val (hfdim.trans hgdim.symm) hfg
 open private hereditary_trace_step1_cell_frontier from Enforce.Source.Trace in
 private theorem packet_attached_step1_owner_hfront (U : HonestSource S) (t : U.Node) (f : FacetName S t.2.val.ty) : ∀ x ∈ t.2.val.cell t.1 f.val, x ∈ frontier (t.2.val.carrier t.1) := by
   intro x hx

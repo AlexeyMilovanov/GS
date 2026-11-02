@@ -2988,7 +2988,76 @@ private lemma compiler_events_step1_rule_step4_pinned (C : ClusterData S P) (Y :
     (hx_encl : x ∈ (compilerFrame C t) '' C.enclosing (compilerLeaf C t) (.trigger j))
     (hy_mark : ∀ z : (Compiler.eventRule C ⟨compilerLeaf C t, j, θ, h_allowed⟩).carrier, Y.marking (ψ ↑z) = (Compiler.eventRule C ⟨compilerLeaf C t, j, θ, h_allowed⟩).mark z) :
     ψ = compilerFrame C t := by
-  sorry
+  classical
+  let e : Compiler.EventIndex S P := ⟨compilerLeaf C t, j, θ, h_allowed⟩
+  have hr : ∀ p : Compiler.eventCarrier C e,
+      Y.marking (ψ p.val) = Compiler.eventColour C e p.val := fun p => hy_mark p
+  obtain ⟨y, hy⟩ := hx_rule
+  obtain ⟨c, hc, hcx⟩ := hx_encl
+  have hy_car : y.val ∈ C.enclosing (compilerLeaf C t) (.trigger j) ∪
+      ⋃ z ∈ Compiler.eventReadouts e, Compiler.readoutRegion C z := y.property
+  rcases hy_car with hyt | hyr
+  · -- The rule point lies in the closed trigger ball: the trigger cluster pins ψ to a tile t'.
+    have hagree : ∀ w ∈ C.cluster (compilerLeaf C t) (.trigger j),
+        Y.marking (ψ w) = augmentedColour C (compilerLeaf C t) w := by
+      intro w hw
+      have hwe := C.cluster_subset_enclosing _ _ hw
+      have hcar : w ∈ Compiler.eventCarrier C e := by
+        change w ∈ C.enclosing e.leaf (.trigger e.slot) ∪
+          ⋃ z ∈ Compiler.eventReadouts e, Compiler.readoutRegion C z
+        exact Or.inl hwe
+      rw [hr ⟨w, hcar⟩]
+      exact Compiler.eventColour_trigger C e w hwe
+    obtain ⟨t', ht', hl', hf'⟩ :=
+      cluster_rigidity C Y (compilerLeaf C t) (.trigger j) ψ hagree
+    have hint' : x ∈ interior t'.carrier := by
+      rw [← hy, hf']
+      refine compiler_certificates_frame_interior C t' y.val ?_
+      rw [hl']
+      exact C.enclosing_inside _ _ hyt
+    have htt : t = t' := by
+      by_contra hne
+      exact Set.disjoint_left.mp (Y.disjoint ht ht' hne) hx_in hint'
+    subst htt
+    exact hf'
+  · -- The rule point lies in a readout ball: impossible, since x is in the trigger ball of t.
+    exfalso
+    obtain ⟨⟨zf, zl⟩, hz, hyz⟩ :
+        ∃ z ∈ Compiler.eventReadouts e, y.val ∈ Compiler.readoutRegion C z := by
+      simpa only [Set.mem_iUnion, exists_prop] using hyr
+    have hagree : ∀ w ∈ C.cluster zl .readout,
+        Y.marking ((zf.frame.trans ψ) w) = augmentedColour C zl w := by
+      intro w hw
+      have hreg : zf.frame w ∈ Compiler.readoutRegion C (zf, zl) :=
+        Set.mem_image_of_mem _ (C.cluster_subset_enclosing zl .readout hw)
+      have hcar : zf.frame w ∈ Compiler.eventCarrier C e := by
+        change zf.frame w ∈ C.enclosing e.leaf (.trigger e.slot) ∪
+          ⋃ z ∈ Compiler.eventReadouts e, Compiler.readoutRegion C z
+        exact Or.inr (Set.mem_iUnion_of_mem (zf, zl) (Set.mem_iUnion_of_mem hz hreg))
+      change Y.marking (ψ (zf.frame w)) = _
+      rw [hr ⟨zf.frame w, hcar⟩, Compiler.eventColour_readout C e (zf, zl) hz _ hreg]
+      change augmentedColour C zl (zf.frame.symm (zf.frame w)) = _
+      rw [AffineIsometryEquiv.symm_apply_apply]
+    obtain ⟨u, hu, hlu, hfu⟩ := cluster_rigidity C Y zl .readout (zf.frame.trans ψ) hagree
+    obtain ⟨w, hw, hwy⟩ := hyz
+    have hxu : x = compilerFrame C u w := by
+      rw [← hfu, ← hy, ← hwy]
+      rfl
+    have hint_u : x ∈ interior u.carrier := by
+      rw [hxu]
+      refine compiler_certificates_frame_interior C u w ?_
+      rw [hlu]
+      exact C.enclosing_inside _ _ hw
+    have htu : t = u := by
+      by_contra hne
+      exact Set.disjoint_left.mp (Y.disjoint ht hu hne) hx_in hint_u
+    subst htu
+    have hcw : c = w := (compilerFrame C t).injective (hcx.trans hxu)
+    subst hcw
+    subst hlu
+    exact Set.disjoint_left.mp (C.enclosing_disjoint (compilerLeaf C t)
+      (show (ClusterKind.trigger j : ClusterKind (compilerLeaf C t)) ≠ .readout from
+        by intro h; cases h)) hc hw
 
 /-- Step 1 of the V4 proof of `compiler_events` (V4 2.17b): Let x be the centre of microball 0 of the trigger cluster of slot j of t... The covering rule copy is an EVENT rule pinned to t. -/
 private lemma compiler_events_step1_rule (C : ClusterData S P) (Y : MarkedTiling (systemM S P C))

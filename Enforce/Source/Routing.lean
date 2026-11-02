@@ -4963,7 +4963,62 @@ private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step
       ContinuousOn φ (K.space ∩ W) ∧ Set.InjOn φ (K.space ∩ W) ∧
       IsOpen (φ '' (K.space ∩ W)) ∧
       ∀ O : Set (E d), IsOpen O → IsOpen (φ '' (K.space ∩ W ∩ O)) := by
-  sorry
+  classical
+  let φ : E d → E (d - 1) := fun x => if h : x ∈ (K.space ∩ W : Set (E d)) then (e ⟨x, h⟩ : E (d - 1)) else 0
+  use φ
+  have h_eq : ∀ x (hx : x ∈ (K.space ∩ W : Set (E d))), φ x = (e ⟨x, hx⟩ : E (d - 1)) := by
+    intro x hx
+    dsimp [φ]
+    rw [dif_pos hx]
+  have h_cont : ContinuousOn φ (K.space ∩ W) := by
+    rw [continuousOn_iff_continuous_restrict]
+    have : ((K.space ∩ W : Set (E d))).restrict φ = Subtype.val ∘ e := funext fun ⟨x, hx⟩ => h_eq x hx
+    rw [this]
+    exact continuous_subtype_val.comp e.continuous
+  have h_inj : Set.InjOn φ (K.space ∩ W) := by
+    intro x hx y hy hxy
+    rw [h_eq x hx, h_eq y hy] at hxy
+    have h1 : (e ⟨x, hx⟩ : E (d - 1)) = (e ⟨y, hy⟩ : E (d - 1)) := hxy
+    have h1_ext : e ⟨x, hx⟩ = e ⟨y, hy⟩ := Subtype.ext h1
+    have h2 : (⟨x, hx⟩ : (K.space ∩ W : Set (E d))) = ⟨y, hy⟩ := e.injective h1_ext
+    exact Subtype.mk.inj h2
+  have h_open_im : IsOpen (φ '' (K.space ∩ W)) := by
+    have : φ '' (K.space ∩ W) = (V : Set (E (d - 1))) := by
+      ext y
+      simp only [Set.mem_image]
+      constructor
+      · rintro ⟨x, hx, rfl⟩
+        rw [h_eq x hx]
+        exact (e ⟨x, hx⟩).2
+      · intro hy
+        obtain ⟨⟨x, hx⟩, h_e⟩ := e.surjective ⟨y, hy⟩
+        use x
+        refine ⟨hx, ?_⟩
+        rw [h_eq x hx]
+        exact congr_arg Subtype.val h_e
+    rw [this]
+    exact hV
+  have h_open_rel : ∀ O : Set (E d), IsOpen O → IsOpen (φ '' (K.space ∩ W ∩ O)) := by
+    intro O hO
+    have : φ '' (K.space ∩ W ∩ O) = Subtype.val '' (e '' ((Subtype.val ⁻¹' (O : Set (E d))) : Set ↑(K.space ∩ W))) := by
+      ext y
+      simp only [Set.mem_image, Set.mem_inter_iff, Set.mem_preimage]
+      constructor
+      · rintro ⟨x, ⟨⟨hx_space, hx_W⟩, hx_O⟩, rfl⟩
+        refine ⟨e ⟨x, ⟨hx_space, hx_W⟩⟩, ?_, ?_⟩
+        · refine ⟨⟨x, ⟨hx_space, hx_W⟩⟩, ?_, rfl⟩
+          exact hx_O
+        · rw [h_eq x ⟨hx_space, hx_W⟩]
+      · rintro ⟨⟨y_val, hy⟩, h_pre, rfl⟩
+        obtain ⟨⟨x, hx⟩, hx_O, h_e⟩ := h_pre
+        use x
+        exact ⟨⟨hx, hx_O⟩, by rw [h_eq x hx, ← h_e]⟩
+    rw [this]
+    have h_open_pre : IsOpen ((Subtype.val ⁻¹' (O : Set (E d))) : Set ↑(K.space ∩ W)) := hO.preimage continuous_subtype_val
+    have h_open_e_im : IsOpen (e '' ((Subtype.val ⁻¹' (O : Set (E d))) : Set ↑(K.space ∩ W))) := e.isOpenMap _ h_open_pre
+    have h_V_open : IsOpenMap (Subtype.val : V → E (d - 1)) := IsOpen.isOpenMap_subtype_val hV
+    exact h_V_open _ h_open_e_im
+  exact ⟨h_cont, h_inj, h_open_im, h_open_rel⟩
 
 /-- Step 3 of the V4 proof of
 `principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step5_face_links`

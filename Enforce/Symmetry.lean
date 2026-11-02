@@ -155,7 +155,33 @@ private lemma components_disjoint_step2_common_ancestor_step1_contain
     (t : PlacedMarkedTile (systemM S P C)) (ht : t ∈ Y.tiles) (x : E d) (hx : x ∈ interior t.carrier)
     (hx_q : x ∈ interior (component Y hY q)) :
     ∃ n : ℕ, t.carrier ⊆ ((parsedHierarchy Y hY).ancestor q n).2.val.carrier ((parsedHierarchy Y hY).ancestor q n).1 := by
-  sorry
+  have _ := hq
+  let H := parsedHierarchy Y hY
+  obtain ⟨n, hxn⟩ := mem_iUnion.mp (interior_subset hx_q)
+  refine ⟨n, ?_⟩
+  have hxN : x ∈ (H.ancestor q n).2.val.carrier (H.ancestor q n).1 := hxn
+  have hN : (H.ancestor q n).2.val ∈ H.nodes (H.ancestor q n).1 := (H.ancestor q n).2.property
+  have ht' : t.native (nativeDecoration S P C) ∈
+      (Y.project (nativeDecoration S P C)).tiles := Set.mem_image_of_mem _ ht
+  have hxt' : x ∈ interior (t.native (nativeDecoration S P C)).carrier := by
+    rw [PlacedMarkedTile.native_carrier]; exact hx
+  rw [H.node_union_tiles _ _ hN] at hxN
+  simp only [Set.mem_iUnion, Set.mem_setOf_eq, exists_prop] at hxN
+  obtain ⟨u, ⟨hu, husub⟩, hxu⟩ := hxN
+  by_cases hEq : u = t.native (nativeDecoration S P C)
+  · subst hEq
+    rw [PlacedMarkedTile.native_carrier] at husub
+    exact husub
+  · exfalso
+    have hd := (Y.project (nativeDecoration S P C)).disjoint hu ht' hEq
+    have hreg : closure (interior u.carrier) = u.carrier := by
+      rw [u.frame_carrier]
+      change closure (interior (u.frame.toHomeomorph '' _)) = u.frame.toHomeomorph '' _
+      rw [← u.frame.toHomeomorph.image_interior, ← u.frame.toHomeomorph.image_closure,
+        (S.proto u.ty).regularClosed]
+    rw [← hreg] at hxu
+    obtain ⟨y, hy1, hy2⟩ := mem_closure_iff.mp hxu _ isOpen_interior hxt'
+    exact Set.disjoint_left.mp hd hy2 hy1
 
 open private WF_is_node_step1_descendant_subset from Enforce.Recognition in
 /-- Step 2 of the V4 proof of `components_disjoint_step2_common_ancestor` (V4 5.7):

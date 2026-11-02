@@ -11294,6 +11294,465 @@ private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_ger
   · rintro ⟨hxG, hxb⟩
     exact ⟨hgfr (hsg ⟨hxG, Metric.ball_subset_ball (min_le_right r s) hxb⟩), hxb⟩
 
+open private facet_halfball_step5_normal from Enforce.Geometry.CellComplex in
+/-- Step 1 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step5_halfplanes` (V4 1.25): "each a half-hyperplane bounded by `aff g`". Choose equations for the facet span and the ridge, with a vector of inward coordinate one within the facet span and a nonzero normal coordinate. -/
+private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step5_halfplanes_step1_coordinates
+    (g f : Cell d) (hgd : g.dim + 2 = d) (hfd : f.dim = d - 1)
+    (hgf : g.carrier ⊆ f.carrier) (y : E d) (hy : y ∈ relint g.carrier) :
+    ∃ A B : E d →ᵃ[ℝ] ℝ, A y = 0 ∧ B y = 0 ∧
+      (∀ x, x ∈ affineSpan ℝ f.carrier ↔ A x = 0) ∧
+      (∀ x, x ∈ affineSpan ℝ g.carrier ↔ A x = 0 ∧ B x = 0) ∧
+      (∃ w : E d, A.linear w = 0 ∧ B.linear w = 1) ∧
+      (∃ n : E d, A.linear n = 1) := by
+  let G := affineSpan ℝ g.carrier
+  let H := affineSpan ℝ f.carrier
+  have hyG : y ∈ G := subset_affineSpan ℝ _ (intrinsicInterior_subset hy)
+  have hGH : G ≤ H := affineSpan_mono ℝ hgf
+  have hyH : y ∈ H := hGH hyG
+  have hGdim : Module.finrank ℝ G.direction = g.dim := g.flat.dimension
+  have hHdim : Module.finrank ℝ H.direction = d - 1 := f.flat.dimension.trans hfd
+  obtain ⟨n, hn, hnH⟩ := facet_halfball_step5_normal H y hyH hHdim
+  let A : E d →ᵃ[ℝ] ℝ :=
+    { toFun := fun x => inner ℝ n (x - y)
+      linear := (innerSL ℝ n).toLinearMap
+      map_vadd' := by
+        intro x v
+        change inner ℝ n ((v + x) - y) = inner ℝ n v + inner ℝ n (x - y)
+        rw [add_sub_assoc, inner_add_right] }
+  have hAy : A y = 0 := by simp [A]
+  have hdirle := AffineSubspace.direction_le hGH
+  have hlt : G.direction < H.direction := by
+    refine lt_of_le_of_ne hdirle fun h => ?_
+    rw [h] at hGdim
+    omega
+  obtain ⟨v, hvH, hvG⟩ := SetLike.exists_of_lt hlt
+  obtain ⟨b, hbv, hbG⟩ := Submodule.exists_dual_map_eq_bot_of_notMem hvG inferInstance
+  have hbG' : ∀ z ∈ G.direction, b z = 0 := by
+    intro z hz
+    have hm : b z ∈ G.direction.map b := Submodule.mem_map_of_mem hz
+    rw [hbG] at hm
+    exact (Submodule.mem_bot ℝ).1 hm
+  have hvle : ℝ ∙ v ≤ H.direction := (Submodule.span_singleton_le_iff_mem _ _).2 hvH
+  have hsup : G.direction ⊔ ℝ ∙ v = H.direction := by
+    apply Submodule.eq_of_le_of_finrank_eq (sup_le hdirle hvle)
+    have hlt2 : G.direction < G.direction ⊔ ℝ ∙ v := by
+      refine lt_of_le_of_ne le_sup_left fun h => hvG ?_
+      rw [h]
+      exact Submodule.mem_sup_right (Submodule.mem_span_singleton_self v)
+    have h1 := Submodule.finrank_lt_finrank_of_lt hlt2
+    have h2 := Submodule.finrank_mono (sup_le hdirle hvle)
+    omega
+  let B : E d →ᵃ[ℝ] ℝ :=
+    { toFun := fun x => b (x - y)
+      linear := b
+      map_vadd' := by
+        intro x v
+        change b ((v + x) - y) = b v + b (x - y)
+        rw [add_sub_assoc, map_add] }
+  have hBy : B y = 0 := by simp [B]
+  have hAG : ∀ x ∈ G, A x = 0 := fun x hx => (hnH x).mp (hGH hx)
+  have hBG : ∀ x ∈ G, B x = 0 := by
+    intro x hx
+    exact hbG' (x - y) (AffineSubspace.vsub_mem_direction hx hyG)
+  have hGker : ∀ x, x ∈ G ↔ A x = 0 ∧ B x = 0 := by
+    intro x
+    constructor
+    · exact fun hx => ⟨hAG x hx, hBG x hx⟩
+    · rintro ⟨hxA, hxB⟩
+      have hxH : x ∈ H := (hnH x).mpr hxA
+      have hxdir := AffineSubspace.vsub_mem_direction hxH hyH
+      rw [← hsup, Submodule.mem_sup] at hxdir
+      obtain ⟨z, hz, w, hw, hzw⟩ := hxdir
+      obtain ⟨t, rfl⟩ := Submodule.mem_span_singleton.1 hw
+      have ht : t = 0 := by
+        have he : b (x - y) = t * b v := by
+          rw [← vsub_eq_sub, ← hzw, map_add, hbG' z hz, map_smul, smul_eq_mul, zero_add]
+        change b (x - y) = 0 at hxB
+        rw [hxB] at he
+        exact (mul_eq_zero.mp he.symm).resolve_right hbv
+      subst t
+      rw [zero_smul, add_zero] at hzw
+      rw [hzw] at hz
+      exact (AffineSubspace.vsub_right_mem_direction_iff_mem hyG x).mp hz
+  have hAv : A.linear v = 0 := by
+    have hyv : v +ᵥ y ∈ H := AffineSubspace.vadd_mem_of_mem_direction hvH hyH
+    have h := (hnH (v +ᵥ y)).mp hyv
+    simpa only [vadd_eq_add, add_sub_cancel_right] using h
+  refine ⟨A, B, hAy, hBy, hnH, hGker, ?_, n, ?_⟩
+  · refine ⟨(b v)⁻¹ • v, ?_, ?_⟩
+    · rw [map_smul, hAv, smul_zero]
+    · change b ((b v)⁻¹ • v) = 1
+      rw [map_smul, smul_eq_mul, inv_mul_cancel₀ hbv]
+  · change inner ℝ n n = 1
+    simp [hn]
+
+/-- Step 2 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step5_halfplanes` (V4 1.25): "the polyhedral boundary separates a small ball into two sides". In the affine span of one cell, each open half-ball misses its relative boundary and is either inside or outside. The relative frontier excludes both sides being inside; regular closedness excludes both sides being outside. -/
+private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step5_halfplanes_step2_choose_halfspace
+    (f : Cell d) (y : E d) (hyf : y ∈ f.carrier)
+    (A B : E d →ᵃ[ℝ] ℝ) (hAy : A y = 0) (hBy : B y = 0)
+    (hH : ∀ x, x ∈ affineSpan ℝ f.carrier ↔ A x = 0)
+    (r : ℝ) (hr : 0 < r)
+    (hbd : relfrontier f.carrier ∩ Metric.ball y r =
+      {x | A x = 0 ∧ B x = 0} ∩ Metric.ball y r) :
+    ∃ s : ℝ, (s = 1 ∨ s = -1) ∧
+      f.carrier ∩ Metric.ball y r =
+        {x | A x = 0 ∧ 0 ≤ s * B x} ∩ Metric.ball y r ∧
+      relint f.carrier ∩ Metric.ball y r =
+        {x | A x = 0 ∧ 0 < s * B x} ∩ Metric.ball y r := by
+  have hfc := f.flat.compact.isClosed
+  have hyH : y ∈ affineSpan ℝ f.carrier := subset_affineSpan ℝ _ hyf
+  have hboundary (x : E d) (hxb : x ∈ Metric.ball y r) :
+      x ∈ relfrontier f.carrier ↔ A x = 0 ∧ B x = 0 := by
+    exact ⟨fun hx => (hbd.subset ⟨hx, hxb⟩).1,
+      fun hx => (hbd.symm.subset ⟨hx, hxb⟩).1⟩
+  have hzero (x : E d) (hxb : x ∈ Metric.ball y r) (hxA : A x = 0) (hxB : B x = 0) :
+      x ∈ f.carrier ∧ x ∉ relint f.carrier := by
+    have hxfr := (hboundary x hxb).mpr ⟨hxA, hxB⟩
+    change x ∈ intrinsicFrontier ℝ f.carrier at hxfr
+    rw [← closure_diff_intrinsicInterior, hfc.closure_eq] at hxfr
+    exact hxfr
+  obtain ⟨O, hO, hOeq⟩ : ∃ O : Set (E d), IsOpen O ∧
+      relint f.carrier = O ∩ (affineSpan ℝ f.carrier : Set (E d)) := by
+    obtain ⟨O, hO, hpre⟩ := isOpen_induced_iff.mp
+      (isOpen_interior : IsOpen (interior ((↑) ⁻¹' f.carrier : Set (affineSpan ℝ f.carrier))))
+    refine ⟨O, hO, ?_⟩
+    ext x
+    constructor
+    · intro hx
+      obtain ⟨z, hz, rfl⟩ := mem_intrinsicInterior.mp hx
+      rw [← hpre] at hz
+      exact ⟨hz, z.property⟩
+    · rintro ⟨hxO, hxH⟩
+      apply mem_intrinsicInterior.mpr
+      refine ⟨⟨x, hxH⟩, ?_, rfl⟩
+      rw [← hpre]
+      exact hxO
+  let Hp : Set (E d) := {x | 0 < B x} ∩ (affineSpan ℝ f.carrier : Set (E d)) ∩ Metric.ball y r
+  let Hm : Set (E d) := {x | B x < 0} ∩ (affineSpan ℝ f.carrier : Set (E d)) ∩ Metric.ball y r
+  have hHp : Convex ℝ Hp :=
+    (((convex_Ioi (0 : ℝ)).affine_preimage B).inter (affineSpan ℝ f.carrier).convex).inter
+      (convex_ball y r)
+  have hHm : Convex ℝ Hm :=
+    (((convex_Iio (0 : ℝ)).affine_preimage B).inter (affineSpan ℝ f.carrier).convex).inter
+      (convex_ball y r)
+  have hsep : ∀ T : Set (E d), Convex ℝ T → T ⊆ affineSpan ℝ f.carrier →
+      T ⊆ Metric.ball y r → (∀ x ∈ T, B x ≠ 0) →
+      T ⊆ relint f.carrier ∨ T ⊆ f.carrierᶜ := by
+    intro T hTc hTH hTb hTB
+    have hcover : T ⊆ O ∪ f.carrierᶜ := by
+      intro x hx
+      by_cases hxf : x ∈ f.carrier
+      · left
+        have hxint : x ∈ relint f.carrier := by
+          by_contra hn
+          have hxfr : x ∈ relfrontier f.carrier := by
+            rw [relfrontier, ← closure_diff_intrinsicInterior, hfc.closure_eq]
+            exact ⟨hxf, hn⟩
+          exact hTB x hx ((hboundary x (hTb hx)).mp hxfr).2
+        exact (hOeq.subset hxint).1
+      · exact Or.inr hxf
+    have hdis : T ∩ (O ∩ f.carrierᶜ) = ∅ := by
+      apply Set.eq_empty_of_forall_notMem
+      rintro x ⟨hxT, hxO, hxf⟩
+      have hxint : x ∈ relint f.carrier := by
+        rw [hOeq]
+        exact ⟨hxO, hTH hxT⟩
+      exact hxf (intrinsicInterior_subset hxint)
+    rcases (isPreconnected_iff_subset_of_disjoint.mp hTc.isPreconnected)
+      O f.carrierᶜ hO hfc.isOpen_compl hcover hdis with h | h
+    · left
+      intro x hx
+      rw [hOeq]
+      exact ⟨h hx, hTH hx⟩
+    · exact Or.inr h
+  have hsplit : relint f.carrier ∩ Metric.ball y r ⊆ Hp ∪ Hm := by
+    rintro x ⟨hx, hxb⟩
+    have hxH := subset_affineSpan ℝ _ (intrinsicInterior_subset hx)
+    rcases lt_trichotomy (B x) 0 with hn | hz | hp
+    · exact Or.inr ⟨⟨hn, hxH⟩, hxb⟩
+    · exact ((hzero x hxb ((hH x).mp hxH) hz).2 hx).elim
+    · exact Or.inl ⟨⟨hp, hxH⟩, hxb⟩
+  have hclassp := hsep Hp hHp (fun _ h => h.1.2) (fun _ h => h.2) (fun _ h => h.1.1.ne')
+  have hclassm := hsep Hm hHm (fun _ h => h.1.2) (fun _ h => h.2) (fun _ h => h.1.1.ne)
+  have hyb : y ∈ Metric.ball y r := Metric.mem_ball_self hr
+  have hynint : y ∉ relint f.carrier := (hzero y hyb hAy hBy).2
+  rcases hclassp with hp | hp <;> rcases hclassm with hm | hm
+  · exfalso
+    apply hynint
+    have hsub : (Subtype.val ⁻¹' Metric.ball y r : Set (affineSpan ℝ f.carrier)) ⊆
+        Subtype.val ⁻¹' f.carrier := by
+      intro x hx
+      change (x : E d) ∈ f.carrier
+      rcases lt_trichotomy (B x) 0 with hn | hz | hpos
+      · exact intrinsicInterior_subset (hm ⟨⟨hn, x.property⟩, hx⟩)
+      · exact (hzero x hx ((hH x).mp x.property) hz).1
+      · exact intrinsicInterior_subset (hp ⟨⟨hpos, x.property⟩, hx⟩)
+    exact mem_intrinsicInterior.mpr ⟨⟨y, hyH⟩,
+      interior_maximal hsub (Metric.isOpen_ball.preimage continuous_subtype_val) hyb, rfl⟩
+  · refine ⟨1, Or.inl rfl, ?_, ?_⟩
+    · ext x
+      constructor
+      · rintro ⟨hxf, hxb⟩
+        have hxH := subset_affineSpan ℝ _ hxf
+        refine ⟨⟨(hH x).mp hxH, ?_⟩, hxb⟩
+        simp only [one_mul]
+        by_contra hn
+        exact hm ⟨⟨lt_of_not_ge hn, hxH⟩, hxb⟩ hxf
+      · rintro ⟨⟨hxA, hxB⟩, hxb⟩
+        simp only [one_mul] at hxB
+        rcases hxB.eq_or_lt with hz | hpos
+        · exact ⟨(hzero x hxb hxA hz.symm).1, hxb⟩
+        · exact ⟨intrinsicInterior_subset (hp ⟨⟨hpos, (hH x).mpr hxA⟩, hxb⟩), hxb⟩
+    · ext x
+      constructor
+      · rintro ⟨hx, hxb⟩
+        rcases hsplit ⟨hx, hxb⟩ with hxpos | hxneg
+        · exact ⟨⟨(hH x).mp hxpos.1.2, by simpa using hxpos.1.1⟩, hxb⟩
+        · exact (hm hxneg (intrinsicInterior_subset hx)).elim
+      · rintro ⟨⟨hxA, hxB⟩, hxb⟩
+        exact ⟨hp ⟨⟨by simpa using hxB, (hH x).mpr hxA⟩, hxb⟩, hxb⟩
+  · refine ⟨-1, Or.inr rfl, ?_, ?_⟩
+    · ext x
+      constructor
+      · rintro ⟨hxf, hxb⟩
+        have hxH := subset_affineSpan ℝ _ hxf
+        refine ⟨⟨(hH x).mp hxH, ?_⟩, hxb⟩
+        have hle : B x ≤ 0 := by
+          by_contra hn
+          exact hp ⟨⟨lt_of_not_ge hn, hxH⟩, hxb⟩ hxf
+        nlinarith
+      · rintro ⟨⟨hxA, hxB⟩, hxb⟩
+        have hle : B x ≤ 0 := by nlinarith
+        rcases hle.eq_or_lt with hz | hneg
+        · exact ⟨(hzero x hxb hxA hz).1, hxb⟩
+        · exact ⟨intrinsicInterior_subset (hm ⟨⟨hneg, (hH x).mpr hxA⟩, hxb⟩), hxb⟩
+    · ext x
+      constructor
+      · rintro ⟨hx, hxb⟩
+        rcases hsplit ⟨hx, hxb⟩ with hxpos | hxneg
+        · exact (hp hxpos (intrinsicInterior_subset hx)).elim
+        · refine ⟨⟨(hH x).mp hxneg.1.2, ?_⟩, hxb⟩
+          have hneg : B x < 0 := hxneg.1.1
+          nlinarith
+      · rintro ⟨⟨hxA, hxB⟩, hxb⟩
+        have hn : B x < 0 := by nlinarith
+        exact ⟨hm ⟨⟨hn, (hH x).mpr hxA⟩, hxb⟩, hxb⟩
+  · exfalso
+    have hycl : y ∈ closure (relint f.carrier) := by rwa [f.flat.regularClosed]
+    obtain ⟨x, hxb, hxint⟩ := mem_closure_iff.mp hycl (Metric.ball y r) Metric.isOpen_ball hyb
+    rcases hsplit ⟨hxint, hxb⟩ with hx | hx
+    · exact hp hx (intrinsicInterior_subset hxint)
+    · exact hm hx (intrinsicInterior_subset hxint)
+
+/-- Step 3 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step5_halfplanes` (V4 1.25): "each a half-hyperplane bounded by `aff g`". Orient the inward coordinate of one incident facet. Its carrier and relative interior are respectively the closed and open half-hyperplanes within the given ball. -/
+private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step5_halfplanes_step3_facet_halfspace
+    (g f : Cell d) (hgd : g.dim + 2 = d) (hfd : f.dim = d - 1)
+    (hgf : g.carrier ⊆ f.carrier)
+    (y : E d) (hy : y ∈ relint g.carrier) (r : ℝ) (hr : 0 < r)
+    (hbd : relfrontier f.carrier ∩ Metric.ball y r =
+      (affineSpan ℝ g.carrier : Set (E d)) ∩ Metric.ball y r) :
+    ∃ A B : E d →ᵃ[ℝ] ℝ, A y = 0 ∧ B y = 0 ∧
+      (∀ x, x ∈ affineSpan ℝ f.carrier ↔ A x = 0) ∧
+      (∀ x, x ∈ affineSpan ℝ g.carrier ↔ A x = 0 ∧ B x = 0) ∧
+      (∃ w : E d, A.linear w = 0 ∧ B.linear w = 1) ∧
+      (∃ n : E d, A.linear n = 1) ∧
+      f.carrier ∩ Metric.ball y r = {x | A x = 0 ∧ 0 ≤ B x} ∩ Metric.ball y r ∧
+      relint f.carrier ∩ Metric.ball y r = {x | A x = 0 ∧ 0 < B x} ∩ Metric.ball y r := by
+  obtain ⟨A, B, hAy, hBy, hH, hG, ⟨w, hwA, hwB⟩, hn⟩ :=
+    birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step5_halfplanes_step1_coordinates g f hgd hfd hgf y hy
+  have hbd' : relfrontier f.carrier ∩ Metric.ball y r =
+      {x | A x = 0 ∧ B x = 0} ∩ Metric.ball y r := by
+    rw [hbd]
+    ext x
+    exact and_congr (hG x) Iff.rfl
+  obtain ⟨s, hs, hpage, hint⟩ :=
+    birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step5_halfplanes_step2_choose_halfspace
+      f y (hgf (intrinsicInterior_subset hy)) A B hAy hBy hH r hr hbd'
+  have hs0 : s ≠ 0 := by rcases hs with rfl | rfl <;> norm_num
+  have hss : s * s = 1 := by rcases hs with rfl | rfl <;> norm_num
+  refine ⟨A, s • B, hAy, by simp [hBy], hH, ?_, ?_, hn, ?_, ?_⟩
+  · intro x
+    rw [hG x]
+    simp only [AffineMap.coe_smul, Pi.smul_apply, smul_eq_mul, mul_eq_zero, hs0, false_or]
+  · refine ⟨s • w, ?_, ?_⟩
+    · rw [map_smul, hwA, smul_zero]
+    · change s * B.linear (s • w) = 1
+      rw [map_smul, smul_eq_mul, hwB, mul_one, hss]
+  · simpa only [AffineMap.coe_smul, Pi.smul_apply, smul_eq_mul] using hpage
+  · simpa only [AffineMap.coe_smul, Pi.smul_apply, smul_eq_mul] using hint
+
+/-- Step 4 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step5_halfplanes` (V4 1.25): "bounded by `aff g`". On a hyperplane, an affine form vanishing on the ridge is a scalar multiple of the inward coordinate, by subtracting that coordinate times a transverse vector. -/
+private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step5_halfplanes_step4_restriction
+    (A B C : E d →ᵃ[ℝ] ℝ) (w : E d)
+    (hwA : A.linear w = 0) (hwB : B.linear w = 1)
+    (hzero : ∀ x, A x = 0 → B x = 0 → C x = 0) :
+    ∀ x, A x = 0 → C x = B x * C.linear w := by
+  have hsub (D : E d →ᵃ[ℝ] ℝ) (x : E d) (t : ℝ) :
+      D (x - t • w) = D x - t * D.linear w := by
+    simpa [sub_eq_add_neg, vadd_eq_add, add_comm] using D.map_vadd x (-(t • w))
+  intro x hx
+  have hzA : A (x - B x • w) = 0 := by rw [hsub, hx, hwA]; ring
+  have hzB : B (x - B x • w) = 0 := by rw [hsub, hwB]; ring
+  have hzC := hzero (x - B x • w) hzA hzB
+  rw [hsub] at hzC
+  linarith
+
+/-- Step 5 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step5_halfplanes` (V4 1.25): "the two distinct half-hyperplanes". Two nonconstant real affine forms whose zero hyperplanes are nested have the same zero hyperplane. -/
+private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step5_halfplanes_step5_kernel_equality
+    (A B : E d →ᵃ[ℝ] ℝ) (y n m : E d)
+    (hAy : A y = 0) (hBy : B y = 0)
+    (hn : A.linear n = 1) (hm : B.linear m = 1)
+    (hle : ∀ x, A x = 0 → B x = 0) :
+    ∀ x, A x = 0 ↔ B x = 0 := by
+  have hsub (D : E d →ᵃ[ℝ] ℝ) (x : E d) (t : ℝ) :
+      D (x - t • n) = D x - t * D.linear n := by
+    simpa [sub_eq_add_neg, vadd_eq_add, add_comm] using D.map_vadd x (-(t • n))
+  have heval (x : E d) : B x = A x * B.linear n := by
+    have hzA : A (x - A x • n) = 0 := by rw [hsub, hn]; ring
+    have hzB := hle (x - A x • n) hzA
+    rw [hsub] at hzB
+    linarith
+  have hc : B.linear n ≠ 0 := by
+    intro hz
+    have he := heval (m +ᵥ y)
+    rw [B.map_vadd, hBy, hm, vadd_eq_add, add_zero, hz, mul_zero] at he
+    norm_num at he
+  intro x
+  refine ⟨hle x, fun hx => ?_⟩
+  have he := heval x
+  rw [hx] at he
+  exact (mul_eq_zero.mp he.symm).resolve_right hc
+
+/-- Step 6 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step5_halfplanes` (V4 1.25): "relative interiors are disjoint". Coplanar pages have opposite inward coordinates and fill their common hyperplane; use its equation twice. For distinct spans, scale each normal by its value on the other inward vector. These forms describe the union and have a common strictly negative direction. -/
+private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step5_halfplanes_step6_assemble
+    (A₁ B₁ A₂ B₂ : E d →ᵃ[ℝ] ℝ) (y : E d)
+    (hAy₁ : A₁ y = 0) (hBy₁ : B₁ y = 0) (hAy₂ : A₂ y = 0) (hBy₂ : B₂ y = 0)
+    (hker : ∀ x, (A₁ x = 0 ∧ B₁ x = 0) ↔ (A₂ x = 0 ∧ B₂ x = 0))
+    (w₁ w₂ n₁ n₂ : E d)
+    (hwA₁ : A₁.linear w₁ = 0) (hwB₁ : B₁.linear w₁ = 1)
+    (hwA₂ : A₂.linear w₂ = 0) (hwB₂ : B₂.linear w₂ = 1)
+    (hn₁ : A₁.linear n₁ = 1) (hn₂ : A₂.linear n₂ = 1)
+    (r : ℝ) (hr : 0 < r)
+    (hdis : Disjoint ({x | A₁ x = 0 ∧ 0 < B₁ x} ∩ Metric.ball y r)
+      ({x | A₂ x = 0 ∧ 0 < B₂ x} ∩ Metric.ball y r)) :
+    ∃ L M : E d →ᵃ[ℝ] ℝ, L y = 0 ∧ M y = 0 ∧
+      (∃ v : E d, L.linear v < 0 ∧ M.linear v < 0) ∧
+      {x | (A₁ x = 0 ∧ 0 ≤ B₁ x) ∨ (A₂ x = 0 ∧ 0 ≤ B₂ x)} =
+        {x | (L x = 0 ∧ 0 ≤ M x) ∨ (M x = 0 ∧ 0 ≤ L x)} := by
+  have h₂₁ := birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step5_halfplanes_step4_restriction A₁ B₁ A₂ w₁ hwA₁ hwB₁
+    (fun x hxA hxB => ((hker x).mp ⟨hxA, hxB⟩).1)
+  have h₁₂ := birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step5_halfplanes_step4_restriction A₂ B₂ A₁ w₂ hwA₂ hwB₂
+    (fun x hxA hxB => ((hker x).mpr ⟨hxA, hxB⟩).1)
+  have hB₂₁ := birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step5_halfplanes_step4_restriction A₁ B₁ B₂ w₁ hwA₁ hwB₁
+    (fun x hxA hxB => ((hker x).mp ⟨hxA, hxB⟩).2)
+  have hAyw : A₁ (y + w₁) = 0 := by
+    simpa [vadd_eq_add, add_comm, hAy₁, hwA₁] using A₁.map_vadd y w₁
+  have hByw : B₁ (y + w₁) = 1 := by
+    simpa [vadd_eq_add, add_comm, hBy₁, hwB₁] using B₁.map_vadd y w₁
+  by_cases hplanes : ∀ x, A₁ x = 0 ↔ A₂ x = 0
+  · have hc : B₂.linear w₁ ≠ 0 := by
+      intro hc
+      have hz : B₂ (y + w₁) = 0 := by rw [hB₂₁ _ hAyw, hc, mul_zero]
+      have hz' := ((hker (y + w₁)).mpr ⟨(hplanes _).mp hAyw, hz⟩).2
+      rw [hByw] at hz'
+      norm_num at hz'
+    have hcneg : B₂.linear w₁ < 0 := by
+      rcases lt_or_gt_of_ne hc with hn | hp
+      · exact hn
+      · exfalso
+        have hevent : ∀ᶠ t in nhds (0 : ℝ), y + t • w₁ ∈ Metric.ball y r := by
+          have hc : Continuous (fun t : ℝ => y + t • w₁) := by fun_prop
+          exact hc.continuousAt.eventually
+            (by simpa using Metric.isOpen_ball.mem_nhds (Metric.mem_ball_self hr))
+        obtain ⟨t, ht, htb⟩ := hevent.exists_gt
+        have hAt : A₁ (y + t • w₁) = 0 := by
+          simpa [vadd_eq_add, add_comm, hAy₁, hwA₁] using A₁.map_vadd y (t • w₁)
+        have hBt : B₁ (y + t • w₁) = t := by
+          simpa [vadd_eq_add, add_comm, hBy₁, hwB₁] using B₁.map_vadd y (t • w₁)
+        have hB₂t : 0 < B₂ (y + t • w₁) := by
+          rw [hB₂₁ _ hAt, hBt]
+          exact mul_pos ht hp
+        exact Set.disjoint_left.mp hdis ⟨⟨hAt, by rwa [hBt]⟩, htb⟩
+          ⟨⟨(hplanes _).mp hAt, hB₂t⟩, htb⟩
+    have hfull : {x | (A₁ x = 0 ∧ 0 ≤ B₁ x) ∨ (A₂ x = 0 ∧ 0 ≤ B₂ x)} =
+        {x | A₁ x = 0} := by
+      ext x
+      constructor
+      · rintro (hx | hx)
+        · exact hx.1
+        · exact (hplanes x).mpr hx.1
+      · intro hx
+        by_cases hB : 0 ≤ B₁ x
+        · exact Or.inl ⟨hx, hB⟩
+        · right
+          refine ⟨(hplanes x).mp hx, ?_⟩
+          rw [hB₂₁ x hx]
+          exact (mul_pos_of_neg_of_neg (lt_of_not_ge hB) hcneg).le
+    refine ⟨A₁, A₁, hAy₁, hAy₁, ⟨-n₁, ?_, ?_⟩, ?_⟩
+    · simp [hn₁]
+    · simp [hn₁]
+    · rw [hfull]
+      ext x
+      simp only [Set.mem_setOf_eq, or_self]
+      exact ⟨fun hx => ⟨hx, by simp [hx]⟩, And.left⟩
+  · have ha : A₂.linear w₁ ≠ 0 := by
+      intro hz
+      apply hplanes
+      exact birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step5_halfplanes_step5_kernel_equality A₁ A₂ y n₁ n₂ hAy₁ hAy₂ hn₁ hn₂
+        (fun x hx => by rw [h₂₁ x hx, hz, mul_zero])
+    have hb : A₁.linear w₂ ≠ 0 := by
+      intro hz
+      apply hplanes
+      have hrev := birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step5_halfplanes_step5_kernel_equality A₂ A₁ y n₂ n₁ hAy₂ hAy₁ hn₂ hn₁
+        (fun x hx => by rw [h₁₂ x hx, hz, mul_zero])
+      exact fun x => (hrev x).symm
+    let L := A₁.linear w₂ • A₁
+    let M := A₂.linear w₁ • A₂
+    have hLy : L y = 0 := by simp [L, hAy₁]
+    have hMy : M y = 0 := by simp [M, hAy₂]
+    have hLp (x : E d) : L x = 0 ↔ A₁ x = 0 := by
+      change A₁.linear w₂ * A₁ x = 0 ↔ A₁ x = 0
+      exact mul_eq_zero.trans (or_iff_right hb)
+    have hMp (x : E d) : M x = 0 ↔ A₂ x = 0 := by
+      change A₂.linear w₁ * A₂ x = 0 ↔ A₂ x = 0
+      exact mul_eq_zero.trans (or_iff_right ha)
+    have hMsign (x : E d) (hx : A₁ x = 0) : 0 ≤ M x ↔ 0 ≤ B₁ x := by
+      have he : M x = (A₂.linear w₁ * A₂.linear w₁) * B₁ x := by
+        change A₂.linear w₁ * A₂ x = _
+        rw [h₂₁ x hx]
+        ring
+      rw [he]
+      exact mul_nonneg_iff_of_pos_left (mul_self_pos.mpr ha)
+    have hLsign (x : E d) (hx : A₂ x = 0) : 0 ≤ L x ↔ 0 ≤ B₂ x := by
+      have he : L x = (A₁.linear w₂ * A₁.linear w₂) * B₂ x := by
+        change A₁.linear w₂ * A₁ x = _
+        rw [h₁₂ x hx]
+        ring
+      rw [he]
+      exact mul_nonneg_iff_of_pos_left (mul_self_pos.mpr hb)
+    refine ⟨L, M, hLy, hMy, ⟨-(w₁ + w₂), ?_, ?_⟩, ?_⟩
+    · change A₁.linear w₂ * A₁.linear (-(w₁ + w₂)) < 0
+      rw [map_neg, map_add, hwA₁, zero_add, mul_neg]
+      exact neg_neg_of_pos (mul_self_pos.mpr hb)
+    · change A₂.linear w₁ * A₂.linear (-(w₁ + w₂)) < 0
+      rw [map_neg, map_add, hwA₂, add_zero, mul_neg]
+      exact neg_neg_of_pos (mul_self_pos.mpr ha)
+    · ext x
+      simp only [Set.mem_setOf_eq]
+      apply or_congr
+      · constructor
+        · rintro ⟨hxA, hxB⟩
+          exact ⟨(hLp x).mpr hxA, (hMsign x hxA).mpr hxB⟩
+        · rintro ⟨hxL, hxM⟩
+          have hxA := (hLp x).mp hxL
+          exact ⟨hxA, (hMsign x hxA).mp hxM⟩
+      · constructor
+        · rintro ⟨hxA, hxB⟩
+          exact ⟨(hMp x).mpr hxA, (hLsign x hxA).mpr hxB⟩
+        · rintro ⟨hxM, hxL⟩
+          have hxA := (hMp x).mp hxM
+          exact ⟨hxA, (hLsign x hxA).mp hxL⟩
+
 /-- Step 5 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ` (V4 1.25): "each a half-hyperplane bounded by `aff g` (relative interiors are disjoint and `closure (relint f) = f`)". The union of the two incident facets has an affine two-page normal form. In the coplanar case the two forms can coincide; otherwise they are oriented to be nonnegative on the other page. A common strictly negative direction records that the reentrant sector is nondegenerate. No assertion about the domain interior or about connectedness is made here. -/
 private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step5_halfplanes
     (g f₁ f₂ : Cell d) (hgd : g.dim + 2 = d)
@@ -11311,7 +11770,24 @@ private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_ger
       (f₁.carrier ∪ f₂.carrier) ∩ Metric.ball y ε =
         {x | (L x = 0 ∧ 0 ≤ M x) ∨ (M x = 0 ∧ 0 ≤ L x)} ∩
           Metric.ball y ε := by
-  sorry
+  obtain ⟨A₁, B₁, hAy₁, hBy₁, hH₁, hG₁, ⟨w₁, hwA₁, hwB₁⟩, ⟨n₁, hn₁⟩, hp₁, hi₁⟩ :=
+    birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step5_halfplanes_step3_facet_halfspace
+      g f₁ hgd hf₁d hgf₁ y hy r hr hbd₁
+  obtain ⟨A₂, B₂, hAy₂, hBy₂, hH₂, hG₂, ⟨w₂, hwA₂, hwB₂⟩, ⟨n₂, hn₂⟩, hp₂, hi₂⟩ :=
+    birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step5_halfplanes_step3_facet_halfspace
+      g f₂ hgd hf₂d hgf₂ y hy r hr hbd₂
+  have hker : ∀ x, (A₁ x = 0 ∧ B₁ x = 0) ↔ (A₂ x = 0 ∧ B₂ x = 0) :=
+    fun x => (hG₁ x).symm.trans (hG₂ x)
+  have hdis' : Disjoint ({x | A₁ x = 0 ∧ 0 < B₁ x} ∩ Metric.ball y r)
+      ({x | A₂ x = 0 ∧ 0 < B₂ x} ∩ Metric.ball y r) :=
+    Disjoint.mono (fun x hx => (hi₁.symm.subset hx).1)
+      (fun x hx => (hi₂.symm.subset hx).1) hdis
+  obtain ⟨L, M, hLy, hMy, hneg, hpages⟩ :=
+    birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step5_halfplanes_step6_assemble A₁ B₁ A₂ B₂ y
+      hAy₁ hBy₁ hAy₂ hBy₂ hker w₁ w₂ n₁ n₂ hwA₁ hwB₁ hwA₂ hwB₂ hn₁ hn₂ r hr hdis'
+  refine ⟨r, hr, le_rfl, L, M, hLy, hMy, hneg, ?_⟩
+  rw [Set.union_inter_distrib_right, hp₁, hp₂, ← Set.union_inter_distrib_right]
+  exact congrArg (fun T : Set (E d) => T ∩ Metric.ball y r) hpages
 
 /-- Step 6 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ` (V4 1.25): "the two distinct half-hyperplanes cut a small ball into two open wedges". In affine normal coordinates the wedges are explicitly `L > 0 ∧ M > 0` and `L < 0 ∨ M < 0`. The first is convex; the second is the union of two convex sets meeting along the common negative direction. -/
 private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step2_ridge_germ_step6_sectors

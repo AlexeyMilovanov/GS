@@ -1685,6 +1685,34 @@ private lemma base_level_step5_I5_step1_boundary_step4_honest_step2_inherited_st
   rw [he] at h
   exact h
 
+/-- Step 5 of the V4 proof of `base_level_step5_I5_step1_boundary_step4_honest_step2_inherited` (V4 2.6(d)): moving a node moves each of its named cells. -/
+private lemma base_level_step5_I5_step1_boundary_step4_honest_step2_inherited_step5_cell_move
+    (N : FramedNode S) (n : ℕ) (e : Cell d) (g : Iso d) :
+    (N.move g).cell n e = g '' N.cell n e := by
+  simp only [FramedNode.cell, Set.image_image]
+  rfl
+
+/-- Step 5 of the V4 proof of `base_level_step5_I5_step1_boundary_step4_honest_step2_inherited` (V4 2.6(d)): retyping a facet name keeps its cell. -/
+private lemma base_level_step5_I5_step1_boundary_step4_honest_step2_inherited_step5_cell_facet_cast
+    {X X' : S.ι} (e : X = X') (f : FacetName S X) :
+    (e ▸ f).val = f.val := by
+  subst e
+  rfl
+
+/-- Step 5 of the V4 proof of `base_level_step5_I5_step1_boundary_step4_honest_step2_inherited` (V4 2.6(d)): the standard cell inclusion transported to the honest frame. -/
+private lemma base_level_step5_I5_step1_boundary_step4_honest_step2_inherited_step5_cell_transport
+    {T T' : S.ι} (e : T' = T) (g : Iso d) (K a : ℕ)
+    (w : S.RoleWord T a) (v : S.RoleWord T K) (fv Fv : Cell d)
+    (h : (S.descendantNode T 0 K v).cell 0 fv ⊆
+      (S.descendantNode T (K - a) a w).cell (K - a) Fv) :
+    ((S.descendantNode T' (K - K) K (e.symm ▸ v)).move g).cell (K - K) fv ⊆
+      ((S.descendantNode T' (K - a) a (e.symm ▸ w)).move g).cell (K - a) Fv := by
+  subst e
+  rw [Nat.sub_self,
+    base_level_step5_I5_step1_boundary_step4_honest_step2_inherited_step5_cell_move,
+    base_level_step5_I5_step1_boundary_step4_honest_step2_inherited_step5_cell_move]
+  exact Set.image_mono h
+
 /-- Step 5 of the V4 proof of `base_level_step5_I5_step1_boundary_step4_honest_step2_inherited` (V4 2.6(d)): descendant cell inclusion. -/
 private lemma base_level_step5_I5_step1_boundary_step4_honest_step2_inherited_step5_cell
     (Y : MarkedTiling (systemM S P C)) (B : KBlock Y)
@@ -1705,7 +1733,30 @@ private lemma base_level_step5_I5_step1_boundary_step4_honest_step2_inherited_st
       (U.descendant ⟨P.K, N_honest, hN_honest⟩ a ha (h_ty_eq.symm ▸ w)).2.val.cell
         (U.descendant ⟨P.K, N_honest, hN_honest⟩ a ha (h_ty_eq.symm ▸ w)).1
         (h_ty_A.symm ▸ F).val := by
-  sorry
+  have hleaf : tileNode (B.leaf v) =
+      (S.descendantNode B.certificate.val.ty 0 P.K v).move B.frame := by
+    apply FramedNode.ext
+    · change (compilerLeaf C (B.leaf v)).prototype = _
+      rw [(B.leaf_data v).1]
+      rfl
+    · change compilerFrame C (B.leaf v) = _
+      rw [(B.leaf_data v).2]
+      rfl
+  have h2 : (tileNode (B.leaf v)).cell 0 f.val ⊆ (B.innerNode a ha w).cell (P.K - a) F.val :=
+    h_piece.2.2
+  have hl : (tileNode (B.leaf v)).cell 0 f.val =
+      ((S.descendantNode B.certificate.val.ty 0 P.K v).move B.frame).cell 0 f.val :=
+    congrArg (fun X : FramedNode S => X.cell 0 f.val) hleaf
+  rw [hl] at h2
+  change ((S.descendantNode B.certificate.val.ty 0 P.K v).move B.frame).cell 0 f.val ⊆
+    ((S.descendantNode B.certificate.val.ty (P.K - a) a w).move B.frame).cell (P.K - a) F.val at h2
+  rw [base_level_step5_I5_step1_boundary_step4_honest_step2_inherited_step5_cell_move,
+    base_level_step5_I5_step1_boundary_step4_honest_step2_inherited_step5_cell_move] at h2
+  have h3 := (Set.image_subset_image_iff B.frame.injective).1 h2
+  rw [base_level_step5_I5_step1_boundary_step4_honest_step2_inherited_step5_cell_facet_cast,
+    base_level_step5_I5_step1_boundary_step4_honest_step2_inherited_step5_cell_facet_cast]
+  exact base_level_step5_I5_step1_boundary_step4_honest_step2_inherited_step5_cell_transport
+    h_ty_eq _ P.K a w v f.val F.val h3
 
 /-- Step 2 of the V4 proof of `base_level_step5_I5_step1_boundary_step4_honest` (V4 2.6(d)): packets are inherited unchanged along the tracks. -/
 private lemma base_level_step5_I5_step1_boundary_step4_honest_step2_inherited

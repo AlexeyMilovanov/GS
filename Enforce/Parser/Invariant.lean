@@ -1583,7 +1583,29 @@ private lemma base_level_step5_I5_step1_boundary_step4_honest_step2_inherited_st
       S.descendantNode B.certificate.val.ty 0 P.K v =
         (S.descendantNode (B.innerNode a ha w).ty 0 (P.K - a) x).move
           (S.descendantNode B.certificate.val.ty (P.K - a) a w).frame := by
-  sorry
+  obtain ⟨r, hr, x, hx⟩ := h
+  have hr' : r = P.K - a := by omega
+  subst hr'
+  use x
+  have hleaf : tileNode (B.leaf v) =
+      (S.descendantNode B.certificate.val.ty 0 P.K v).move B.frame := by
+    apply FramedNode.ext
+    · change (compilerLeaf C (B.leaf v)).prototype = _
+      rw [(B.leaf_data v).1]
+      rfl
+    · change compilerFrame C (B.leaf v) = _
+      rw [(B.leaf_data v).2]
+      rfl
+  rw [hleaf] at hx
+  have hx2 : (S.descendantNode B.certificate.val.ty 0 P.K v).move B.frame =
+      (S.descendantNode (B.innerNode a ha w).ty 0 (P.K - a) x).move
+        ((S.descendantNode B.certificate.val.ty (P.K - a) a w).frame.trans B.frame) := hx
+  apply FramedNode.ext
+  · have ht := congrArg FramedNode.ty hx2
+    exact ht
+  · ext y : 1
+    have hf := congrArg (fun N : FramedNode S => N.frame y) hx2
+    exact B.frame.injective hf
 
 /-- Step 3 of the V4 proof of `base_level_step5_I5_step1_boundary_step4_honest_step2_inherited` (V4 2.6(d)): split cast transport auxiliary. -/
 private lemma base_level_step5_I5_step1_boundary_step4_honest_step2_inherited_step3_split_cast_aux

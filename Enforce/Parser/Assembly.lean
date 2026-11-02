@@ -4753,6 +4753,46 @@ theorem routing_constant (g : Parser.BornFacet P)
     omega
   simpa only [hd] using (HV a).trans (congrArg some hV)
 
+omit hY hn hD A in
+/-- Step 1 of the V4 proof of `first_generation_head` (V4 3.10):
+"For b = n+1 the facet is first-generation in P". A birth at the full height
+of P normalizes to a depth-zero primitive facet of P; first-generation facets
+are on the required list of V4 8.3, hence principal. -/
+private theorem first_generation_head_step1_principal (N : FramedNode S) (m : ℕ)
+    (g : Parser.BornFacet P) (hbirth : g.birth.IsDescendant g.height N m)
+    (hheight : g.height = m) : P.InPrincipal N m g.carrier := by
+  obtain ⟨r, hr, w, hw⟩ := hbirth
+  have ht : (S.nativeTile N.ty r w).ty = g.incidence.val.ty :=
+    ((congrArg FramedNode.ty hw).trans
+      (routing_constant_step1_descendant_type N.ty g.height r w)).symm.trans
+        g.parent_type.symm
+  let f : PrimitiveFacet S N.ty := {
+    depth := r
+    word := w
+    localCarrier := g.incidence.val.positioned
+    realization := by
+      rw [ht]
+      exact ⟨g.incidence.val.left, g.incidence.val.leftFacet, rfl,
+        g.incidence.val.internal⟩ }
+  have hm : f.depth ≤ m := by change r ≤ m; omega
+  have hh : m - f.depth = g.height := by change m - r = g.height; omega
+  have hb : g.birth = (f.birthNode m).move N.frame := by
+    simpa only [PrimitiveFacet.birthNode, hh] using hw
+  have hframe : g.birth.prototypeFrame g.height =
+      f.birthFrame.trans (N.prototypeFrame m) := by
+    rw [hb, ← hh]
+    exact routing_constant_step1_frame N m f hm
+  have hcarrier : g.carrier = N.prototypeFrame m '' f.carrier := by
+    rw [routing_constant_step1_carrier, hframe]
+    simp only [PrimitiveFacet.carrier, Set.image_image]
+    rfl
+  have hreq : f ∈ P.required N.ty := by
+    rw [P.required_eq, mem_required_list]
+    left
+    change r = 0
+    omega
+  exact ⟨f, P.required_mem N.ty f hreq, hcarrier.symm⟩
+
 /-- R9, V4 3.10: in particular every first-generation primitive facet of P
 has head S(P), the entire compressed packet's reconstructed bottom state. -/
 theorem first_generation_head (g : Parser.BornFacet P)
@@ -4760,7 +4800,23 @@ theorem first_generation_head (g : Parser.BornFacet P)
     (hleft : Parser.BoundaryPackets Y (g.height - 1) g.leftNode) :
     ∃ q : Packet P, g.packet hleft = some q ∧ q ∈ honestPackets S P ∧
       q.head = newState Y hY n hn D hD N A := by
-  sorry
+  have hdesc : g.birth.IsDescendant g.height N (n + 1) := by
+    rw [hbirth, hheight]
+    exact Parser.descendant_refl N (n + 1)
+  have hdepth : n + 1 - g.height < P.k := by
+    rw [hheight, Nat.sub_self]
+    exact P.k_pos
+  obtain ⟨_, q, hq, hhon, hdec⟩ := routing_constant Y hY n hn D hD N A g hdesc hdepth
+    (first_generation_head_step1_principal N (n + 1) g hdesc hheight)
+  refine ⟨q, hq, hhon, ?_⟩
+  have hj : (⟨n + 1 - g.height, hdepth⟩ : Fin P.k) = ⟨0, P.k_pos⟩ := by
+    apply Fin.ext
+    change n + 1 - g.height = 0
+    omega
+  rw [hj] at hdec
+  unfold decode at hdec
+  split_ifs at hdec
+  exact Option.some.inj hdec
 
 /-- R9, V4 3.10: the new parent state belongs to the honest state alphabet. -/
 theorem newState_honest : newState Y hY n hn D hD N A ∈ honestStates S P := by

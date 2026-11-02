@@ -149,13 +149,99 @@ theorem radialMap_nullhomotopic_of_escape (n : ℕ) (hn : 1 ≤ n) (Y : Set (E n
   rcases h2 with ⟨y, hy⟩
   exact ⟨y, h1.trans hy⟩
 
+/-- Step 1 of the proof of `cone_image_null`: for `m < n`, the image of any set under a map
+`E m → E n` differentiable on it is Lebesgue-null (factor through a proper subspace of `E n`). -/
+private lemma cone_image_null_step1_image_null (m n : ℕ) (hmn : m < n) (H : E m → E n)
+    (s : Set (E m)) (hH : ∀ x ∈ s, DifferentiableAt ℝ H x) :
+    MeasureTheory.volume (H '' s) = 0 := by
+  classical
+  let bm := (EuclideanSpace.basisFun (Fin m) ℝ).toBasis
+  let bn := (EuclideanSpace.basisFun (Fin n) ℝ).toBasis
+  let ι : E m →ₗ[ℝ] E n := bm.constr ℝ (fun j => bn (Fin.castLE hmn.le j))
+  let P : E n →ₗ[ℝ] E m :=
+    bn.constr ℝ (fun i => if h : (i : ℕ) < m then bm ⟨i, h⟩ else 0)
+  have hPι : ∀ x, P (ι x) = x := by
+    have : P ∘ₗ ι = LinearMap.id := by
+      refine bm.ext fun j => ?_
+      rw [LinearMap.comp_apply, LinearMap.id_apply]
+      change bn.constr ℝ _ (bm.constr ℝ _ (bm j)) = bm j
+      rw [Module.Basis.constr_basis, Module.Basis.constr_basis]
+      simp
+    intro x
+    exact congrArg (fun f : E m →ₗ[ℝ] E m => f x) this
+  have hrange : LinearMap.range ι ≠ ⊤ := by
+    intro htop
+    have h1 := LinearMap.finrank_range_le ι
+    rw [htop, finrank_top, finrank_euclideanSpace_fin, finrank_euclideanSpace_fin] at h1
+    omega
+  have hnull : MeasureTheory.volume (ι '' s) = 0 := by
+    refine MeasureTheory.measure_mono_null ?_
+      (MeasureTheory.Measure.addHaar_submodule MeasureTheory.volume _ hrange)
+    rintro _ ⟨x, -, rfl⟩
+    exact LinearMap.mem_range_self ι x
+  have himg : H '' s = (H ∘ P) '' (ι '' s) := by
+    rw [← Set.image_comp]
+    refine Set.image_congr fun x _ => ?_
+    simp [hPι]
+  rw [himg]
+  refine MeasureTheory.addHaar_image_eq_zero_of_differentiableOn_of_addHaar_eq_zero _ ?_ hnull
+  rintro _ ⟨x, hx, rfl⟩
+  have hP : DifferentiableAt ℝ P (ι x) :=
+    (LinearMap.toContinuousLinearMap P).differentiableAt
+  have hH' : DifferentiableAt ℝ H (P (ι x)) := by rw [hPι]; exact hH x hx
+  exact (hH'.comp (ι x) hP).differentiableWithinAt
+
+/-- Step 2 of the proof of `cone_image_null`: the radial reparametrisation
+`x ↦ ‖x‖ • G (‖x‖⁻¹ • x)` of the positive cone is differentiable away from `0`. -/
+private lemma cone_image_null_step2_radial_diff (m n : ℕ) (G : E m → E n)
+    (hG : Differentiable ℝ G) (x : E m) (hx : x ≠ 0) :
+    DifferentiableAt ℝ (fun x : E m => ‖x‖ • G (‖x‖⁻¹ • x)) x := by
+  have hn : DifferentiableAt ℝ (fun x : E m => ‖x‖) x :=
+    differentiableAt_id.norm ℝ hx
+  have hn' : DifferentiableAt ℝ (fun x : E m => ‖x‖⁻¹) x :=
+    hn.inv (norm_ne_zero_iff.mpr hx)
+  exact hn.smul ((hG _).comp x (hn'.smul differentiableAt_id))
+
 /-- CS6: `m + 1 ≤ n`, `G : E m → E n`, `ContDiff ℝ 1 G` ⇒
 `volume {z : E n | ∃ t : ℝ, ∃ y ∈ sphere (0 : E m) 1, z = t • G y} = 0`. -/
 theorem cone_image_null (m n : ℕ) (hmn : m + 1 ≤ n) (G : E m → E n)
     (hG : ContDiff ℝ 1 G) :
     MeasureTheory.volume
       {z : E n | ∃ t : ℝ, ∃ y ∈ sphere (0 : E m) 1, z = t • G y} = 0 := by
-  sorry
+  have hmn' : m < n := by omega
+  have hGd : Differentiable ℝ G := hG.differentiable one_ne_zero
+  let H : E m → E n := fun x => ‖x‖ • G (‖x‖⁻¹ • x)
+  have hH : ∀ x ∈ ({0}ᶜ : Set (E m)), DifferentiableAt ℝ H x := fun x hx =>
+    cone_image_null_step2_radial_diff m n G hGd x hx
+  have hH' : ∀ x ∈ ({0}ᶜ : Set (E m)), DifferentiableAt ℝ (fun x => -H x) x := fun x hx =>
+    (hH x hx).neg
+  have h0 : ∀ x ∈ ({0} : Set (E m)), DifferentiableAt ℝ (fun _ : E m => (0 : E n)) x :=
+    fun _ _ => differentiableAt_const _
+  have hsub : {z : E n | ∃ t : ℝ, ∃ y ∈ sphere (0 : E m) 1, z = t • G y} ⊆
+      (H '' {0}ᶜ ∪ (fun x => -H x) '' {0}ᶜ) ∪ (fun _ : E m => (0 : E n)) '' {0} := by
+    rintro _ ⟨t, y, hy, rfl⟩
+    have hy1 : ‖y‖ = 1 := by simpa using hy
+    rcases lt_trichotomy t 0 with ht | ht | ht
+    · refine Or.inl (Or.inr ⟨(-t) • y, ?_, ?_⟩)
+      · simp only [mem_compl_iff, mem_singleton_iff, smul_eq_zero, not_or]
+        exact ⟨by linarith, by rintro rfl; simp at hy1⟩
+      · have hnorm : ‖(-t) • y‖ = -t := by
+          rw [norm_smul, hy1, mul_one, Real.norm_of_nonneg (by linarith)]
+        simp only [H, hnorm, smul_smul, inv_mul_cancel₀ (show -t ≠ 0 by linarith), one_smul]
+        rw [neg_smul, neg_neg]
+    · subst ht
+      exact Or.inr ⟨0, rfl, by simp⟩
+    · refine Or.inl (Or.inl ⟨t • y, ?_, ?_⟩)
+      · simp only [mem_compl_iff, mem_singleton_iff, smul_eq_zero, not_or]
+        exact ⟨by linarith, by rintro rfl; simp at hy1⟩
+      · have hnorm : ‖t • y‖ = t := by
+          rw [norm_smul, hy1, mul_one, Real.norm_of_nonneg (by linarith)]
+        simp only [H, hnorm, smul_smul, inv_mul_cancel₀ (show t ≠ 0 by linarith), one_smul]
+  refine MeasureTheory.measure_mono_null hsub ?_
+  refine MeasureTheory.measure_union_null (MeasureTheory.measure_union_null ?_ ?_) ?_
+  · exact cone_image_null_step1_image_null m n hmn' H _ hH
+  · exact cone_image_null_step1_image_null m n hmn' _ _ hH'
+  · exact cone_image_null_step1_image_null m n hmn' _ _ h0
 
 /-- CS7: The same hypotheses as CS6 imply `∃ p ∈ sphere (0 : E n) 1,
 ∀ t : ℝ, ∀ y ∈ sphere (0 : E m) 1, t • G y ≠ p`. -/

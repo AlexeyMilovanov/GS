@@ -241,9 +241,11 @@ private lemma nullhomotopic_sphere_to_sphere_step1_approx (m n : ℕ)
       exact norm_sub_rev (g y : E n) (G y)
     rwa [h2]
 
-/-- Step 2 of the V4 proof of `nullhomotopic_sphere_to_sphere`: homotopy missing a point. -/
+/-- Step 2 of the V4 proof of `nullhomotopic_sphere_to_sphere`: homotopy missing a point.
+(repaired after a false-claim verdict 2026-11-02: added continuity of G on the source sphere so the normalized straight-line homotopy is continuous) -/
 private lemma nullhomotopic_sphere_to_sphere_step2_homotopic (m n : ℕ)
     (g : C(↥(sphere (0 : E m) 1), ↥(sphere (0 : E n) 1))) (G : E m → E n)
+    (hG_cont : ContinuousOn G (sphere (0 : E m) 1))
     (h_approx : ∀ y : ↥(sphere (0 : E m) 1), ‖(g y : E n) - G (y : E m)‖ < 1)
     (p : E n) (hp : p ∈ sphere (0 : E n) 1)
     (h_miss : ∀ t : ℝ, ∀ y ∈ sphere (0 : E m) 1, t • G y ≠ p) :
@@ -258,7 +260,8 @@ theorem nullhomotopic_sphere_to_sphere (m n : ℕ) (hm : 1 ≤ m) (hmn : m < n)
   obtain ⟨G, hG_diff, hG_approx⟩ := nullhomotopic_sphere_to_sphere_step1_approx m n g
   have hmn_le : m + 1 ≤ n := by omega
   obtain ⟨p, hp, h_miss⟩ := exists_direction_off_cone m n hmn_le G hG_diff
-  exact nullhomotopic_sphere_to_sphere_step2_homotopic m n g G hG_approx p hp h_miss
+  exact nullhomotopic_sphere_to_sphere_step2_homotopic m n g G
+    hG_diff.continuous.continuousOn hG_approx p hp h_miss
 
 private lemma extend_sphere_to_closedBall_of_nullhomotopic_step1_t (m : ℕ) (p : E m) (hp : p ∈ closedBall (0 : E m) 1) :
     1 - ‖p‖ ∈ Icc (0 : ℝ) 1 := by

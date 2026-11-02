@@ -210,6 +210,70 @@ theorem nullhomotopic_sphere_to_sphere (m n : ℕ) (hm : 1 ≤ m) (hmn : m < n)
   obtain ⟨p, hp, h_miss⟩ := exists_direction_off_cone m n hmn_le G hG_diff
   exact nullhomotopic_sphere_to_sphere_step2_homotopic m n g G hG_approx p hp h_miss
 
+private lemma extend_sphere_to_closedBall_of_nullhomotopic_step1_t (m : ℕ) (p : E m) (hp : p ∈ closedBall (0 : E m) 1) :
+    1 - ‖p‖ ∈ Icc (0 : ℝ) 1 := by
+  rw [mem_closedBall, dist_zero_right] at hp
+  exact ⟨by linarith, by have := norm_nonneg p; linarith⟩
+
+private lemma extend_sphere_to_closedBall_of_nullhomotopic_step2_y (m : ℕ) (p : E m) (hp0 : p ≠ 0) :
+    ‖p‖⁻¹ • p ∈ sphere (0 : E m) 1 := by
+  rw [mem_sphere, dist_zero_right, norm_smul, norm_inv, norm_norm, inv_mul_cancel₀ (norm_pos_iff.mpr hp0).ne']
+
+/-- Step 3a of the V4 proof of extend_sphere_to_closedBall_of_nullhomotopic (V4 CS9): continuous away from 0. -/
+private lemma extend_sphere_to_closedBall_of_nullhomotopic_step3a_continuousOn_ne_zero
+    (m : ℕ) {Z : Type*} [TopologicalSpace Z] (g : C(↥(sphere (0 : E m) 1), Z))
+    (x : Z) (H : g.Homotopy (ContinuousMap.const _ x)) :
+    ContinuousOn (fun p : ↥(closedBall (0 : E m) 1) =>
+      if hp : (p : E m) = 0 then x else
+      H (⟨1 - ‖(p:E m)‖, extend_sphere_to_closedBall_of_nullhomotopic_step1_t m p p.2⟩,
+         ⟨‖(p:E m)‖⁻¹ • (p:E m), extend_sphere_to_closedBall_of_nullhomotopic_step2_y m p hp⟩))
+    {p : ↥(closedBall (0 : E m) 1) | (p : E m) ≠ 0} := by
+  sorry
+
+/-- Step 3b of the V4 proof of extend_sphere_to_closedBall_of_nullhomotopic (V4 CS9): continuous at 0. -/
+private lemma extend_sphere_to_closedBall_of_nullhomotopic_step3b_continuousAt_zero
+    (m : ℕ) {Z : Type*} [TopologicalSpace Z] (g : C(↥(sphere (0 : E m) 1), Z))
+    (x : Z) (H : g.Homotopy (ContinuousMap.const _ x)) :
+    ContinuousAt (fun p : ↥(closedBall (0 : E m) 1) =>
+      if hp : (p : E m) = 0 then x else
+      H (⟨1 - ‖(p:E m)‖, extend_sphere_to_closedBall_of_nullhomotopic_step1_t m p p.2⟩,
+         ⟨‖(p:E m)‖⁻¹ • (p:E m), extend_sphere_to_closedBall_of_nullhomotopic_step2_y m p hp⟩))
+    ⟨0, by simp⟩ := by
+  sorry
+
+/-- Step 3 of the V4 proof of extend_sphere_to_closedBall_of_nullhomotopic (V4 CS9): continuous over the closed ball. -/
+private lemma extend_sphere_to_closedBall_of_nullhomotopic_step3_continuous
+    (m : ℕ) {Z : Type*} [TopologicalSpace Z] (g : C(↥(sphere (0 : E m) 1), Z))
+    (x : Z) (H : g.Homotopy (ContinuousMap.const _ x)) :
+    ∃ F : C(↥(closedBall (0 : E m) 1), Z),
+      (F ⟨0, by simp⟩ = x) ∧
+      (∀ (p : ↥(closedBall (0 : E m) 1)) (hp0 : (p : E m) ≠ 0),
+        F p = H (⟨1 - ‖(p : E m)‖, extend_sphere_to_closedBall_of_nullhomotopic_step1_t m p p.2⟩,
+                 ⟨‖(p : E m)‖⁻¹ • (p : E m), extend_sphere_to_closedBall_of_nullhomotopic_step2_y m p hp0⟩)) := by
+  let f : ↥(closedBall (0 : E m) 1) → Z := fun p =>
+    if hp : (p : E m) = 0 then x else
+    H (⟨1 - ‖(p : E m)‖, extend_sphere_to_closedBall_of_nullhomotopic_step1_t m p p.2⟩,
+       ⟨‖(p : E m)‖⁻¹ • (p : E m), extend_sphere_to_closedBall_of_nullhomotopic_step2_y m p hp⟩)
+  have h_cont_ne_zero := extend_sphere_to_closedBall_of_nullhomotopic_step3a_continuousOn_ne_zero m g x H
+  have h_cont_zero := extend_sphere_to_closedBall_of_nullhomotopic_step3b_continuousAt_zero m g x H
+  have h_cont : Continuous f := by
+    rw [continuous_iff_continuousAt]
+    intro p
+    by_cases hp : (p : E m) = 0
+    · have eq_p : p = ⟨0, by simp⟩ := Subtype.ext hp
+      rw [eq_p]
+      exact h_cont_zero
+    · have H_open : IsOpen {p : ↥(closedBall (0 : E m) 1) | (p : E m) ≠ 0} := by
+        exact (isClosed_singleton (x := (0 : E m))).isOpen_compl.preimage continuous_subtype_val
+      exact h_cont_ne_zero.continuousAt (H_open.mem_nhds hp)
+  use ⟨f, h_cont⟩
+  constructor
+  · dsimp [f]
+    rw [dif_pos (by rfl)]
+  · intro p hp0
+    dsimp [f]
+    rw [dif_neg hp0]
+
 /-- CS9: `1 ≤ m`, `Z` topological space, `g : C(↥(sphere (0 : E m) 1), Z)`
 nullhomotopic ⇒ a continuous extension over `closedBall (0 : E m) 1` agreeing on the sphere. -/
 theorem extend_sphere_to_closedBall_of_nullhomotopic (m : ℕ) (hm : 1 ≤ m)
@@ -217,7 +281,23 @@ theorem extend_sphere_to_closedBall_of_nullhomotopic (m : ℕ) (hm : 1 ≤ m)
     (hg : g.Nullhomotopic) :
     ∃ F : C(↥(closedBall (0 : E m) 1), Z), ∀ y (hy : y ∈ sphere (0 : E m) 1),
       F ⟨y, sphere_subset_closedBall hy⟩ = g ⟨y, hy⟩ := by
-  sorry
+  obtain ⟨x, ⟨H⟩⟩ := hg
+  obtain ⟨F, _, hF_ne_zero⟩ := extend_sphere_to_closedBall_of_nullhomotopic_step3_continuous m g x H
+  use F
+  intro y hy
+  have _ := hm -- to suppress unused warning
+  have hy0 : (y : E m) ≠ 0 := by
+    rintro rfl
+    rw [mem_sphere, dist_zero_right, norm_zero] at hy
+    norm_num at hy
+  have hy1 : ‖(y : E m)‖ = 1 := by simpa [mem_sphere, dist_zero_right] using hy
+  have hF_eval := hF_ne_zero ⟨y, sphere_subset_closedBall hy⟩ hy0
+  have hyt : 1 - ‖(y : E m)‖ = 0 := by simp [hy1]
+  have hyy : ‖(y : E m)‖⁻¹ • (y : E m) = y := by simp [hy1]
+  have eq_t : (⟨1 - ‖(y : E m)‖, extend_sphere_to_closedBall_of_nullhomotopic_step1_t m y (sphere_subset_closedBall hy)⟩ : unitInterval) = (0 : unitInterval) := Subtype.ext hyt
+  have eq_y : (⟨‖(y : E m)‖⁻¹ • (y : E m), extend_sphere_to_closedBall_of_nullhomotopic_step2_y m y hy0⟩ : ↥(sphere (0 : E m) 1)) = (⟨y, hy⟩ : ↥(sphere (0 : E m) 1)) := Subtype.ext hyy
+  rw [hF_eval, eq_t, eq_y]
+  exact H.apply_zero ⟨y, hy⟩
 
 /-- CS10: `X ⊆ E n` compact, `F ⊆ X` closed,
 `f : C(↥F, ↥(sphere (0 : E n) 1))` nullhomotopic ⇒ a continuous extension over `X`

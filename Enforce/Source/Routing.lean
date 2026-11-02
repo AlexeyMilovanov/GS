@@ -15277,6 +15277,49 @@ def OnlyChildWord (S : SubstSystem d) :
   | A, n + 1, w => Fintype.card (S.I A) = 1 ∧
       OnlyChildWord S (S.child A w.1).ty n w.2
 
+/-- P22, V4 8.3: a branching word of depth `n` has a one-child prefix ending in
+a branching type, at depth at most `n`. -/
+private theorem firstBranching_exists_unique_onlyChild_prefix :
+    ∀ (n : ℕ) (A : S.ι) (w : S.RoleWord A n),
+      2 ≤ Fintype.card (S.I (S.nativeTile A n w).ty) →
+        ∃ m ≤ n, ∃ v : S.RoleWord A m,
+          OnlyChildWord S A m v ∧ 2 ≤ Fintype.card (S.I (S.nativeTile A m v).ty)
+  | 0, A, w, hw => ⟨0, le_rfl, w, trivial, hw⟩
+  | n + 1, A, ⟨i, w⟩, hw => by
+    by_cases hA : 2 ≤ Fintype.card (S.I A)
+    · exact ⟨0, Nat.zero_le _, (), trivial, hA⟩
+    · have hcard : Fintype.card (S.I A) = 1 := by
+        have : 0 < Fintype.card (S.I A) := Fintype.card_pos_iff.mpr ⟨i⟩
+        omega
+      obtain ⟨m, hm, v, hv, hvb⟩ :=
+        firstBranching_exists_unique_onlyChild_prefix n (S.child A i).ty w hw
+      exact ⟨m + 1, Nat.succ_le_succ hm, ⟨i, v⟩, ⟨hcard, hv⟩, hvb⟩
+
+/-- P22, V4 8.3: two one-child words ending in branching types coincide. -/
+private theorem firstBranching_exists_unique_onlyChild_unique :
+    ∀ (n : ℕ) (A : S.ι) (w : S.RoleWord A n) (m : ℕ) (v : S.RoleWord A m),
+      OnlyChildWord S A n w → 2 ≤ Fintype.card (S.I (S.nativeTile A n w).ty) →
+      OnlyChildWord S A m v → 2 ≤ Fintype.card (S.I (S.nativeTile A m v).ty) →
+        (⟨m, v⟩ : Σ n : ℕ, S.RoleWord A n) = ⟨n, w⟩
+  | 0, A, (), 0, (), _, _, _, _ => rfl
+  | 0, A, (), m + 1, _, _, hw, hv, _ => by
+    have h1 : Fintype.card (S.I A) = 1 := hv.1
+    have h2 : 2 ≤ Fintype.card (S.I A) := hw
+    omega
+  | n + 1, A, _, 0, (), hw, _, _, hv => by
+    have h1 : Fintype.card (S.I A) = 1 := hw.1
+    have h2 : 2 ≤ Fintype.card (S.I A) := hv
+    omega
+  | n + 1, A, ⟨i, w⟩, m + 1, ⟨j, v⟩, hw, hwb, hv, hvb => by
+    have hij : j = i := Fintype.card_le_one_iff.mp (le_of_eq hw.1) j i
+    subst hij
+    have h := firstBranching_exists_unique_onlyChild_unique n (S.child A j).ty w m v
+      hw.2 hwb hv.2 hvb
+    obtain ⟨hmn, hvw⟩ := Sigma.mk.inj_iff.mp h
+    subst hmn
+    cases eq_of_heq hvw
+    rfl
+
 /-- P22, V4 8.3: first branching address, uniquely determined by the one-child
 run. Existence and the bound are supplied by stage-1 C3, V4 1.28. -/
 theorem firstBranching_exists_unique (A : S.ι) :
@@ -15284,7 +15327,11 @@ theorem firstBranching_exists_unique (A : S.ι) :
       OnlyChildWord S A a.1 a.2 ∧
         2 ≤ Fintype.card (S.I (S.nativeTile A a.1 a.2).ty) ∧
         a.1 ≤ Fintype.card S.ι - 1 := by
-  sorry
+  obtain ⟨n, hn, w, hw⟩ := S.reaches_branching A
+  obtain ⟨m, hm, v, hv, hvb⟩ := firstBranching_exists_unique_onlyChild_prefix n A w hw
+  refine ⟨⟨m, v⟩, ⟨hv, hvb, hm.trans hn⟩, ?_⟩
+  rintro ⟨k, u⟩ ⟨hu, hub, -⟩
+  exact firstBranching_exists_unique_onlyChild_unique m A v k u hv hvb hu hub
 
 /-- P22, V4 8.3: the actual first branching address, without an arbitrary
 branching-descendant choice. -/

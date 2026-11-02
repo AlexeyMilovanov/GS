@@ -6617,6 +6617,259 @@ private theorem packet_E_equality_step2_boundary_neighborhood_step5b_frontier_of
       exact ⟨hvL, hvorth⟩
     exact hv0 (show v = 0 from hvbot)
 
+open private principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step4_ball_fixed from Enforce.Source.Routing in
+/-- Step 1 of the V4 proof of `packet_E_equality_step2_boundary_neighborhood_step5b_frontier_off_lineality_step2_chart_disk_nonseparation`
+(V4 §1.0 (H1), used in 3.12(b)): "P is a polyhedral manifold domain".
+Rescale the established Brouwer fixed-point theorem from the unit ball to a chart ball. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step5b_frontier_off_lineality_step2_chart_disk_nonseparation_step1_ball_fixed
+    {n : ℕ} {a : E n} {R : ℝ} (hR : 0 < R)
+    (F : ↥(closedBall a R) → E n) (hF : Continuous F)
+    (hmap : ∀ z, F z ∈ closedBall a R) :
+    ∃ z, F z = (z : E n) := by
+  classical
+  let i : ↥(closedBall (0 : E n) 1) → ↥(closedBall a R) := fun z =>
+    ⟨a + R • (z : E n), by
+      rw [mem_closedBall, dist_eq_norm, add_sub_cancel_left, norm_smul,
+        Real.norm_of_nonneg hR.le]
+      have hz : ‖(z : E n)‖ ≤ 1 := by simpa only [mem_closedBall, dist_zero_right] using z.property
+      nlinarith⟩
+  have hi : Continuous i := by fun_prop
+  let G : E n → E n := fun w => if hw : w ∈ closedBall (0 : E n) 1 then
+    R⁻¹ • (F (i ⟨w, hw⟩) - a) else 0
+  have hG : ContinuousOn G (closedBall 0 1) := by
+    rw [continuousOn_iff_continuous_restrict]
+    have heq : (closedBall (0 : E n) 1).restrict G =
+        fun w => R⁻¹ • (F (i w) - a) := by
+      funext w
+      simp only [restrict_apply, G, dif_pos w.property]
+    rw [heq]
+    exact ((hF.comp hi).sub continuous_const).const_smul _
+  have hGmap : MapsTo G (closedBall 0 1) (closedBall 0 1) := by
+    intro w hw
+    have hGw : G w = R⁻¹ • (F (i ⟨w, hw⟩) - a) := dif_pos hw
+    rw [hGw, mem_closedBall, dist_zero_right, norm_smul,
+      Real.norm_of_nonneg (inv_nonneg.mpr hR.le)]
+    rw [inv_mul_le_iff₀ hR, mul_one]
+    simpa only [mem_closedBall, dist_eq_norm] using hmap (i ⟨w, hw⟩)
+  obtain ⟨w, hw, hfix⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step4_ball_fixed n G hG hGmap
+  refine ⟨i ⟨w, hw⟩, ?_⟩
+  have hGw : G w = R⁻¹ • (F (i ⟨w, hw⟩) - a) := dif_pos hw
+  have heq : R⁻¹ • (F (i ⟨w, hw⟩) - a) = w := hGw.symm.trans hfix
+  have heq' := congrArg (fun z : E n => R • z) heq
+  change R • (R⁻¹ • (F (i ⟨w, hw⟩) - a)) = R • w at heq'
+  rw [smul_smul, mul_inv_cancel₀ hR.ne', one_smul] at heq'
+  change F (i ⟨w, hw⟩) = a + R • w
+  rw [← heq']
+  abel
+
+/-- Step 2 of the V4 proof of `packet_E_equality_step2_boundary_neighborhood_step5b_frontier_off_lineality_step2_chart_disk_nonseparation`
+(V4 §1.0 (H1), used in 3.12(b)): "P is a polyhedral manifold domain".
+A map of a chart ball moving every point by at most δ must coincide with any continuous choice of points on a segment that stays δ inside the ball. Apply Brouwer to z ↦ z - p z + γ(t z). -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step5b_frontier_off_lineality_step2_chart_disk_nonseparation_step2_coincidence
+    {n : ℕ} {a x y : E n} {R δ : ℝ} (hR : 0 < R) (hδ : 0 ≤ δ)
+    (hx : dist x a + δ ≤ R) (hy : dist y a + δ ≤ R)
+    (p : ↥(closedBall a R) → E n) (hp : Continuous p)
+    (t : ↥(closedBall a R) → ℝ) (ht : Continuous t)
+    (htI : ∀ z, t z ∈ Icc (0 : ℝ) 1)
+    (hclose : ∀ z, dist (p z) (z : E n) ≤ δ) :
+    ∃ z, p z = (1 - t z) • x + t z • y := by
+  let F : ↥(closedBall a R) → E n := fun z =>
+    (z : E n) - p z + ((1 - t z) • x + t z • y)
+  have hF : Continuous F := by fun_prop
+  have hmaps : ∀ z, F z ∈ closedBall a R := by
+    intro z
+    have h1 : 0 ≤ 1 - t z := by linarith [(htI z).2]
+    have h2 : 0 ≤ t z := (htI z).1
+    have heq : F z - a = ((z : E n) - p z) +
+        ((1 - t z) • (x - a) + t z • (y - a)) := by
+      dsimp [F]
+      module
+    rw [mem_closedBall, dist_eq_norm, heq]
+    calc
+      _ ≤ ‖(z : E n) - p z‖ +
+          (‖(1 - t z) • (x - a)‖ + ‖t z • (y - a)‖) :=
+        (norm_add_le _ _).trans (add_le_add le_rfl (norm_add_le _ _))
+      _ = dist (p z) (z : E n) +
+          ((1 - t z) * dist x a + t z * dist y a) := by
+        rw [norm_sub_rev (z : E n) (p z), ← dist_eq_norm,
+          norm_smul, norm_smul, Real.norm_of_nonneg h1, Real.norm_of_nonneg h2,
+          ← dist_eq_norm, ← dist_eq_norm]
+      _ ≤ δ + ((1 - t z) * (R - δ) + t z * (R - δ)) := by
+        gcongr
+        · exact hclose z
+        · linarith
+        · linarith
+      _ = R := by ring
+  obtain ⟨z, hz⟩ := packet_E_equality_step2_boundary_neighborhood_step5b_frontier_off_lineality_step2_chart_disk_nonseparation_step1_ball_fixed hR F hF hmaps
+  refine ⟨z, ?_⟩
+  dsimp [F] at hz
+  apply add_left_cancel (a := (z : E n) - p z)
+  exact (sub_add_cancel (z : E n) (p z)).trans hz.symm
+
+/-- Step 3 of the V4 proof of `packet_E_equality_step2_boundary_neighborhood_step5b_frontier_off_lineality_step2_chart_disk_nonseparation`
+(V4 §1.0 (H1), used in 3.12(b)): "P is a polyhedral manifold domain".
+Given two open sides of a closed separator, Urysohn functions glue a small displacement near the separator to the identity, and interpolate between the two side labels. If the displacement map misses the segment joining the sides, the glued map has no coincidence with that interpolation. This step uses no dimension assumption. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step5b_frontier_off_lineality_step2_chart_disk_nonseparation_step3_separator_gluing
+    {n : ℕ} {a x y : E n} {R δ : ℝ} (hδ : 0 < δ)
+    {K U V : Set (E n)} (hK : IsClosed K) (hU : IsOpen U) (hV : IsOpen V)
+    (hdis : Disjoint U V) (hcover : closedBall a R \ K ⊆ U ∪ V)
+    (hx : x ∈ U) (hy : y ∈ V)
+    (H : E n → E n) (hH : Continuous H)
+    (hsmall : ∀ z ∈ K ∩ closedBall a R, dist (H z) z < δ)
+    (hfar : ∀ z ∈ K ∩ closedBall a R, δ < dist z x ∧ δ < dist z y)
+    (havoid : ∀ z, H z ∉ segment ℝ x y) :
+    ∃ (p : ↥(closedBall a R) → E n) (t : ↥(closedBall a R) → ℝ),
+      Continuous p ∧ Continuous t ∧ (∀ z, t z ∈ Icc (0 : ℝ) 1) ∧
+      (∀ z, dist (p z) (z : E n) ≤ δ) ∧
+      ∀ z, p z ≠ (1 - t z) • x + t z • y := by
+  let D := ↥(closedBall a R)
+  let K' : Set D := Subtype.val ⁻¹' K
+  let W : Set D := {z | dist (H z) (z : E n) < δ ∧
+    δ < dist (z : E n) x ∧ δ < dist (z : E n) y}
+  have hK' : IsClosed K' := hK.preimage continuous_subtype_val
+  have hW : IsOpen W := by
+    exact (isOpen_lt (hH.comp continuous_subtype_val |>.dist continuous_subtype_val)
+      continuous_const).inter ((isOpen_lt continuous_const
+        (continuous_subtype_val.dist continuous_const)).inter
+          (isOpen_lt continuous_const (continuous_subtype_val.dist continuous_const)))
+  have hKW : K' ⊆ W := by
+    intro z hz
+    exact ⟨hsmall z ⟨hz, z.property⟩, hfar z ⟨hz, z.property⟩⟩
+  obtain ⟨χ, hχ0, hχ1, hχI⟩ := exists_continuous_zero_one_of_isClosed
+    hW.isClosed_compl hK' (disjoint_compl_left_iff_subset.mpr hKW)
+  have hχW (z : D) (hz : χ z ≠ 0) : z ∈ W := by
+    by_contra hnot
+    exact hz (hχ0 hnot)
+  let T : Set D := {z | χ z ≤ 1 / 2}
+  let A : Set D := T \ (Subtype.val ⁻¹' V)
+  let B : Set D := T \ (Subtype.val ⁻¹' U)
+  have hT : IsClosed T := isClosed_le χ.continuous continuous_const
+  have hA : IsClosed A := hT.sdiff (hV.preimage continuous_subtype_val)
+  have hB : IsClosed B := hT.sdiff (hU.preimage continuous_subtype_val)
+  have hAB : Disjoint A B := by
+    rw [Set.disjoint_left]
+    intro z hzA hzB
+    have hzK : (z : E n) ∉ K := by
+      intro h
+      have hc : χ z = 1 := hχ1 h
+      have ht : χ z ≤ 1 / 2 := hzA.1
+      linarith
+    rcases hcover ⟨z.property, hzK⟩ with hu | hv
+    · exact hzB.2 hu
+    · exact hzA.2 hv
+  obtain ⟨t, htB, htA, htI⟩ := exists_continuous_zero_one_of_isClosed hB hA hAB.symm
+  let β : D → ℝ := fun z => min (2 * χ z) 1
+  have hβ : Continuous β := by fun_prop
+  have hβI (z : D) : 0 ≤ β z ∧ β z ≤ 1 := by
+    exact ⟨le_min (mul_nonneg (by norm_num) (hχI z).1) zero_le_one, min_le_right _ _⟩
+  let p : D → E n := fun z => (z : E n) + β z • (H z - (z : E n))
+  have hp : Continuous p := continuous_subtype_val.add
+    (hβ.smul ((hH.comp continuous_subtype_val).sub continuous_subtype_val))
+  have hclose (z : D) : dist (p z) (z : E n) ≤ δ := by
+    by_cases hz : χ z = 0
+    · simpa [p, β, hz] using hδ.le
+    · have hsm : dist (H z) (z : E n) < δ := (hχW z hz).1
+      change dist ((z : E n) + β z • (H z - (z : E n))) (z : E n) ≤ δ
+      rw [dist_eq_norm, add_sub_cancel_left, norm_smul,
+        Real.norm_of_nonneg (hβI z).1]
+      rw [dist_eq_norm] at hsm
+      exact (mul_le_of_le_one_left (norm_nonneg _) (hβI z).2).trans hsm.le
+  refine ⟨p, t, hp, t.continuous, htI, hclose, ?_⟩
+  intro z heq
+  by_cases hh : (1 / 2 : ℝ) ≤ χ z
+  · have hb : β z = 1 := min_eq_right (by linarith)
+    have hpH : p z = H z := by simp [p, hb]
+    apply havoid z
+    rw [← hpH, heq]
+    rw [segment_eq_image ℝ x y]
+    exact ⟨t z, htI z, rfl⟩
+  · have hzT : z ∈ T := (not_le.mp hh).le
+    have hzK : (z : E n) ∉ K := by
+      intro h
+      have hc : χ z = 1 := hχ1 h
+      linarith [not_le.mp hh]
+    rcases hcover ⟨z.property, hzK⟩ with hu | hv
+    · have hzA : z ∈ A := ⟨hzT, fun hv => Set.disjoint_left.mp hdis hu hv⟩
+      have ht : t z = 1 := htA hzA
+      have hpy : p z = y := by simpa [ht] using heq
+      by_cases hzero : χ z = 0
+      · have hpz : p z = (z : E n) := by simp [p, β, hzero]
+        have hzy : (z : E n) = y := hpz.symm.trans hpy
+        exact Set.disjoint_left.mp hdis (hzy ▸ hu) hy
+      · have hf := (hχW z hzero).2.2
+        have hc := hclose z
+        rw [hpy, dist_comm] at hc
+        exact (not_lt_of_ge hc) hf
+    · have hzB : z ∈ B := ⟨hzT, fun hu => Set.disjoint_left.mp hdis hu hv⟩
+      have ht : t z = 0 := htB hzB
+      have hpx : p z = x := by simpa [ht] using heq
+      by_cases hzero : χ z = 0
+      · have hpz : p z = (z : E n) := by simp [p, β, hzero]
+        have hzx : (z : E n) = x := hpz.symm.trans hpx
+        exact Set.disjoint_left.mp hdis hx (hzx ▸ hv)
+      · have hf := (hχW z hzero).2.1
+        have hc := hclose z
+        rw [hpx, dist_comm] at hc
+        exact (not_lt_of_ge hc) hf
+
+/-- Step 4 of the V4 proof of `packet_E_equality_step2_boundary_neighborhood_step5b_frontier_off_lineality_step2_chart_disk_nonseparation`
+(V4 §1.0 (H1), used in 3.12(b)): "P is a polyhedral manifold domain".
+Tietze extension and smooth approximation uniformly approximate the disk map on its compact parameter disk. Only the approximation is smooth; the given chart embedding remains arbitrary. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step5b_frontier_off_lineality_step2_chart_disk_nonseparation_step4_smooth_approximation
+    {n : ℕ} (L : Submodule ℝ (E d)) {r : ℝ}
+    (f : ↥(closedBall (0 : L) r) → E n) (hf : Continuous f)
+    {δ : ℝ} (hδ : 0 < δ) :
+    ∃ g : L → E n, ContDiff ℝ 1 g ∧
+      ∀ z : ↥(closedBall (0 : L) r), dist (g z) (f z) < δ := by
+  obtain ⟨F, hF⟩ := (⟨f, hf⟩ : C(↥(closedBall (0 : L) r), E n)).exists_extension'
+    isClosed_closedBall.isClosedEmbedding_subtypeVal
+  have hK : IsCompact (closedBall (0 : L) r) := isCompact_closedBall _ _
+  have hKu := (hK.cthickening (r := 1)).uniformContinuousOn_of_continuous
+    F.continuous.continuousOn
+  obtain ⟨ε, hε, hεF⟩ := Metric.uniformContinuousOn_iff_le.mp hKu (δ / 2) (half_pos hδ)
+  obtain ⟨g, hg, hgF⟩ := F.continuous.exists_contDiff_dist_le_of_forall_mem_ball_dist_le
+    (lt_min hε one_pos)
+  refine ⟨g, hg.of_le (by simp), ?_⟩
+  intro z
+  have hzF : F (z : L) = f z := congrFun hF z
+  rw [← hzF]
+  refine (hgF (z : L) (δ / 2) ?_).trans_lt (half_lt_self hδ)
+  intro w hw
+  have hdist : dist w (z : L) < min ε 1 := hw
+  refine hεF w (mem_cthickening_of_dist_le w (z : L) 1 _ z.property ?_)
+    (z : L) (self_subset_cthickening (closedBall (0 : L) r) z.property) ?_
+  · exact (hdist.trans_le (min_le_right _ _)).le
+  · exact (hdist.trans_le (min_le_left _ _)).le
+
+/-- Step 5 of the V4 proof of `packet_E_equality_step2_boundary_neighborhood_step5b_frontier_off_lineality_step2_chart_disk_nonseparation`
+(V4 §1.0 (H1), used in 3.12(b)): "P is a polyhedral manifold domain".
+For a smooth map from the parameter subspace, the map (z,t) ↦ g z - ((1-t) • x + t • y) has domain dimension strictly below n. Its range has dense complement, so an arbitrarily small parallel translate of the segment misses the smooth image. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step5b_frontier_off_lineality_step2_chart_disk_nonseparation_step5_segment_avoidance
+    {n : ℕ} (L : Submodule ℝ (E d))
+    (hdim : Module.finrank ℝ L + 2 ≤ n)
+    (g : L → E n) (hg : ContDiff ℝ 1 g) (x y : E n)
+    {ε : ℝ} (hε : 0 < ε) :
+    ∃ v : E n, ‖v‖ < ε ∧ Disjoint (segment ℝ (x + v) (y + v)) (range g) := by
+  let q : L × ℝ → E n := fun p => g p.1 - ((1 - p.2) • x + p.2 • y)
+  have hq : ContDiff ℝ 1 q := by fun_prop
+  have hdim' : Module.finrank ℝ (L × ℝ) < Module.finrank ℝ (E n) := by
+    rw [Module.finrank_prod, Module.finrank_self, finrank_euclideanSpace_fin]
+    omega
+  have hdense := hq.dense_compl_range_of_finrank_lt_finrank hdim'
+  obtain ⟨v, hvq, hvB⟩ := hdense.exists_mem_open
+    (isOpen_ball : IsOpen (ball (0 : E n) ε)) (nonempty_ball.mpr hε)
+  refine ⟨v, by simpa only [mem_ball, dist_zero_right] using hvB, ?_⟩
+  rw [Set.disjoint_left]
+  intro z hzseg hzg
+  obtain ⟨w, rfl⟩ := hzg
+  rw [segment_eq_image ℝ (x + v) (y + v)] at hzseg
+  obtain ⟨t, ht, heq⟩ := hzseg
+  apply hvq
+  refine ⟨(w, t), ?_⟩
+  dsimp [q]
+  rw [← heq]
+  module
+
 /-- Step 2 of the V4 proof of `packet_E_equality_step2_boundary_neighborhood_step5b_frontier_off_lineality`
 (V4 §1.0 (H1), used in 3.12(b)): "P is a polyhedral manifold domain".
 This is the chart nonseparation fact used along the lineality space: an embedded
@@ -6629,7 +6882,104 @@ private theorem packet_E_equality_step2_boundary_neighborhood_step5b_frontier_of
     (f : ↥(closedBall (0 : L) r) → E n) (hf : Topology.IsEmbedding f)
     (a : E n) {ρ : ℝ} (hρ : 0 < ρ) :
     IsPreconnected (ball a ρ \ Set.range f) := by
-  sorry
+  classical
+  have hfc : Topology.IsClosedEmbedding f := hf.continuous.isClosedEmbedding hf.injective
+  have hK : IsClosed (range f) := hfc.isClosed_range
+  obtain ⟨G, hGf⟩ := (⟨Subtype.val, continuous_subtype_val⟩ :
+    C(↥(closedBall (0 : L) r), L)).exists_extension' hfc
+  intro u v hu hv hcov hune hvne
+  by_contra hno
+  let U : Set (E n) := (ball a ρ \ range f) ∩ u
+  let V : Set (E n) := (ball a ρ \ range f) ∩ v
+  have hU : IsOpen U := (isOpen_ball.sdiff hK).inter hu
+  have hV : IsOpen V := (isOpen_ball.sdiff hK).inter hv
+  have hdis : Disjoint U V := by
+    rw [Set.disjoint_left]
+    intro z hzU hzV
+    exact hno ⟨z, hzU.1, hzU.2, hzV.2⟩
+  obtain ⟨x, hx⟩ := hune
+  obtain ⟨y, hy⟩ := hvne
+  have hxU : x ∈ U := hx
+  have hyV : y ∈ V := hy
+  obtain ⟨εx, hεx, hεxU⟩ := Metric.isOpen_iff.mp hU x hxU
+  obtain ⟨εy, hεy, hεyV⟩ := Metric.isOpen_iff.mp hV y hyV
+  let M := max (dist x a) (dist y a)
+  have hM : M < ρ := max_lt hx.1.1 hy.1.1
+  let R := (M + ρ) / 2
+  have hMR : M < R := by dsimp [R]; linarith
+  have hRρ : R < ρ := by dsimp [R]; linarith
+  have hR : 0 < R := lt_of_le_of_lt ((dist_nonneg : 0 ≤ dist x a).trans (le_max_left _ _)) hMR
+  let δ := min ((R - M) / 4) (min (εx / 8) (εy / 8))
+  have hδ : 0 < δ := lt_min (by linarith) (lt_min (by positivity) (by positivity))
+  have hδR : 4 * δ ≤ R - M := by
+    have h := min_le_left ((R - M) / 4) (min (εx / 8) (εy / 8))
+    change δ ≤ (R - M) / 4 at h
+    linarith
+  have hδx : 8 * δ ≤ εx := by
+    have h := (min_le_right ((R - M) / 4) (min (εx / 8) (εy / 8))).trans
+      (min_le_left (εx / 8) (εy / 8))
+    change δ ≤ εx / 8 at h
+    linarith
+  have hδy : 8 * δ ≤ εy := by
+    have h := (min_le_right ((R - M) / 4) (min (εx / 8) (εy / 8))).trans
+      (min_le_right (εx / 8) (εy / 8))
+    change δ ≤ εy / 8 at h
+    linarith
+  obtain ⟨g, hg, hgclose⟩ :=
+    packet_E_equality_step2_boundary_neighborhood_step5b_frontier_off_lineality_step2_chart_disk_nonseparation_step4_smooth_approximation L f hf.continuous hδ
+  obtain ⟨w, hw, hseg⟩ :=
+    packet_E_equality_step2_boundary_neighborhood_step5b_frontier_off_lineality_step2_chart_disk_nonseparation_step5_segment_avoidance L hdim g hg x y hδ
+  have hxw : dist (x + w) x < δ := by simpa only [dist_eq_norm, add_sub_cancel_left] using hw
+  have hyw : dist (y + w) y < δ := by simpa only [dist_eq_norm, add_sub_cancel_left] using hw
+  have hxwU : x + w ∈ U := hεxU (lt_of_lt_of_le hxw (by linarith))
+  have hywV : y + w ∈ V := hεyV (lt_of_lt_of_le hyw (by linarith))
+  have hxR : dist (x + w) a + δ ≤ R := by
+    have h1 := dist_triangle (x + w) x a
+    have h2 : dist x a ≤ M := le_max_left _ _
+    linarith
+  have hyR : dist (y + w) a + δ ≤ R := by
+    have h1 := dist_triangle (y + w) y a
+    have h2 : dist y a ≤ M := le_max_right _ _
+    linarith
+  have hcover : closedBall a R \ range f ⊆ U ∪ V := by
+    intro z hz
+    have hzB : z ∈ ball a ρ \ range f :=
+      ⟨lt_of_le_of_lt hz.1 hRρ, hz.2⟩
+    rcases hcov hzB with hzU | hzV
+    · exact Or.inl ⟨hzB, hzU⟩
+    · exact Or.inr ⟨hzB, hzV⟩
+  let H : E n → E n := fun z => g (G z)
+  have hH : Continuous H := hg.continuous.comp G.continuous
+  have hsmall : ∀ z ∈ range f ∩ closedBall a R, dist (H z) z < δ := by
+    rintro z ⟨⟨s, rfl⟩, _⟩
+    have hGs : G (f s) = (s : L) := congrFun hGf s
+    simpa only [H, hGs] using hgclose s
+  have hfar : ∀ z ∈ range f ∩ closedBall a R,
+      δ < dist z (x + w) ∧ δ < dist z (y + w) := by
+    intro z hz
+    have hxz : εx ≤ dist z x := by
+      by_contra h
+      have hzU := hεxU (lt_of_not_ge h)
+      exact hzU.1.2 hz.1
+    have hyz : εy ≤ dist z y := by
+      by_contra h
+      have hzV := hεyV (lt_of_not_ge h)
+      exact hzV.1.2 hz.1
+    constructor
+    · have h := dist_triangle z (x + w) x
+      linarith
+    · have h := dist_triangle z (y + w) y
+      linarith
+  have havoid : ∀ z, H z ∉ segment ℝ (x + w) (y + w) := by
+    intro z hz
+    exact Set.disjoint_left.mp hseg hz ⟨G z, rfl⟩
+  obtain ⟨p, t, hp, ht, htI, hclose, hne⟩ :=
+    packet_E_equality_step2_boundary_neighborhood_step5b_frontier_off_lineality_step2_chart_disk_nonseparation_step3_separator_gluing
+      hδ hK hU hV hdis hcover hxwU hywV H hH hsmall hfar havoid
+  obtain ⟨z, hz⟩ :=
+    packet_E_equality_step2_boundary_neighborhood_step5b_frontier_off_lineality_step2_chart_disk_nonseparation_step2_coincidence
+      hR hδ.le hxR hyR p hp t ht htI hclose
+  exact hne z hz
 
 /-- Step 3 of the V4 proof of `packet_E_equality_step2_boundary_neighborhood_step5b_frontier_off_lineality`
 (V4 §1.0 (H1), used in 3.12(b)): "P is a polyhedral manifold domain".

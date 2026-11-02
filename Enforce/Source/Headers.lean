@@ -727,12 +727,78 @@ theorem incident_tails [Nonempty S.ι] (p : E d) :
 def CommonListed (p : E d) : Prop :=
   ∀ t ∈ P.tiles, p ∈ t.carrier 0 → t.Lists 0 p
 
+/-- Step 1 of the V4 proof of `incident_listed_step` (V4 1.14, Proof: "the children of `t`
+cover `σ t`", "containment in `σ t` determines the actual substitution parent"): the native
+tile of an incident child is an actual substitution child, of some role `i`, of the one-step
+expansion of the incident parent, carried by its compatible inflated frame. -/
+private theorem incident_listed_step_step1_actual_child (p : E d) (n : ℕ)
+    (a : P.Incident p n) (b : P.Incident p (n + 1)) (hab : P.IncidentChild p n a b) :
+    ∃ i : S.I (P.native n a.val).ty,
+      P.native (n + 1) b.val =
+        (⟨(P.native n a.val).ty, compatibleInflatedFrame (P.native n a.val)
+          (P.native_compatible n a.val) 1⟩ : FramedNode S).child 0 i := by
+  obtain ⟨a', i, hty, hfr⟩ := incident_parent_exists_unique_step2_native_split P n b.val
+  have hsub : (P.native (n + 1) b.val).carrier 0 ⊆ S.σ '' (P.native n a').carrier 0 := by
+    rw [incident_parent_exists_unique_step1_carrier_zero,
+      incident_parent_exists_unique_step1_carrier_zero, hty]
+    rintro z ⟨u, hu, rfl⟩
+    have hu' : (S.child (P.native n a').ty i).frame u ∈
+        S.σ '' (S.proto (P.native n a').ty).carrier := by
+      rw [S.children_cover]
+      exact Set.mem_iUnion.mpr ⟨i, ⟨u, hu, rfl⟩⟩
+    obtain ⟨v, hv, hvu⟩ := hu'
+    exact ⟨(P.native n a').frame v, Set.mem_image_of_mem _ hv,
+      by rw [hfr, ← hvu, S.σ.symm_apply_apply]⟩
+  have hab' : (P.native (n + 1) b.val).carrier 0 ⊆ S.σ '' (P.native n a.val).carrier 0 := hab
+  have ha' : a' = a.val := by
+    by_contra hne
+    obtain ⟨x, hx⟩ := incident_parent_exists_unique_step5_interior_nonempty
+      (P.native (n + 1) b.val)
+    have hd := incident_parent_exists_unique_step4_disjoint_linear S.σ
+      (incident_parent_exists_unique_step4_native_disjoint P n hne)
+    exact Set.disjoint_left.mp hd (interior_mono hsub hx) (interior_mono hab' hx)
+  subst ha'
+  refine ⟨i, FramedNode.ext hty ?_⟩
+  apply AffineIsometryEquiv.ext
+  intro x
+  rw [hfr]
+  change _ = compatibleInflatedFrame (P.native n a.val) (P.native_compatible n a.val) 1
+    (S.placeChild 0 i x)
+  rw [incident_parent_exists_unique_step1_placeChild_zero]
+  have h := incident_parent_exists_unique_step4_inflated_pow (P.native n a.val)
+    (P.native_compatible n a.val) 1 (S.σ.symm ((S.child (P.native n a.val).ty i).frame x))
+  rw [pow_one, S.σ.apply_symm_apply] at h
+  exact h.symm
+
+/-- Step 2 of the V4 proof of `incident_listed_step` (V4 1.14 with Lemma 1.10, "if `σⁿp` is
+a vertex of `t_n`"): a vertex `q` listed by a compatible ground tile `t` gives the listed
+vertex `σ q` of its one-step expansion, the node with the inflated frame at height one. -/
+private theorem incident_listed_step_step2_inflated_lists (t : FramedNode S)
+    (ht : t.frame.linearIsometryEquiv ∈ S.rotGroup) (q : E d) (hq : t.Lists 0 q) :
+    (⟨t.ty, compatibleInflatedFrame t ht 1⟩ : FramedNode S).Lists 1 (S.σ q) := by
+  obtain ⟨e, he, u, hu, rfl⟩ := hq
+  refine ⟨e, he, u, hu, ?_⟩
+  change compatibleInflatedFrame t ht 1 ((S.σ ^ 1) u) = S.σ (t.frame ((S.σ ^ 0) u))
+  rw [incident_parent_exists_unique_step4_inflated_pow, pow_one, pow_zero]
+  rfl
+
 /-- P9, V4 1.14: listedness persists across every incident child step. -/
 theorem incident_listed_step (p : E d) (n : ℕ) (a : P.Incident p n)
     (b : P.Incident p (n + 1)) (hab : P.IncidentChild p n a b)
     (ha : (P.native n a.val).Lists 0 ((S.σ ^ n) p)) :
     (P.native (n + 1) b.val).Lists 0 ((S.σ ^ (n + 1)) p) := by
-  sorry
+  obtain ⟨i, hb⟩ := incident_listed_step_step1_actual_child P p n a b hab
+  have hC := incident_listed_step_step2_inflated_lists (P.native n a.val)
+    (P.native_compatible n a.val) ((S.σ ^ n) p) ha
+  have hpow : (S.σ ^ (n + 1)) p = S.σ ((S.σ ^ n) p) := by
+    rw [pow_succ', LinearEquiv.mul_apply]
+  have hmem : S.σ ((S.σ ^ n) p) ∈
+      ((⟨(P.native n a.val).ty, compatibleInflatedFrame (P.native n a.val)
+        (P.native_compatible n a.val) 1⟩ : FramedNode S).child 0 i).carrier 0 := by
+    rw [← hb, ← hpow]
+    exact b.property
+  rw [hb, hpow]
+  exact vertex_inherited _ 0 _ hC i hmem
 
 /-- Step 0 of the V4 proof of `incident_commonListed`: native identity at depth 0. -/
 private lemma incident_commonListed_step0_native_zero_eq (a : P.Address 0) : P.native 0 a = a.1.val := by

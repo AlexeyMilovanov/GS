@@ -764,7 +764,31 @@ private lemma node_type_residue_step1_childMap_residue (m : ℕ) (M : FramedNode
     (hty : s.ty = M.ty) (hres : s.residue.val = (m + 1) % P.L) :
     (childMap P s ⟨M.ty, i⟩).ty = (M.child m i).ty ∧
       (childMap P s ⟨M.ty, i⟩).residue.val = m % P.L := by
-  sorry
+  refine ⟨(childMap_admissible P s hs ⟨M.ty, i⟩ hty.symm).2, ?_⟩
+  obtain ⟨U, q, rfl⟩ := hs
+  have hmod : q.1 % P.L = (m + 1) % P.L := hres
+  have hshift : (q.1 - (m + 1)) % P.L = (m + 1 - q.1) % P.L := by
+    rcases le_total q.1 (m + 1) with hle | hle
+    · rw [Nat.sub_eq_zero_of_le hle, Nat.zero_mod]
+      exact (Nat.dvd_iff_mod_eq_zero.mp ((Nat.modEq_iff_dvd' hle).mp hmod)).symm
+    · rw [Nat.sub_eq_zero_of_le hle, Nat.zero_mod]
+      exact Nat.dvd_iff_mod_eq_zero.mp ((Nat.modEq_iff_dvd' hle).mp hmod.symm)
+  obtain ⟨V, e, N', he⟩ := exactScaleTransfer U q.1 q.2.val q.2.property (m + 1)
+    (AffineIsometryEquiv.refl ℝ (E d))
+  have hs' : stateOf U P q = stateOf V P ⟨m + 1, N'⟩ := by
+    have hst := state_scaleTransfer P e hshift ⟨q, Nat.sub_le _ _⟩
+    rw [he] at hst
+    exact hst
+  rw [hs'] at hty ⊢
+  have key : ∀ r : S.Role, r.1 = N'.val.ty →
+      (childMap P (stateOf V P ⟨m + 1, N'⟩) r).residue.val = m % P.L := by
+    rintro ⟨A, j⟩ hA
+    dsimp only at hA
+    subst hA
+    rw [← childMap_spec V P ⟨m + 1, N'⟩ (Nat.le_add_left 1 m) j]
+    show (m + 1 - 1) % P.L = m % P.L
+    rw [Nat.add_sub_cancel]
+  exact key ⟨M.ty, i⟩ hty.symm
 
 /-- R1, V4 §3.0 (I1)--(I2): type and residue propagate to every inner node. -/
 theorem node_type_residue (m : ℕ) (N : FramedNode S) (hN : N ∈ D.geometry.nodes m) :

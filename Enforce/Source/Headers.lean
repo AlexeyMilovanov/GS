@@ -4224,7 +4224,55 @@ private lemma tangentCone_tile_isHPiCone_step1_walls_step1_facets
       (∀ i, f i ∈ (S.cx A).cells ∧ q ∈ (f i).carrier ∧ (f i).dim + 1 = d ∧
         {x | ℓ i x = 0} = (cellDirection (f i).carrier : Set (E d))) ∧
       (∀ F ∈ (S.cx A).cells, q ∈ F.carrier → F.dim + 1 = d → ∃ i, f i = F) := by
-  sorry
+  classical
+  let Fs := (S.cx A).cells.filter (fun F => q ∈ F.carrier ∧ F.dim + 1 = d)
+  let n := Fs.card
+  let e := Fs.equivFin
+  let f : Fin n → Cell d := fun i => (e.symm i).val
+  have Hf : ∀ i, f i ∈ (S.cx A).cells ∧ q ∈ (f i).carrier ∧ (f i).dim + 1 = d := by
+    intro i
+    have h1 := (e.symm i).property
+    simp only [Finset.mem_filter, Fs] at h1
+    exact h1
+  have H_ker : ∀ i, ∃ ℓi : E d →ₗ[ℝ] ℝ, {x | ℓi x = 0} = (cellDirection (f i).carrier : Set (E d)) := by
+    intro i
+    have hdim : (f i).dim + 1 = d := (Hf i).2.2
+    have hproper : cellDirection (f i).carrier < ⊤ := by
+      refine lt_of_le_of_ne le_top (fun heq => ?_)
+      have h1 := congrArg (fun (U : Submodule ℝ (E d)) => Module.finrank ℝ U) heq
+      simp only [finrank_top, finrank_euclideanSpace_fin] at h1
+      have hd : Module.finrank ℝ (cellDirection (f i).carrier) = (f i).dim := (f i).flat.dimension
+      rw [hd] at h1
+      omega
+    obtain ⟨v, _, hv_not_mem⟩ := SetLike.exists_of_lt hproper
+    obtain ⟨ℓi, hvℓ, hle⟩ := Submodule.exists_le_ker_of_notMem hv_not_mem
+    have hle2 : cellDirection (f i).carrier ≤ ℓi.ker := hle
+    have hproper2 : ℓi.ker < ⊤ := by
+      refine lt_of_le_of_ne le_top (fun heq => ?_)
+      have h1 : v ∈ ℓi.ker := heq ▸ Submodule.mem_top
+      exact hvℓ (LinearMap.mem_ker.mp h1)
+    have heq : cellDirection (f i).carrier = ℓi.ker := by
+      apply Submodule.eq_of_le_of_finrank_le hle2
+      have hl1 := Submodule.finrank_lt_finrank_of_lt (lt_top_iff_ne_top.mpr (ne_of_lt hproper2))
+      simp only [finrank_top, finrank_euclideanSpace_fin] at hl1
+      have hl2 := (f i).flat.dimension
+      rw [hl2]
+      omega
+    use ℓi
+    ext x
+    simp [heq]
+  choose ℓ hℓ using H_ker
+  use n, f, ℓ
+  constructor
+  · intro i
+    exact ⟨(Hf i).1, (Hf i).2.1, (Hf i).2.2, hℓ i⟩
+  · intro F hF_mem hF_q hF_dim
+    have hF_mem_Fs : F ∈ Fs := by
+      simp only [Finset.mem_filter, Fs]
+      exact ⟨hF_mem, hF_q, hF_dim⟩
+    use e ⟨F, hF_mem_Fs⟩
+    dsimp [f]
+    rw [Equiv.symm_apply_apply]
 
 /-- Step 1b of the V4 proof of `tangentCone_tile_isHPiCone_step1_walls` (V4 1.16(b')):
 find a neighborhood where no non-incident cell enters. -/

@@ -359,7 +359,28 @@ private lemma extend_sphere_to_closedBall_of_nullhomotopic_step3a_continuousOn_n
       H (⟨1 - ‖(p:E m)‖, extend_sphere_to_closedBall_of_nullhomotopic_step1_t m p p.2⟩,
          ⟨‖(p:E m)‖⁻¹ • (p:E m), extend_sphere_to_closedBall_of_nullhomotopic_step2_y m p hp⟩))
     {p : ↥(closedBall (0 : E m) 1) | (p : E m) ≠ 0} := by
-  sorry
+  rw [continuousOn_iff_continuous_restrict]
+  have h_eq : (Set.restrict {p : ↥(closedBall (0 : E m) 1) | (p : E m) ≠ 0} (fun p : ↥(closedBall (0 : E m) 1) =>
+    if hp : (p : E m) = 0 then x else
+    H (⟨1 - ‖(p : E m)‖, extend_sphere_to_closedBall_of_nullhomotopic_step1_t m p p.2⟩,
+       ⟨‖(p : E m)‖⁻¹ • (p : E m), extend_sphere_to_closedBall_of_nullhomotopic_step2_y m p hp⟩))) =
+    (fun (p : {p : ↥(closedBall (0 : E m) 1) | (p : E m) ≠ 0}) =>
+    H (⟨1 - ‖(p.1 : E m)‖, extend_sphere_to_closedBall_of_nullhomotopic_step1_t m p.1 p.1.2⟩,
+       ⟨‖(p.1 : E m)‖⁻¹ • (p.1 : E m), extend_sphere_to_closedBall_of_nullhomotopic_step2_y m p.1 p.2⟩)) := by
+    ext p
+    dsimp [Set.restrict]
+    rw [dif_neg p.2]
+  rw [h_eq]
+  have hn : Continuous fun q : {p : ↥(closedBall (0 : E m) 1) | (p : E m) ≠ 0} => ‖((q.1 : ↥(closedBall (0:E m) 1)) : E m)‖ := by
+    apply Continuous.norm
+    apply Continuous.comp continuous_subtype_val continuous_subtype_val
+  have hne : ∀ q : {p : ↥(closedBall (0 : E m) 1) | (p : E m) ≠ 0}, ‖((q.1 : ↥(closedBall (0:E m) 1)) : E m)‖ ≠ 0 :=
+    fun q => norm_pos_iff.mpr q.2 |>.ne'
+  have h1 : Continuous (fun q : {p : ↥(closedBall (0 : E m) 1) | (p : E m) ≠ 0} => (⟨1 - ‖(q.1 : E m)‖, extend_sphere_to_closedBall_of_nullhomotopic_step1_t m q.1 q.1.2⟩ : unitInterval)) :=
+    Continuous.subtype_mk (Continuous.sub continuous_const hn) _
+  have h2 : Continuous (fun q : {p : ↥(closedBall (0 : E m) 1) | (p : E m) ≠ 0} => (⟨‖(q.1 : E m)‖⁻¹ • (q.1 : E m), extend_sphere_to_closedBall_of_nullhomotopic_step2_y m q.1 q.2⟩ : ↥(sphere (0:E m) 1))) :=
+    Continuous.subtype_mk (Continuous.smul (Continuous.inv₀ hn hne) (Continuous.comp continuous_subtype_val continuous_subtype_val)) _
+  exact H.continuous.comp (h1.prodMk h2)
 
 /-- Step 3b of the V4 proof of extend_sphere_to_closedBall_of_nullhomotopic (V4 CS9): continuous at 0. -/
 private lemma extend_sphere_to_closedBall_of_nullhomotopic_step3b_continuousAt_zero

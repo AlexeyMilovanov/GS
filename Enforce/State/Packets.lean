@@ -1409,6 +1409,131 @@ theorem leafTypeOf_type (U : HonestSource S) (P : Params S)
   dsimp [FramedNode.move] at eq
   exact eq
 
+/-- Q11, V4 2.7: append one child role to a typed role word. -/
+private def certificate_child_equations_snoc : (A : S.ι) → (n : ℕ) → (w : S.RoleWord A n) →
+    S.I (S.nativeTile A n w).ty → S.RoleWord A (n + 1)
+  | _, 0, _, i => ⟨i, ()⟩
+  | A, n + 1, w, i => ⟨w.1, certificate_child_equations_snoc (S.child A w.1).ty n w.2 i⟩
+
+/-- Q11, V4 2.7: a child placed at height `n` conjugates its prescribed frame by `σ^n`. -/
+private theorem certificate_child_equations_place_scaled (n : ℕ) {A : S.ι}
+    (i : S.I A) (x : E d) :
+    S.placeChild n i ((S.σ ^ n) x) = (S.σ ^ n) ((S.child A i).frame x) := by
+  rw [S.placeChild_apply]
+  simp [linearConj, Child.frame, rigidMotion, zpow_neg, LinearEquiv.mul_apply, map_add]
+
+/-- Q11, V4 2.7: raising the base height by `h` conjugates the placement by `σ^h`. -/
+private theorem certificate_child_equations_place_shift (h k : ℕ) {A : S.ι}
+    (i : S.I A) (x : E d) :
+    S.placeChild (h + k) i ((S.σ ^ h) x) = (S.σ ^ h) (S.placeChild k i x) := by
+  have h₁ := certificate_child_equations_place_scaled (S := S) (h + k) i ((S.σ ^ k).symm x)
+  have h₂ := certificate_child_equations_place_scaled (S := S) k i ((S.σ ^ k).symm x)
+  simp only [pow_add, LinearEquiv.mul_apply, LinearEquiv.apply_symm_apply] at h₁ h₂
+  rw [← h₂] at h₁
+  exact h₁
+
+/-- Q11, V4 2.7: a descendant at base height `h` is the native tile conjugated by `σ^h`. -/
+private theorem certificate_child_equations_desc_scaled (A : S.ι) (h k : ℕ)
+    (w : S.RoleWord A k) (x : E d) :
+    (S.descendantNode A h k w).frame ((S.σ ^ h) x) =
+      (S.σ ^ h) ((S.nativeTile A k w).frame x) := by
+  induction k generalizing A with
+  | zero => rfl
+  | succ k ih =>
+    change S.placeChild (h + k) w.1
+      ((S.descendantNode (S.child A w.1).ty h k w.2).frame ((S.σ ^ h) x)) =
+      (S.σ ^ h) (S.placeChild (0 + k) w.1
+        ((S.nativeTile (S.child A w.1).ty k w.2).frame x))
+    rw [ih, certificate_child_equations_place_shift, Nat.zero_add]
+
+/-- Q11, V4 2.7: the terminal type of a role word does not depend on the base height. -/
+private theorem certificate_child_equations_desc_type (A : S.ι) (h k : ℕ)
+    (w : S.RoleWord A k) : (S.descendantNode A h k w).ty = (S.nativeTile A k w).ty := by
+  induction k generalizing A with
+  | zero => rfl
+  | succ k ih => exact ih (S.child A w.1).ty w.2
+
+/-- Q11, V4 2.7: moving a node commutes with taking a child. -/
+private theorem certificate_child_equations_move_child (N : FramedNode S) (g : Iso d) (h : ℕ)
+    (j : S.I N.ty) : (N.child h j).move g = (N.move g).child h j := by
+  apply FramedNode.ext
+  · rfl
+  · apply AffineIsometryEquiv.ext
+    intro x
+    rfl
+
+/-- Q11, V4 2.7: the appended word names the actual child of the descendant. -/
+private theorem certificate_child_equations_desc_snoc (A : S.ι) (h n : ℕ)
+    (w : S.RoleWord A n) (i : S.I (S.nativeTile A n w).ty) (h' : ℕ) (hh : h' = h + 1)
+    (j : S.I (S.descendantNode A h' n w).ty) (hij : HEq i j) :
+    S.descendantNode A h (n + 1) (certificate_child_equations_snoc A n w i) =
+      (S.descendantNode A h' n w).child h j := by
+  subst hh
+  induction n generalizing A with
+  | zero =>
+    have hj : i = j := eq_of_heq hij
+    subst hj
+    apply FramedNode.ext
+    · rfl
+    · apply AffineIsometryEquiv.ext
+      intro x
+      rfl
+  | succ n ih =>
+    change (S.descendantNode (S.child A w.1).ty h (n + 1)
+        (certificate_child_equations_snoc (S.child A w.1).ty n w.2 i)).move
+          (S.placeChild (h + (n + 1)) w.1) =
+      ((S.descendantNode (S.child A w.1).ty (h + 1) n w.2).move
+        (S.placeChild (h + 1 + n) w.1)).child h j
+    rw [ih (S.child A w.1).ty w.2 i j hij, certificate_child_equations_move_child,
+      show h + (n + 1) = h + 1 + n by omega]
+
+/-- Q11, V4 2.7: the normalized frame of the appended word is the role placement
+followed by the parent's normalized frame. -/
+private theorem certificate_child_equations_frame (A : S.ι) (a : ℕ) (w : S.RoleWord A a)
+    (i : S.I (S.nativeTile A a w).ty) :
+    prototypeDescendantFrame A (a + 1) (certificate_child_equations_snoc A a w i) =
+      (rolePlacement (⟨(S.nativeTile A a w).ty, i⟩ : S.Role)).trans
+        (prototypeDescendantFrame A a w) := by
+  have hT := certificate_child_equations_desc_type A 1 a w
+  let j : S.I (S.descendantNode A 1 a w).ty := cast (congrArg S.I hT.symm) i
+  have hij : HEq i j := (cast_heq _ _).symm
+  have hN : S.nativeTile A (a + 1) (certificate_child_equations_snoc A a w i) =
+      (S.descendantNode A 1 a w).child 0 j :=
+    certificate_child_equations_desc_snoc A 0 a w i 1 rfl j hij
+  have hchild : ∀ (T' : S.ι) (hT' : T' = (S.nativeTile A a w).ty) (j' : S.I T'), HEq i j' →
+      (S.child T' j').frame = (S.child (S.nativeTile A a w).ty i).frame := by
+    rintro _ rfl j' h
+    rw [eq_of_heq h]
+  apply AffineEquiv.ext
+  intro x
+  show (S.σ ^ (a + 1)).symm
+      ((S.nativeTile A (a + 1) (certificate_child_equations_snoc A a w i)).frame x) =
+    (S.σ ^ a).symm ((S.nativeTile A a w).frame
+      (S.σ.symm ((S.child (S.nativeTile A a w).ty i).frame x)))
+  rw [hN]
+  show (S.σ ^ (a + 1)).symm ((S.descendantNode A 1 a w).frame (S.placeChild 0 j x)) = _
+  have h0 : S.placeChild 0 j x = (S.child (S.nativeTile A a w).ty i).frame x := by
+    have := certificate_child_equations_place_scaled (S := S) 0 j x
+    simp only [pow_zero, LinearEquiv.coe_one, id_eq] at this
+    rw [this, hchild _ hT j hij]
+  rw [h0]
+  set y := (S.child (S.nativeTile A a w).ty i).frame x
+  have h1 := certificate_child_equations_desc_scaled A 1 a w (S.σ.symm y)
+  rw [pow_one, LinearEquiv.apply_symm_apply] at h1
+  rw [h1, LinearEquiv.symm_apply_eq, pow_succ', LinearEquiv.mul_apply,
+    LinearEquiv.apply_symm_apply]
+
+/-- Q11, V4 2.7: equality of hierarchy nodes from heights and framed nodes. -/
+private theorem certificate_child_equations_node_ext (U : HonestSource S) (n m : ℕ)
+    (x : {N // N ∈ U.hierarchy.nodes n}) (y : {N // N ∈ U.hierarchy.nodes m})
+    (hnm : n = m) (hxy : x.val = y.val) : (⟨n, x⟩ : U.Node) = ⟨m, y⟩ := by
+  obtain ⟨x, hx⟩ := x
+  obtain ⟨y, hy⟩ := y
+  subst hnm
+  dsimp only at hxy
+  subst hxy
+  rfl
+
 /-- Q11, V4 2.7 (S-table): every honest table obeys the deterministic child equation.
 The role-word constructors are the original typed `S.RoleWord` constructors. -/
 theorem certificate_child_equations (P : Params S) (D : Certificate P)
@@ -1420,7 +1545,31 @@ theorem certificate_child_equations (P : Params S) (D : Certificate P)
           (prototypeDescendantFrame D.ty a w) ∧
       D.table (a + 1) ha w' =
         childMap P (D.table a (by omega) w) ⟨(S.nativeTile D.ty a w).ty, i⟩ := by
-  sorry
+  obtain ⟨U, B, hB, rfl⟩ := hD
+  refine ⟨certificate_child_equations_snoc _ a w i,
+    certificate_child_equations_frame _ a w i, ?_⟩
+  let q : U.Node := ⟨P.K, ⟨B, hB⟩⟩
+  let N := U.descendant q a (by show a ≤ P.K; omega) w
+  have hN : 1 ≤ N.1 := by show 1 ≤ P.K - a; omega
+  have hty : N.2.val.ty = (S.nativeTile B.ty a w).ty := U.descendant_type q a _ w
+  let j : S.I N.2.val.ty := cast (congrArg S.I hty.symm) i
+  have hij : HEq i j := (cast_heq _ _).symm
+  have hrole : (⟨N.2.val.ty, j⟩ : S.Role) = ⟨(S.nativeTile B.ty a w).ty, i⟩ :=
+    Sigma.ext hty hij.symm
+  have hchild : U.descendant q (a + 1) ha (certificate_child_equations_snoc B.ty a w i) =
+      U.childNode N hN j := by
+    apply certificate_child_equations_node_ext
+    · show P.K - (a + 1) = P.K - a - 1
+      omega
+    · show (S.descendantNode B.ty (P.K - (a + 1)) (a + 1)
+          (certificate_child_equations_snoc B.ty a w i)).move B.frame =
+        ((S.descendantNode B.ty (P.K - a) a w).move B.frame).child (P.K - a - 1) j
+      rw [certificate_child_equations_desc_snoc B.ty (P.K - (a + 1)) a w i (P.K - a)
+          (by omega) j hij,
+        certificate_child_equations_move_child, show P.K - (a + 1) = P.K - a - 1 by omega]
+  show stateOf U P (U.descendant q (a + 1) ha (certificate_child_equations_snoc B.ty a w i)) =
+    childMap P (stateOf U P N) ⟨(S.nativeTile B.ty a w).ty, i⟩
+  rw [← hrole, ← childMap_spec U P N hN j, hchild]
 
 /-- Q8/Q9, V4 8.1: the downward word is recoverable from the reconstructed head's
 upward address on the honest packet alphabet. It is not free auxiliary ancestry. -/

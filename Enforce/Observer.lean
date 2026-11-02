@@ -1897,7 +1897,13 @@ This is the list form of 4.4; repetitions of observer values remain repetitions.
 theorem floor_prescribed (Y : MarkedTiling (systemM S P C)) (hY : MProper Y)
     (q : FloorNode Y hY) (hq : 1 ≤ q.val.1 - P.H) :
     (floorChildren Y hY q).map (floorState Y hY) = universeD Y hY (floorState Y hY q) := by
-  sorry
+  have h_pos : P.H < q.val.1 := by omega
+  unfold floorChildren universeD
+  rw [dif_pos h_pos, List.map_map]
+  apply List.map_congr_left
+  intro i _
+  apply Subtype.ext
+  exact observer_transition Y hY q.val (by omega) i
 /-- O6, V4 4.6: the genuine forest used by C1, with no new choice of observers.
 Its states are the actual compressed readouts, with a finite-stateUniverse membership proof. -/
 def forest (Y : MarkedTiling (systemM S P C)) (hY : MProper Y) :

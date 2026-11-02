@@ -61,12 +61,254 @@ def IncidentChild (p : E d) (n : ℕ) (a : P.Incident p n)
     (b : P.Incident p (n + 1)) : Prop :=
   (P.native (n + 1) b.val).carrier 0 ⊆ S.σ '' (P.native n a.val).carrier 0
 
+/-- Step 1 of the V4 proof of `incident_parent_exists_unique` (V4 1.14, "native tiles of
+`σⁿΠ` are placed prototiles"): a ground carrier is the isometric image of its prototype. -/
+private theorem incident_parent_exists_unique_step1_carrier_zero (t : FramedNode S) :
+    t.carrier 0 = t.frame '' (S.proto t.ty).carrier := by
+  simp [FramedNode.carrier, placedSet, SubstSystem.supertile]
+
+/-- Step 1 of the V4 proof of `incident_parent_exists_unique` (V4 1.14, Lemma 1.10 frames):
+conjugated frames intertwine successive expansions. -/
+private theorem incident_parent_exists_unique_step1_conjugate_succ
+    (R : E d ≃ₗ[ℝ] E d) (n : ℕ) (x : E d) :
+    linearConj S.σ ((n + 1 : ℕ) : ℤ) R (S.σ x) =
+      S.σ (linearConj S.σ (n : ℤ) R x) := by
+  have heq : linearConj S.σ ((n + 1 : ℕ) : ℤ) R * S.σ =
+      S.σ * linearConj S.σ (n : ℤ) R := by
+    simp only [linearConj, Nat.cast_add, Nat.cast_one]
+    group
+  exact congrArg (fun L : E d ≃ₗ[ℝ] E d => L x) heq
+
+/-- Step 1 of the V4 proof of `incident_parent_exists_unique` (V4 1.14, Lemma 1.10 frames):
+the prescribed role frame has the same covariance. -/
+private theorem incident_parent_exists_unique_step1_placeChild_succ
+    {A : S.ι} (i : S.I A) (n : ℕ) (x : E d) :
+    S.placeChild (n + 1) i (S.σ x) = S.σ (S.placeChild n i x) := by
+  rw [S.placeChild_apply, S.placeChild_apply,
+    incident_parent_exists_unique_step1_conjugate_succ, map_add, pow_succ']
+  rfl
+
+/-- Step 1 of the V4 proof of `incident_parent_exists_unique` (V4 1.14, Lemma 1.10 frames):
+at height zero the role frame is the prescribed child frame. -/
+private theorem incident_parent_exists_unique_step1_placeChild_zero
+    {A : S.ι} (i : S.I A) : S.placeChild 0 i = (S.child A i).frame := by
+  apply AffineIsometryEquiv.ext
+  intro x
+  change linearConj S.σ (0 : ℤ) (S.child A i).rotation.toLinearEquiv x +
+      (S.σ ^ 0) (S.child A i).offset =
+    (S.child A i).rotation x + (S.child A i).offset
+  simp [linearConj]
+
+/-- Step 1 of the V4 proof of `incident_parent_exists_unique` (V4 1.14, "split the finer
+address"): a role word of length `n + 1` is a role word of length `n` followed by one
+child role of its native tile, and the native tile of the longer word is that child
+of the expanded shorter native tile. -/
+private theorem incident_parent_exists_unique_step1_split (A : S.ι) (n : ℕ)
+    (w : S.RoleWord A (n + 1)) :
+    ∃ (v : S.RoleWord A n) (i : S.I (S.nativeTile A n v).ty),
+      (S.nativeTile A (n + 1) w).ty = (S.child (S.nativeTile A n v).ty i).ty ∧
+      ∀ x, (S.nativeTile A (n + 1) w).frame x =
+        S.σ ((S.nativeTile A n v).frame
+          (S.σ.symm ((S.child (S.nativeTile A n v).ty i).frame x))) := by
+  induction n generalizing A with
+  | zero =>
+    refine ⟨(), w.1, rfl, fun x => ?_⟩
+    change S.placeChild 0 w.1 x = S.σ (S.σ.symm ((S.child A w.1).frame x))
+    rw [S.σ.apply_symm_apply, incident_parent_exists_unique_step1_placeChild_zero]
+  | succ n ih =>
+    obtain ⟨v, i, hty, hfr⟩ := ih (S.child A w.1).ty w.2
+    refine ⟨⟨w.1, v⟩, i, hty, fun x => ?_⟩
+    change S.placeChild (0 + (n + 1)) w.1
+        ((S.nativeTile (S.child A w.1).ty (n + 1) w.2).frame x) =
+      S.σ (S.placeChild (0 + n) w.1 ((S.nativeTile (S.child A w.1).ty n v).frame
+        (S.σ.symm ((S.child (S.nativeTile (S.child A w.1).ty n v).ty i).frame x))))
+    rw [Nat.zero_add, Nat.zero_add, hfr, incident_parent_exists_unique_step1_placeChild_succ]
+
+/-- Step 2 of the V4 proof of `incident_parent_exists_unique` (V4 1.14, Lemma 1.10):
+the patch's specified ground frame obeys the same covariance under expansion. -/
+private theorem incident_parent_exists_unique_step2_inflated_frame_succ
+    (t : FramedNode S) (ht : t.frame.linearIsometryEquiv ∈ S.rotGroup)
+    (n : ℕ) (x : E d) :
+    compatibleInflatedFrame t ht (n + 1) (S.σ x) =
+      S.σ (compatibleInflatedFrame t ht n x) := by
+  have hQ (n : ℕ) (x : E d) :
+      (Classical.choose (S.rotGroup_conj_zpow (n : ℤ)
+        t.frame.linearIsometryEquiv ht)) x =
+      linearConj S.σ (n : ℤ) t.frame.linearIsometryEquiv.toLinearEquiv x :=
+    congrArg (fun L : E d ≃ₗ[ℝ] E d => L x)
+      (Classical.choose_spec (S.rotGroup_conj_zpow (n : ℤ)
+        t.frame.linearIsometryEquiv ht)).2
+  change (Classical.choose (S.rotGroup_conj_zpow ((n + 1 : ℕ) : ℤ)
+      t.frame.linearIsometryEquiv ht)) (S.σ x) + (S.σ ^ (n + 1)) (t.frame 0) =
+    S.σ ((Classical.choose (S.rotGroup_conj_zpow (n : ℤ)
+      t.frame.linearIsometryEquiv ht)) x + (S.σ ^ n) (t.frame 0))
+  rw [hQ, hQ, incident_parent_exists_unique_step1_conjugate_succ, map_add, pow_succ']
+  rfl
+
+/-- Step 2 of the V4 proof of `incident_parent_exists_unique` (V4 1.14, "split the finer
+address to obtain a parent"): every depth-`n+1` address of `σⁿ⁺¹Π` is a child, of some
+role `i`, of a depth-`n` address, with the prescribed child frame. -/
+private theorem incident_parent_exists_unique_step2_native_split (n : ℕ)
+    (b : P.Address (n + 1)) :
+    ∃ (a : P.Address n) (i : S.I (P.native n a).ty),
+      (P.native (n + 1) b).ty = (S.child (P.native n a).ty i).ty ∧
+      ∀ x, (P.native (n + 1) b).frame x =
+        S.σ ((P.native n a).frame (S.σ.symm ((S.child (P.native n a).ty i).frame x))) := by
+  obtain ⟨v, i, hty, hfr⟩ := incident_parent_exists_unique_step1_split b.1.val.ty n b.2
+  refine ⟨⟨b.1, v⟩, i, hty, fun x => ?_⟩
+  change compatibleInflatedFrame b.1.val (P.compatible _ b.1.property) (n + 1)
+    ((S.nativeTile b.1.val.ty (n + 1) b.2).frame x) = _
+  rw [hfr, incident_parent_exists_unique_step2_inflated_frame_succ]
+  rfl
+
+/-- Step 3 of the V4 proof of `incident_parent_exists_unique` (V4 1.14, Proof: "the
+children of `t` cover `σ t`"): every native tile of `σⁿ⁺¹Π` lies in `σ t` for a
+native tile `t` of `σⁿΠ`. -/
+private theorem incident_parent_exists_unique_step3_child_subset (n : ℕ)
+    (b : P.Address (n + 1)) :
+    ∃ a : P.Address n, (P.native (n + 1) b).carrier 0 ⊆ S.σ '' (P.native n a).carrier 0 := by
+  obtain ⟨a, i, hty, hframe⟩ := incident_parent_exists_unique_step2_native_split P n b
+  refine ⟨a, ?_⟩
+  rw [incident_parent_exists_unique_step1_carrier_zero,
+    incident_parent_exists_unique_step1_carrier_zero, hty]
+  rintro z ⟨u, hu, rfl⟩
+  have hu' : (S.child (P.native n a).ty i).frame u ∈
+      S.σ '' (S.proto (P.native n a).ty).carrier := by
+    rw [S.children_cover]
+    exact Set.mem_iUnion.mpr ⟨i, ⟨u, hu, rfl⟩⟩
+  obtain ⟨v, hv, hvu⟩ := hu'
+  exact ⟨(P.native n a).frame v, Set.mem_image_of_mem _ hv,
+    by rw [hframe, ← hvu, S.σ.symm_apply_apply]⟩
+
+/-- Step 4 of the V4 proof of `incident_parent_exists_unique` (V4 1.14, "disjoint
+interiors"): a homeomorphism preserves disjointness of interiors. -/
+private theorem incident_parent_exists_unique_step4_disjoint_homeo (e : E d ≃ₜ E d)
+    {X Y : Set (E d)} (h : Disjoint (interior X) (interior Y)) :
+    Disjoint (interior (e '' X)) (interior (e '' Y)) := by
+  rw [← e.image_interior, ← e.image_interior]
+  exact (Set.disjoint_image_iff e.injective).2 h
+
+/-- Step 4 of the V4 proof of `incident_parent_exists_unique` (V4 1.14, "disjoint
+interiors"): a linear expansion preserves disjointness of interiors. -/
+private theorem incident_parent_exists_unique_step4_disjoint_linear (L : E d ≃ₗ[ℝ] E d)
+    {X Y : Set (E d)} (h : Disjoint (interior X) (interior Y)) :
+    Disjoint (interior (L '' X)) (interior (L '' Y)) :=
+  incident_parent_exists_unique_step4_disjoint_homeo L.toContinuousLinearEquiv.toHomeomorph h
+
+/-- Step 4 of the V4 proof of `incident_parent_exists_unique` (V4 1.14, "disjoint
+interiors"): an isometry preserves disjointness of interiors. -/
+private theorem incident_parent_exists_unique_step4_disjoint_iso (g : Iso d)
+    {X Y : Set (E d)} (h : Disjoint (interior X) (interior Y)) :
+    Disjoint (interior (g '' X)) (interior (g '' Y)) :=
+  incident_parent_exists_unique_step4_disjoint_homeo g.toHomeomorph h
+
+/-- Step 4 of the V4 proof of `incident_parent_exists_unique` (V4 1.14, Lemma 1.10 frames):
+the inflated patch frame intertwines `σⁿ` with the original ground frame. -/
+private theorem incident_parent_exists_unique_step4_inflated_pow (t : FramedNode S)
+    (ht : t.frame.linearIsometryEquiv ∈ S.rotGroup) (n : ℕ) (x : E d) :
+    compatibleInflatedFrame t ht n ((S.σ ^ n) x) = (S.σ ^ n) (t.frame x) := by
+  induction n with
+  | zero =>
+    have hQ : (Classical.choose (S.rotGroup_conj_zpow ((0 : ℕ) : ℤ)
+        t.frame.linearIsometryEquiv ht)) x =
+        linearConj S.σ ((0 : ℕ) : ℤ) t.frame.linearIsometryEquiv.toLinearEquiv x :=
+      congrArg (fun L : E d ≃ₗ[ℝ] E d => L x)
+        (Classical.choose_spec (S.rotGroup_conj_zpow ((0 : ℕ) : ℤ)
+          t.frame.linearIsometryEquiv ht)).2
+    have hv := t.frame.map_vadd 0 x
+    simp only [vadd_eq_add, add_zero] at hv
+    change (Classical.choose (S.rotGroup_conj_zpow ((0 : ℕ) : ℤ)
+      t.frame.linearIsometryEquiv ht)) ((S.σ ^ 0) x) + (S.σ ^ 0) (t.frame 0) =
+        (S.σ ^ 0) (t.frame x)
+    simp only [pow_zero, LinearEquiv.coe_one, id_eq]
+    rw [hQ, hv]
+    simp [linearConj]
+  | succ n ih =>
+    rw [pow_succ', LinearEquiv.mul_apply, LinearEquiv.mul_apply,
+      incident_parent_exists_unique_step2_inflated_frame_succ, ih]
+
+/-- Step 4 of the V4 proof of `incident_parent_exists_unique` (V4 1.14): a native tile of
+`σⁿΠ` lies in the inflation `σⁿ t` of its patch tile. -/
+private theorem incident_parent_exists_unique_step4_native_subset (n : ℕ) (a : P.Address n) :
+    (P.native n a).carrier 0 ⊆ (S.σ ^ n) '' a.1.val.carrier 0 := by
+  rw [incident_parent_exists_unique_step1_carrier_zero,
+    incident_parent_exists_unique_step1_carrier_zero]
+  have hc : (S.nativeTile a.1.val.ty n a.2).frame ''
+      (S.proto (S.nativeTile a.1.val.ty n a.2).ty).carrier ⊆
+      (S.σ ^ n) '' (S.proto a.1.val.ty).carrier := by
+    rw [← incident_parent_exists_unique_step1_carrier_zero]
+    have := S.native_cover a.1.val.ty n
+    change _ ⊆ S.supertile n _
+    rw [← this]
+    exact Set.subset_iUnion (fun w => (S.nativeTile a.1.val.ty n w).carrier 0) a.2
+  change (compatibleInflatedFrame a.1.val (P.compatible a.1.val a.1.property) n) ∘
+    (S.nativeTile a.1.val.ty n a.2).frame '' _ ⊆ _
+  rw [Set.image_comp]
+  refine (Set.image_mono hc).trans ?_
+  rintro z ⟨y, ⟨x, hx, rfl⟩, rfl⟩
+  exact ⟨a.1.val.frame x, ⟨x, hx, rfl⟩,
+    (incident_parent_exists_unique_step4_inflated_pow a.1.val _ n x).symm⟩
+
+/-- Step 4 of the V4 proof of `incident_parent_exists_unique` (V4 1.14, with Lemma 1.10):
+the native tiles of `σⁿΠ` are "placed prototiles with disjoint interiors": distinct
+depth-`n` addresses give native tiles with disjoint interiors. -/
+private theorem incident_parent_exists_unique_step4_native_disjoint (n : ℕ) :
+    Pairwise (fun a b : P.Address n => Disjoint
+      (interior ((P.native n a).carrier 0)) (interior ((P.native n b).carrier 0))) := by
+  rintro ⟨⟨t, ht⟩, w⟩ ⟨⟨t', ht'⟩, w'⟩ hne
+  by_cases htt : t = t'
+  · subst htt
+    have hw : w ≠ w' := fun h => hne (h ▸ rfl)
+    have himg : ∀ u : S.RoleWord t.ty n,
+        (P.native n ⟨⟨t, ht⟩, u⟩).carrier 0 =
+          compatibleInflatedFrame t (P.compatible t ht) n ''
+            (S.nativeTile t.ty n u).carrier 0 := by
+      intro u
+      change (compatibleInflatedFrame t (P.compatible t ht) n) ∘
+        (S.nativeTile t.ty n u).frame '' S.supertile 0 (S.nativeTile t.ty n u).ty = _
+      rw [Set.image_comp]
+      rfl
+    rw [himg, himg]
+    exact incident_parent_exists_unique_step4_disjoint_iso _ (S.native_disjoint t.ty n hw)
+  · have h := P.disjoint ht ht' htt
+    simp only [Function.onFun] at h
+    exact (incident_parent_exists_unique_step4_disjoint_linear (S.σ ^ n) h).mono
+      (interior_mono (incident_parent_exists_unique_step4_native_subset P n ⟨⟨t, ht⟩, w⟩))
+      (interior_mono (incident_parent_exists_unique_step4_native_subset P n ⟨⟨t', ht'⟩, w'⟩))
+
+/-- Step 5 of the V4 proof of `incident_parent_exists_unique` (V4 1.14, "nonempty tile
+interior"): every ground carrier of a framed node has nonempty interior. -/
+private theorem incident_parent_exists_unique_step5_interior_nonempty (t : FramedNode S) :
+    (interior (t.carrier 0)).Nonempty := by
+  have hi := t.frame.toHomeomorph.image_interior (S.proto t.ty).carrier
+  change t.frame '' interior (S.proto t.ty).carrier =
+    interior (t.frame '' (S.proto t.ty).carrier) at hi
+  rw [incident_parent_exists_unique_step1_carrier_zero, ← hi]
+  exact (S.proto t.ty).interior_nonempty.image _
+
 /-- P9, V4 1.14: every incident native tile has a unique incident parent.
 The original address prevents identifying distinct occurrences by a chosen frame. -/
 theorem incident_parent_exists_unique (p : E d) (n : ℕ)
     (b : P.Incident p (n + 1)) :
     ∃! a : P.Incident p n, P.IncidentChild p n a b := by
-  sorry
+  obtain ⟨a, ha⟩ := incident_parent_exists_unique_step3_child_subset P n b.val
+  have hpa : (S.σ ^ n) p ∈ (P.native n a).carrier 0 := by
+    obtain ⟨y, hy, hyp⟩ := ha b.property
+    have hy' : y = (S.σ ^ n) p := by
+      apply S.σ.injective
+      rw [hyp, pow_succ']
+      rfl
+    exact hy' ▸ hy
+  refine ⟨⟨a, hpa⟩, ha, ?_⟩
+  intro a' ha'
+  have ha'' : (P.native (n + 1) b.val).carrier 0 ⊆ S.σ '' (P.native n a'.val).carrier 0 := ha'
+  apply Subtype.ext
+  by_contra hne
+  obtain ⟨x, hx⟩ := incident_parent_exists_unique_step5_interior_nonempty
+    (P.native (n + 1) b.val)
+  have hd := incident_parent_exists_unique_step4_disjoint_linear S.σ
+    (incident_parent_exists_unique_step4_native_disjoint P n hne)
+  exact Set.disjoint_left.mp hd (interior_mono ha'' hx) (interior_mono ha hx)
 
 /-- P9, V4 1.14: the incident-forest parent chosen from unique existence. -/
 def incidentParent (p : E d) (n : ℕ) (b : P.Incident p (n + 1)) : P.Incident p n :=

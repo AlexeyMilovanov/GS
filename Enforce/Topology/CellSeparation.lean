@@ -502,6 +502,299 @@ theorem nullhomotopic_union_cell (k n : ℕ) (hkn : k + 2 ≤ n) (Y₀ : Set (E 
     (hf : (restrictUnionLeft Y₀ (range θ) f).Nullhomotopic) : f.Nullhomotopic := by
   sorry
 
+/-- Step 1 of the V4 proof of `isPreconnected_diff_cell` (V4 CS14, step 1 / CS14b): `U` is
+path connected; a path from `a` to `b` in `U`, cut just before it first reaches `b`, joins `a`
+inside `U \ {b}` to points arbitrarily close to `b`. -/
+private lemma isPreconnected_diff_cell_step1_path_escape (n : ℕ) (U : Set (E n))
+    (hUo : IsOpen U) (hUc : IsConnected U) (a b : E n) (ha : a ∈ U) (hb : b ∈ U)
+    (hab : a ≠ b) (δ : ℝ) (hδ : 0 < δ) :
+    ∃ c, JoinedIn (U \ {b}) a c ∧ dist c b < δ := by
+  obtain ⟨γ, hγ⟩ := ((hUo.isConnected_iff_isPathConnected).mp hUc).joinedIn a ha b hb
+  let f : ℝ → E n := γ.extend
+  have hf : Continuous f := γ.continuous_extend
+  let T : Set ℝ := Icc 0 1 ∩ f ⁻¹' {b}
+  have hTc : IsClosed T := isClosed_Icc.inter (isClosed_singleton.preimage hf)
+  have hTne : T.Nonempty := ⟨1, ⟨by norm_num, by norm_num⟩, by simp [f]⟩
+  have hTbdd : BddBelow T := ⟨0, fun t ht => ht.1.1⟩
+  have ht₀T : sInf T ∈ T := hTc.csInf_mem hTne hTbdd
+  have hlt : ∀ t, 0 ≤ t → t < sInf T → f t ≠ b := by
+    intro t ht0 htt hfb
+    have : sInf T ≤ t := csInf_le hTbdd ⟨⟨ht0, by linarith [ht₀T.1.2]⟩, hfb⟩
+    linarith
+  have hfb : f (sInf T) = b := ht₀T.2
+  have ht₀pos : 0 < sInf T := by
+    rcases ht₀T.1.1.lt_or_eq with h | h
+    · exact h
+    · exfalso
+      rw [← h] at hfb
+      simp [f] at hfb
+      exact hab hfb
+  have htend : Filter.Tendsto f (nhdsWithin (sInf T) (Iio (sInf T))) (nhds b) := by
+    rw [← hfb]; exact hf.continuousAt.tendsto.mono_left nhdsWithin_le_nhds
+  have hev : ∀ᶠ t in nhdsWithin (sInf T) (Iio (sInf T)),
+      f t ∈ ball b δ ∧ t ∈ Ioo 0 (sInf T) :=
+    (htend.eventually (ball_mem_nhds b hδ)).and (Ioo_mem_nhdsLT ht₀pos)
+  obtain ⟨t₁, hft₁, ht₁⟩ := hev.exists
+  refine ⟨f t₁, ?_, hft₁⟩
+  refine ⟨⟨⟨fun s => f ((s : ℝ) * t₁),
+    hf.comp (continuous_subtype_val.mul continuous_const)⟩, ?_, ?_⟩, ?_⟩
+  · simp [f]
+  · simp [f]
+  · intro s
+    have hs0 : 0 ≤ (s : ℝ) * t₁ := mul_nonneg s.2.1 ht₁.1.le
+    have hs1 : (s : ℝ) * t₁ ≤ t₁ := by
+      have := s.2.2
+      nlinarith [ht₁.1]
+    have hsI : (s : ℝ) * t₁ ∈ Icc (0 : ℝ) 1 := ⟨hs0, by linarith [ht₁.2, ht₀T.1.2]⟩
+    refine ⟨?_, ?_⟩
+    · change f ((s : ℝ) * t₁) ∈ U
+      simp only [f]
+      rw [γ.extend_apply hsI]
+      exact hγ _
+    · exact hlt _ hs0 (by linarith [ht₁.2])
+
+/-- Step 2 of the V4 proof of `isPreconnected_diff_cell` (V4 CS14, step 1): with
+`J := inversion b 1` and `Y₀ := J '' Uᶜ ∪ {b}`, the radial map from `J a` on `Y₀` is
+nullhomotopic (CS5): the path of step 1 is carried by `J` into `Y₀ᶜ` from `J a` to a point of
+arbitrarily large norm. -/
+private lemma isPreconnected_diff_cell_step2_Y0_nullhomotopic (n : ℕ) (hn : 1 ≤ n)
+    (U : Set (E n)) (hUo : IsOpen U) (hUc : IsConnected U) (a b : E n) (ha : a ∈ U)
+    (hb : b ∈ U) (hab : a ≠ b)
+    (ha' : EuclideanGeometry.inversion b (1 : ℝ) a ∉
+      insert b (EuclideanGeometry.inversion b (1 : ℝ) '' Uᶜ)) :
+    (radialMap n (EuclideanGeometry.inversion b (1 : ℝ) a)
+      (insert b (EuclideanGeometry.inversion b (1 : ℝ) '' Uᶜ)) ha').Nullhomotopic := by
+  set J := EuclideanGeometry.inversion b (1 : ℝ) with hJ
+  have hY₀ : IsCompact (insert b (J '' Uᶜ)) :=
+    isCompact_inversion_image_insert n b Uᶜ hUo.isClosed_compl (fun h => h hb)
+  obtain ⟨M, hM⟩ := hY₀.isBounded.subset_closedBall (0 : E n)
+  set K : ℝ := max M 0 + ‖b‖ + 1 with hK
+  have hM0 : M ≤ max M 0 := le_max_left _ _
+  have hM0' : 0 ≤ max M 0 := le_max_right _ _
+  have hKpos : 0 < K := by have := norm_nonneg b; linarith
+  obtain ⟨c, hjoin, hcb⟩ :=
+    isPreconnected_diff_cell_step1_path_escape n U hUo hUc a b ha hb hab (1 / K)
+      (one_div_pos.mpr hKpos)
+  have hcU : c ∈ U \ {b} := hjoin.target_mem
+  have hcb0 : 0 < dist c b := dist_pos.mpr hcU.2
+  refine radialMap_nullhomotopic_of_escape n hn _ M hM _ ha' ⟨J c, ?_, ?_⟩
+  · have h1 : JoinedIn (J '' (U \ {b})) (J a) (J c) :=
+      hjoin.map_continuousOn ((continuousOn_inversion n b).mono fun x hx => hx.2)
+    have hcompl : J '' (U \ {b}) = (insert b (J '' Uᶜ))ᶜ := by
+      rw [← inversion_image_compl n b U hb, union_singleton]
+    exact h1.mono hcompl.subset
+  · have hdist : dist (J c) b = 1 / dist c b := by
+      rw [hJ, EuclideanGeometry.dist_inversion_center]; norm_num
+    have hbig : K < 1 / dist c b := by
+      rw [lt_div_iff₀ hcb0]
+      have := (lt_div_iff₀ hKpos).mp hcb
+      linarith
+    have htri : dist (J c) b ≤ ‖J c‖ + ‖b‖ := by
+      calc dist (J c) b ≤ dist (J c) 0 + dist 0 b := dist_triangle _ _ _
+        _ = ‖J c‖ + ‖b‖ := by rw [dist_zero_right, dist_comm, dist_zero_right]
+    linarith
+
+/-- Step 3 of the V4 proof of `isPreconnected_diff_cell` (V4 CS14, step 3 / CS14c): for a
+separation `U \ D ⊆ A ∪ B` by disjoint open sets with `b ∈ B` and `J := inversion b 1`,
+`E n = J '' A ⊔ J '' (B \ {b}) ⊔ (J '' Uᶜ ∪ {b} ∪ J '' D)`, hence
+`frontier (J '' A) ⊆ J '' Uᶜ ∪ {b} ∪ J '' D`. -/
+private lemma isPreconnected_diff_cell_step3_frontier_subset (n : ℕ) (U D A B : Set (E n))
+    (b : E n) (hA : IsOpen A) (hB : IsOpen B) (hAB : Disjoint A B) (hcov : U \ D ⊆ A ∪ B)
+    (hbB : b ∈ B) :
+    frontier (EuclideanGeometry.inversion b (1 : ℝ) '' A) ⊆
+      insert b (EuclideanGeometry.inversion b (1 : ℝ) '' Uᶜ) ∪
+        EuclideanGeometry.inversion b (1 : ℝ) '' D := by
+  set J := EuclideanGeometry.inversion b (1 : ℝ) with hJ
+  have hJinv : Function.Involutive J := EuclideanGeometry.inversion_involutive b one_ne_zero
+  have hJb : J b = b := EuclideanGeometry.inversion_self b 1
+  have hbA : b ∉ A := fun h => hAB.notMem_of_mem_right hbB h
+  have hOA : IsOpen (J '' A) := isOpen_inversion_image n b A hA hbA
+  have hOB : IsOpen (J '' (B \ {b})) :=
+    isOpen_inversion_image n b (B \ {b}) (hB.sdiff isClosed_singleton) (fun h => h.2 rfl)
+  intro z hz
+  rw [hOA.frontier_eq] at hz
+  obtain ⟨hzc, hzA⟩ := hz
+  by_contra hzY
+  have hzb : z ≠ b := fun h => hzY (Or.inl (Or.inl h))
+  have hwz : J (J z) = z := hJinv z
+  have hwU : J z ∈ U := by
+    by_contra h
+    exact hzY (Or.inl (Or.inr ⟨J z, h, hwz⟩))
+  have hwD : J z ∉ D := fun h => hzY (Or.inr ⟨J z, h, hwz⟩)
+  rcases hcov ⟨hwU, hwD⟩ with hwA | hwB
+  · exact hzA ⟨J z, hwA, hwz⟩
+  · have hwb : J z ≠ b := by
+      intro h
+      apply hzb
+      rw [← hwz, h, hJb]
+    have hzB : z ∈ J '' (B \ {b}) := ⟨J z, ⟨hwB, hwb⟩, hwz⟩
+    obtain ⟨y, ⟨p, ⟨hpB, -⟩, rfl⟩, ⟨q, hqA, hq⟩⟩ :=
+      mem_closure_iff.mp hzc _ hOB hzB
+    have hpq : q = p := hJinv.injective hq
+    subst hpq
+    exact hAB.notMem_of_mem_right hpB hqA
+
+/-- Step 4 of the V4 proof of `isPreconnected_diff_cell` (V4 CS14, steps 3–4 / CS14d): if `O`
+is open and bounded, `a ∈ O`, and the radial map from `a` on `frontier O` is nullhomotopic, then
+Borsuk's extension (CS10) over `closure O`, pasted with the radial map on `Oᶜ`, gives a
+retraction of a large ball onto its boundary sphere, contradicting Brouwer (CS11). -/
+private lemma isPreconnected_diff_cell_step4_retraction (n : ℕ)
+    (hB : ∀ F : E n → E n, ContinuousOn F (closedBall 0 1) →
+      MapsTo F (closedBall 0 1) (closedBall 0 1) →
+      ∃ x ∈ closedBall (0 : E n) 1, F x = x)
+    (O : Set (E n)) (hO : IsOpen O) (hbdd : Bornology.IsBounded O) (a : E n) (ha : a ∈ O)
+    (hfr : a ∉ frontier O) (hnull : (radialMap n a (frontier O) hfr).Nullhomotopic) :
+    False := by
+  classical
+  have hX : IsCompact (closure O) := hbdd.isCompact_closure
+  obtain ⟨g, hg⟩ := exists_extension_of_nullhomotopic n (closure O) (frontier O) hX
+    isClosed_frontier frontier_subset_closure (radialMap n a (frontier O) hfr) hnull
+  obtain ⟨R₀, hR₀⟩ := hbdd.closure.subset_closedBall a
+  set R : ℝ := max R₀ 0 + 1 with hR
+  have hR₀' : R₀ ≤ max R₀ 0 := le_max_left _ _
+  have hRpos : 0 < R := by have := le_max_right R₀ 0; linarith
+  have hfar : ∀ z ∈ sphere a R, z ∉ closure O := by
+    intro z hz hzO
+    have h1 := hR₀ hzO
+    rw [mem_closedBall] at h1
+    rw [mem_sphere] at hz
+    linarith
+  let f₁ : E n → E n := fun z => if h : z ∈ closure O then (g ⟨z, h⟩ : E n) else 0
+  let f₂ : E n → E n := fun z => ‖z - a‖⁻¹ • (z - a)
+  let G : E n → E n := O.piecewise f₁ f₂
+  have hf₁ : ContinuousOn f₁ (closure O) := by
+    rw [continuousOn_iff_continuous_restrict]
+    have : (closure O).restrict f₁ = fun z => (g z : E n) := by
+      funext z
+      simp [Set.restrict, f₁, z.2]
+    rw [this]
+    exact continuous_subtype_val.comp g.continuous
+  have hne : ∀ z ∈ closure Oᶜ, z - a ≠ 0 := by
+    intro z hz h
+    rw [hO.isClosed_compl.closure_eq] at hz
+    exact hz (sub_eq_zero.mp h ▸ ha)
+  have hf₂ : ContinuousOn f₂ (closure Oᶜ) := by
+    have hsub : ContinuousOn (fun z : E n => z - a) (closure Oᶜ) :=
+      continuousOn_id.sub continuousOn_const
+    exact (hsub.norm.inv₀ fun z hz => norm_ne_zero_iff.mpr (hne z hz)).smul hsub
+  have hfr_eq : ∀ z ∈ frontier O, f₁ z = f₂ z := by
+    intro z hz
+    have hzc : z ∈ closure O := frontier_subset_closure hz
+    simp only [f₁, f₂, dif_pos hzc]
+    rw [hg z hz]
+    rfl
+  have hG : Continuous G := continuous_piecewise hfr_eq hf₁ hf₂
+  have hGnorm : ∀ z, ‖G z‖ = 1 := by
+    intro z
+    by_cases hz : z ∈ O
+    · have hzc : z ∈ closure O := subset_closure hz
+      simp only [G, piecewise_eq_of_mem _ _ _ hz, f₁, dif_pos hzc]
+      exact mem_sphere_zero_iff_norm.mp (g ⟨z, hzc⟩).2
+    · simp only [G, piecewise_eq_of_notMem _ _ _ hz, f₂]
+      have hza : z - a ≠ 0 := fun h => hz (sub_eq_zero.mp h ▸ ha)
+      rw [norm_smul, norm_inv, norm_norm, inv_mul_cancel₀ (norm_ne_zero_iff.mpr hza)]
+  let ρ : E n → E n := fun z => a + R • G z
+  have hρ : Continuous ρ := continuous_const.add (continuous_const.smul hG)
+  refine no_retraction_of_brouwer n hB a R hRpos ρ hρ.continuousOn ?_ ?_
+  · intro z _
+    rw [mem_sphere, dist_eq_norm]
+    simp only [ρ, add_sub_cancel_left, norm_smul, hGnorm, Real.norm_of_nonneg hRpos.le,
+      mul_one]
+  · intro z hz
+    have hzO : z ∉ O := fun h => hfar z hz (subset_closure h)
+    have hzR : ‖z - a‖ = R := by rw [← dist_eq_norm]; exact hz
+    simp only [ρ, G, piecewise_eq_of_notMem _ _ _ hzO, f₂, hzR, smul_smul,
+      mul_inv_cancel₀ hRpos.ne', one_smul, add_sub_cancel]
+
+/-- Step 5 of the V4 proof of `isPreconnected_diff_cell` (V4 CS14, steps 1–4 assembled): a
+separation of `U \ range e` by disjoint open sets `A ∋ a`, `B ∋ b` is impossible. Invert about
+`b`; the radial map from `J a` is nullhomotopic on `Y₀` (step 2), hence on `Y₀ ∪ J '' range e`
+(CS13, the only use of `k + 2 ≤ n`), hence on `frontier (J '' A)` (step 3); step 4 concludes. -/
+private lemma isPreconnected_diff_cell_step5_core (k n : ℕ)
+    (hB : ∀ F : E n → E n, ContinuousOn F (closedBall 0 1) →
+      MapsTo F (closedBall 0 1) (closedBall 0 1) →
+      ∃ x ∈ closedBall (0 : E n) 1, F x = x)
+    (hkn : k + 2 ≤ n) (U : Set (E n)) (hUo : IsOpen U) (hUc : IsConnected U)
+    (e : C(↥(closedBall (0 : E k) 1), E n)) (he : Function.Injective e)
+    (he₁ : ∀ x : ↥(closedBall (0 : E k) 1), ‖(x : E k)‖ < 1 → e x ∈ U)
+    (he₂ : ∀ x : ↥(closedBall (0 : E k) 1), ‖(x : E k)‖ = 1 → e x ∉ U)
+    (A B : Set (E n)) (hA : IsOpen A) (hBo : IsOpen B) (hAB : Disjoint A B)
+    (hcov : U \ range e ⊆ A ∪ B) (a b : E n) (haA : a ∈ A) (hbB : b ∈ B)
+    (ha : a ∈ U \ range e) (hb : b ∈ U \ range e) : False := by
+  set J := EuclideanGeometry.inversion b (1 : ℝ) with hJ
+  have hJinv : Function.Involutive J := EuclideanGeometry.inversion_involutive b one_ne_zero
+  have hJb : J b = b := EuclideanGeometry.inversion_self b 1
+  have hab : a ≠ b := fun h => hAB.notMem_of_mem_right hbB (h ▸ haA)
+  have hbA : b ∉ A := fun h => hAB.notMem_of_mem_right hbB h
+  have hn : 1 ≤ n := by omega
+  have heb : ∀ x, e x ≠ b := fun x h => hb.2 ⟨x, h⟩
+  let θ : C(↥(closedBall (0 : E k) 1), E n) :=
+    ⟨fun x => J (e x), (continuousOn_inversion n b).comp_continuous e.continuous heb⟩
+  have hθrange : range θ = J '' range e := range_comp J e
+  set Y₀ := insert b (J '' Uᶜ) with hY₀def
+  have hY₀ : IsCompact Y₀ :=
+    isCompact_inversion_image_insert n b Uᶜ hUo.isClosed_compl (fun h => h hb.1)
+  have hθinj : Function.Injective θ := fun x y h => he (hJinv.injective h)
+  have hθ : range θ ∩ Y₀ = θ '' {y | ‖(y : E k)‖ = 1} := by
+    ext z
+    constructor
+    · rintro ⟨⟨y, rfl⟩, hzY⟩
+      refine ⟨y, ?_, rfl⟩
+      rcases hzY with h | ⟨w, hwU, hw⟩
+      · exfalso
+        apply heb y
+        have h' : J (e y) = b := h
+        rw [← hJinv (e y), h', hJb]
+      · have hwy : w = e y := hJinv.injective hw
+        have hle : ‖(y : E k)‖ ≤ 1 := mem_closedBall_zero_iff.mp y.2
+        refine le_antisymm hle (not_lt.mp fun hlt => hwU ?_)
+        rw [hwy]
+        exact he₁ y hlt
+    · rintro ⟨y, hy, rfl⟩
+      exact ⟨⟨y, rfl⟩, Or.inr ⟨e y, he₂ y hy, rfl⟩⟩
+  have ha'Y : J a ∉ Y₀ ∪ range θ := by
+    rintro ((h | ⟨w, hwU, hw⟩) | ⟨y, hy⟩)
+    · apply hab
+      have h' : J a = b := h
+      rw [← hJinv a, h', hJb]
+    · exact hwU (hJinv.injective hw ▸ ha.1)
+    · exact ha.2 ⟨y, hJinv.injective hy⟩
+  have ha'Y₀ : J a ∉ Y₀ := fun h => ha'Y (Or.inl h)
+  have hnull₀ : (restrictUnionLeft Y₀ (range θ)
+      (radialMap n (J a) (Y₀ ∪ range θ) ha'Y)).Nullhomotopic := by
+    have : restrictUnionLeft Y₀ (range θ) (radialMap n (J a) (Y₀ ∪ range θ) ha'Y) =
+        radialMap n (J a) Y₀ ha'Y₀ := by
+      ext y
+      rfl
+    rw [this]
+    exact isPreconnected_diff_cell_step2_Y0_nullhomotopic n hn U hUo hUc a b ha.1 hb.1 hab
+      ha'Y₀
+  have hnullY := nullhomotopic_union_cell k n hkn Y₀ hY₀ θ hθinj hθ _ hnull₀
+  have hOo : IsOpen (J '' A) := isOpen_inversion_image n b A hA hbA
+  obtain ⟨ε, hε, hεB⟩ := Metric.isOpen_iff.mp hBo b hbB
+  have hAε : A ∩ ball b ε = ∅ := by
+    ext x
+    simp only [mem_inter_iff, mem_empty_iff_false, iff_false, not_and]
+    intro hxA hxb
+    exact hAB.notMem_of_mem_right (hεB hxb) hxA
+  have hObdd : Bornology.IsBounded (J '' A) :=
+    isBounded_closedBall.subset (inversion_image_bounded n b A ε hε hAε)
+  have ha'O : J a ∈ J '' A := ⟨a, haA, rfl⟩
+  have hfrY : frontier (J '' A) ⊆ Y₀ ∪ range θ := by
+    rw [hθrange]
+    exact isPreconnected_diff_cell_step3_frontier_subset n U (range e) A B b hA hBo hAB hcov
+      hbB
+  have hfr : J a ∉ frontier (J '' A) := fun h => ha'Y (hfrY h)
+  have hnullF : (radialMap n (J a) (frontier (J '' A)) hfr).Nullhomotopic := by
+    have : radialMap n (J a) (frontier (J '' A)) hfr =
+        (radialMap n (J a) (Y₀ ∪ range θ) ha'Y).comp
+          ⟨inclusion hfrY, continuous_inclusion hfrY⟩ := by
+      ext y
+      rfl
+    rw [this]
+    exact hnullY.comp_left _
+  exact isPreconnected_diff_cell_step4_retraction n hB (J '' A) hOo hObdd (J a) ha'O hfr hnullF
+
 /-- CS14: Brouwer for the closed unit ball, `k + 2 ≤ n`, `U ⊆ E n` open connected,
 `e` a continuous injective closed `k`-cell with its open ball in `U` and its boundary
 sphere outside `U` ⇒ `IsPreconnected (U \ range e)` (Theorem T). -/
@@ -514,7 +807,22 @@ theorem isPreconnected_diff_cell (k n : ℕ)
     (he₁ : ∀ x : ↥(closedBall (0 : E k) 1), ‖(x : E k)‖ < 1 → e x ∈ U)
     (he₂ : ∀ x : ↥(closedBall (0 : E k) 1), ‖(x : E k)‖ = 1 → e x ∉ U) :
     IsPreconnected (U \ range e) := by
-  sorry
+  have hDc : IsClosed (range e) := (isCompact_range e.continuous).isClosed
+  have hSo : IsOpen (U \ range e) := hUo.sdiff hDc
+  intro u v hu hv hcov ⟨a, haS, hau⟩ ⟨b, hbS, hbv⟩
+  by_contra hne
+  rw [not_nonempty_iff_eq_empty] at hne
+  refine isPreconnected_diff_cell_step5_core k n hB hkn U hUo hUc e he he₁ he₂
+    ((U \ range e) ∩ u) ((U \ range e) ∩ v) (hSo.inter hu) (hSo.inter hv) ?_ ?_ a b
+    ⟨haS, hau⟩ ⟨hbS, hbv⟩ haS hbS
+  · rw [Set.disjoint_iff_inter_eq_empty, ← hne]
+    ext x
+    simp only [mem_inter_iff]
+    tauto
+  · intro x hx
+    rcases hcov hx with h | h
+    · exact Or.inl ⟨hx, h⟩
+    · exact Or.inr ⟨hx, h⟩
 
 end CellSeparation
 

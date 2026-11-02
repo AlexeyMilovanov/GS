@@ -10842,6 +10842,127 @@ private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two
   have hd : 2 ≤ d := Fact.out
   omega
 
+/-- Step 1 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets_step2_incidence_equiv_step1_f_to_t` (V4 1.25):
+"avoiding the `(d-2)`-skeleton". In a finite triangulation restricted to a
+regular closed flat cell, the simplices spanning the cell's affine hull cover
+the whole cell. The proper affine spans have dense open complements; density
+of the relative interior then extends the cover to the cell's boundary. -/
+private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets_step2_incidence_equiv_step1_f_to_t_step1_spanning_cover
+    (e : Cell d) (K : Geometry.SimplicialComplex ℝ (E d))
+    (hfin : K.faces.Finite)
+    (hcover : ∀ x ∈ e.carrier, ∃ t ∈ K.faces,
+      x ∈ convexHull ℝ (t : Set (E d)) ∧
+      convexHull ℝ (t : Set (E d)) ⊆ e.carrier) :
+    ∀ x ∈ e.carrier, ∃ t ∈ K.faces,
+      convexHull ℝ (t : Set (E d)) ⊆ e.carrier ∧
+      affineSpan ℝ (t : Set (E d)) = affineSpan ℝ e.carrier ∧
+      x ∈ convexHull ℝ (t : Set (E d)) := by
+  classical
+  let A := affineSpan ℝ e.carrier
+  obtain ⟨p, hp⟩ := e.flat.relint_nonempty
+  letI : Nonempty A := ⟨⟨p, subset_affineSpan ℝ _ (intrinsicInterior_subset hp)⟩⟩
+  letI : CompleteSpace A := A.closed_of_finiteDimensional.completeSpace_coe
+  let T : Set (Finset (E d)) :=
+    {t | t ∈ K.faces ∧ convexHull ℝ (t : Set (E d)) ⊆ e.carrier ∧
+      affineSpan ℝ (t : Set (E d)) = A}
+  let B : Set (Finset (E d)) :=
+    {t | t ∈ K.faces ∧ convexHull ℝ (t : Set (E d)) ⊆ e.carrier ∧
+      affineSpan ℝ (t : Set (E d)) ≠ A}
+  let U : Set (E d) := ⋃ t ∈ T, convexHull ℝ (t : Set (E d))
+  have hTfin : T.Finite := hfin.subset fun _ ht => ht.1
+  have hBfin : B.Finite := hfin.subset fun _ ht => ht.1
+  have hUc : IsClosed U :=
+    hTfin.isClosed_biUnion fun t _ => t.finite_toSet.isClosed_convexHull
+  let L (t : Finset (E d)) : AffineSubspace ℝ A :=
+    (affineSpan ℝ (t : Set (E d))).comap A.subtype
+  have hproper (t : Finset (E d)) (ht : t ∈ B) : L t ≠ ⊤ := by
+    intro htop
+    apply ht.2.2
+    apply le_antisymm
+    · exact affineSpan_le.mpr ((subset_convexHull ℝ _).trans
+        (ht.2.1.trans (subset_affineSpan ℝ _)))
+    · intro z hz
+      have hzL : (⟨z, hz⟩ : A) ∈ L t := by rw [htop]; trivial
+      exact hzL
+  have hLdense (t : Finset (E d)) (ht : t ∈ B) : Dense ((L t : Set A)ᶜ) := by
+    apply interior_eq_empty_iff_dense_compl.mp
+    apply Set.eq_empty_iff_forall_notMem.mpr
+    intro x hx
+    have htop := isOpen_interior.affineSpan_eq_top ⟨x, hx⟩
+    apply hproper t ht
+    apply top_unique
+    rw [← htop]
+    exact affineSpan_le.mpr interior_subset
+  have hdense : Dense (⋂ t ∈ B, (L t : Set A)ᶜ) :=
+    dense_biInter_of_isOpen (fun t _ => (L t).closed_of_finiteDimensional.isOpen_compl)
+      hBfin.countable hLdense
+  have hri : relint e.carrier ⊆ U := by
+    intro x hx
+    by_contra hxU
+    obtain ⟨xA, hxri, rfl⟩ := mem_intrinsicInterior.mp hx
+    let O : Set A := interior ((↑) ⁻¹' e.carrier : Set A) ∩ (↑) ⁻¹' Uᶜ
+    have hO : IsOpen O := isOpen_interior.inter
+      (hUc.isOpen_compl.preimage continuous_subtype_val)
+    have hOne : O.Nonempty := ⟨xA, hxri, hxU⟩
+    obtain ⟨y, hyO, hyavoid⟩ := hdense.inter_open_nonempty O hO hOne
+    have hye : y ∈ ((↑) ⁻¹' e.carrier : Set A) := interior_subset hyO.1
+    obtain ⟨t, ht, hyt, hte⟩ := hcover y hye
+    by_cases hspan : affineSpan ℝ (t : Set (E d)) = A
+    · exact hyO.2 (Set.mem_iUnion₂.mpr ⟨t, ⟨ht, hte, hspan⟩, hyt⟩)
+    · have hyL : y ∈ L t := convexHull_subset_affineSpan _ hyt
+      exact (Set.mem_iInter₂.mp hyavoid t ⟨ht, hte, hspan⟩) hyL
+  have heU : e.carrier ⊆ U := by
+    rw [← e.flat.regularClosed]
+    exact closure_minimal hri hUc
+  intro x hx
+  obtain ⟨t, ht, hxt⟩ := Set.mem_iUnion₂.mp (heU hx)
+  exact ⟨t, ht.1, ht.2.1, ht.2.2, hxt⟩
+
+/-- Step 2 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets_step2_incidence_equiv_step1_f_to_t` (V4 1.25):
+"near a boundary point the polyhedral boundary separates a small ball into two
+sides". Two simplices of the dimension of a flat cell, meeting exactly along
+a common ridge, form a neighborhood in its affine hull. If both simplices
+lie in the cell, a relative-interior point of the ridge is interior to the cell. -/
+private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets_step2_incidence_equiv_step1_f_to_t_step2_coplanar_pair
+    (e : Cell d) (hed : e.dim = d - 1)
+    (t u : Finset (E d))
+    (ht : AffineIndependent ℝ ((↑) : t → E d))
+    (hu : AffineIndependent ℝ ((↑) : u → E d))
+    (htc : t.card = d) (huc : u.card = d)
+    (htuc : (t ∩ u).card = d - 1)
+    (hinter : convexHull ℝ (t : Set (E d)) ∩ convexHull ℝ (u : Set (E d)) =
+      convexHull ℝ ((t ∩ u : Finset (E d)) : Set (E d)))
+    (hte : convexHull ℝ (t : Set (E d)) ⊆ e.carrier)
+    (hue : convexHull ℝ (u : Set (E d)) ⊆ e.carrier)
+    {p : E d}
+    (hp : p ∈ relint (convexHull ℝ ((t ∩ u : Finset (E d)) : Set (E d)))) :
+    p ∈ relint e.carrier := by
+  let A := affineSpan ℝ e.carrier
+  have hpA : p ∈ A := subset_affineSpan ℝ _
+    (hte (convexHull_mono Finset.inter_subset_left (intrinsicInterior_subset hp)))
+  letI : Nonempty A := ⟨⟨p, hpA⟩⟩
+  let L : A.direction ≃L[ℝ] E (d - 1) :=
+    (LinearEquiv.ofFinrankEq A.direction (E (d - 1)) (by
+      rw [finrank_euclideanSpace_fin]
+      exact e.flat.dimension.trans hed)).toContinuousLinearEquiv
+  let c : A ≃ₜ E (d - 1) :=
+    (AffineIsometryEquiv.constVSub ℝ (⟨p, hpA⟩ : A)).toHomeomorph.trans L.toHomeomorph
+  have hA : IsLocallyEuclidean (d - 1) (A : Set (E d)) := by
+    intro q
+    exact ⟨Set.univ, isOpen_univ, Set.mem_univ _, Set.univ, isOpen_univ,
+      ⟨(Homeomorph.Set.univ A).trans (c.trans (Homeomorph.Set.univ (E (d - 1))).symm)⟩⟩
+  obtain ⟨O, hO, hpO, hpair⟩ :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step7_pair_neighborhood
+      t u ht hu htc huc htuc hinter hA
+      (hte.trans (subset_affineSpan ℝ _)) (hue.trans (subset_affineSpan ℝ _)) hp
+  rw [relint, mem_intrinsicInterior]
+  refine ⟨⟨p, hpA⟩, ?_, rfl⟩
+  refine interior_maximal ?_ (hO.preimage continuous_subtype_val) hpO
+  intro y hy
+  rcases hpair ⟨y.property, hy⟩ with h | h
+  · exact hte h
+  · exact hue h
+
 /-- Step 1 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets_step2_incidence_equiv` (V4 1.25): incidence transfer from cell facets to simplex cofacets. -/
 private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets_step2_incidence_equiv_step1_f_to_t
     (D : PolyManifoldDomain d) (C : CellComplex D)
@@ -10860,7 +10981,52 @@ private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two
     (f : {f : Cell d | f ∈ C.cells ∧ f.dim = d - 1 ∧ g.carrier ⊆ f.carrier}) :
     ∃! t : {t ∈ K.facets | s ⊆ t},
       convexHull ℝ (t.val : Set (E d)) ⊆ f.val.carrier := by
-  sorry
+  classical
+  obtain ⟨p, hp⟩ := (intrinsicInterior_nonempty (convex_convexHull ℝ (s : Set (E d)))).mpr
+    (convexHull_nonempty_iff.mpr (K.nonempty_of_mem_faces hs))
+  obtain ⟨t, ht, htf, hspan, hpt⟩ :=
+    birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets_step2_incidence_equiv_step1_f_to_t_step1_spanning_cover
+      f.val K hfin (hcompat f.val f.property.1) p
+      (f.property.2.2 (hsg (intrinsicInterior_subset hp)))
+  have htc : t.card = d := by
+    have hcard :=
+      principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step6_simplex_cardinality
+        K t ht
+    rw [hspan] at hcard
+    have hdim := f.val.flat.dimension
+    have hfd := f.property.2.1
+    change Module.finrank ℝ (affineSpan ℝ f.val.carrier).direction = f.val.dim at hdim
+    have hd : 2 ≤ d := Fact.out
+    omega
+  obtain ⟨u, hu, htu⟩ :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step1_facet_extension
+      K hfin ht
+  have htu_eq : t = u := Finset.eq_of_subset_of_card_le htu (by rw [htc, hpure u hu])
+  have htfacet : t ∈ K.facets := htu_eq.symm ▸ hu
+  have hst : s ⊆ t :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step3_relint_incidence
+      K hs ht hp hpt
+  refine ⟨⟨t, htfacet, hst⟩, htf, ?_⟩
+  intro u huf
+  apply Subtype.ext
+  by_contra hne
+  have hinter :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step8_coface_intersection
+      u.property.2 hst hsc (hpure u.val u.property.1) htc hne
+  have hpinter : p ∈ relint (convexHull ℝ ((u.val ∩ t : Finset (E d)) : Set (E d))) := by
+    simpa only [hinter] using hp
+  have hpf : p ∈ relint f.val.carrier :=
+    birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets_step2_incidence_equiv_step1_f_to_t_step2_coplanar_pair
+      f.val f.property.2.1 u.val t (K.indep u.property.1.1) (K.indep ht)
+      (hpure u.val u.property.1) htc (by rw [hinter]; exact hsc)
+      (by simpa only [Finset.coe_inter] using K.convexHull_inter_convexHull u.property.1.1 ht)
+      huf htf hpinter
+  have hgf : g ≠ f.val := by
+    intro heq
+    have heqdim := congrArg Cell.dim heq
+    have hfd := f.property.2.1
+    omega
+  exact Set.disjoint_left.mp (C.relint_disjoint g hg f.val f.property.1 hgf) (hrel hp) hpf
 
 /-- Step 2 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets_step2_incidence_equiv` (V4 1.25): incidence transfer from simplex cofacets to cell facets. -/
 private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets_step2_incidence_equiv_step2_t_to_f

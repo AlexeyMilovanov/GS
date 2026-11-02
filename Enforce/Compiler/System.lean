@@ -289,7 +289,24 @@ private theorem eventColour_readout_step2_readout_disjoint (C : ClusterData S P)
     (z1 z2 : FramedNode S × LeafType P) (hz1 : z1 ∈ eventReadouts e) (hz2 : z2 ∈ eventReadouts e)
     (x : E d) (hx1 : x ∈ readoutRegion C z1) (hx2 : x ∈ readoutRegion C z2) :
     z1 = z2 := by
-  sorry
+  by_contra hne
+  have hz1t : z1 ∈ e.template.tiles := (Finset.mem_filter.mp hz1).1
+  have hz2t : z2 ∈ e.template.tiles := (Finset.mem_filter.mp hz2).1
+  -- each positioned readout ball lies in the interior of its placed native tile
+  have hinside : ∀ z ∈ e.template.tiles, readoutRegion C z ⊆ interior (z.1.carrier 0) := by
+    intro z hz y hy
+    obtain ⟨w, hw, rfl⟩ := hy
+    have hwi : w ∈ interior (S.proto z.1.ty).carrier := by
+      rw [e.template.types_match z hz]
+      exact C.enclosing_inside z.2 .readout hw
+    have hc : z.1.carrier 0 = z.1.frame.toHomeomorph '' (S.proto z.1.ty).carrier := by
+      change z.1.frame '' (⇑(S.σ ^ (0 : ℕ)) '' (S.proto z.1.ty).carrier) =
+        z.1.frame '' (S.proto z.1.ty).carrier
+      rw [pow_zero, LinearEquiv.coe_one, Set.image_id]
+    rw [hc, ← z.1.frame.toHomeomorph.image_interior]
+    exact ⟨w, hwi, rfl⟩
+  exact Set.disjoint_left.mp (e.template.disjoint hz1t hz2t hne)
+    (hinside z1 hz1t hx1) (hinside z2 hz2t hx2)
 
 /-- M3, V4 2.11: agreement with every other tile's whole closed readout ball. -/
 theorem eventColour_readout (C : ClusterData S P) (e : EventIndex S P)

@@ -189,7 +189,57 @@ theorem exists_direction_off_cone (m n : ℕ) (hmn : m + 1 ≤ n) (G : E m → E
 private lemma nullhomotopic_sphere_to_sphere_step1_approx (m n : ℕ)
     (g : C(↥(sphere (0 : E m) 1), ↥(sphere (0 : E n) 1))) :
     ∃ G : E m → E n, ContDiff ℝ 1 G ∧ ∀ y : ↥(sphere (0 : E m) 1), ‖(g y : E n) - G (y : E m)‖ < 1 := by
-  sorry
+  have h_closed : IsClosed (sphere (0 : E m) 1) := isClosed_sphere
+  let g' : C(↥(sphere (0 : E m) 1), E n) :=
+    ⟨fun x => (g x : E n), continuous_subtype_val.comp g.continuous⟩
+  obtain ⟨F, hF_ext⟩ := ContinuousMap.exists_restrict_eq h_closed g'
+  have hF_cont := F.continuous
+  have hF_eq : ∀ x : sphere (0 : E m) 1, F x = g' x := by
+    intro x
+    have := congrArg (fun h => (h : C(sphere (0 : E m) 1, E n)) x) hF_ext
+    exact this
+  let h : E m → ℝ := fun x => max 0 (2 - ‖x‖)
+  have h_cont : Continuous h := continuous_const.max (continuous_const.sub continuous_norm)
+  let f : E m → E n := fun x => h x • F x
+  have hf_cont : Continuous f := h_cont.smul hF_cont
+  have hf_eq : ∀ x : sphere (0 : E m) 1, f x = g x := by
+    intro x
+    have h_hx : h x = 1 := by
+      dsimp [h]
+      have : ‖(x : E m)‖ = 1 := by
+        have := x.2
+        rwa [mem_sphere_zero_iff_norm] at this
+      rw [this]
+      norm_num
+    change h (x : E m) • F (x : E m) = (g x : E n)
+    rw [h_hx, one_smul, hF_eq x]
+    rfl
+  have hf_supp : HasCompactSupport f := by
+    apply HasCompactSupport.of_support_subset_isCompact (isCompact_closedBall (0 : E m) 2)
+    intro x hx
+    contrapose hx
+    simp only [Function.support, mem_setOf_eq, not_not] at hx ⊢
+    have h_norm : 2 < ‖x‖ := by
+      rw [mem_closedBall, dist_zero_right] at hx
+      exact not_le.mp hx
+    have : h x = 0 := by
+      dsimp [h]
+      rw [max_eq_left]
+      linarith
+    change h x • F x = 0
+    rw [this, zero_smul]
+  have hf_unif : UniformContinuous f := hf_supp.uniformContinuous_of_continuous hf_cont
+  obtain ⟨G, hG_diff, hG_dist⟩ := UniformContinuous.exists_contDiff_dist_le hf_unif (by norm_num : (0 : ℝ) < 1)
+  use G
+  refine ⟨?_, ?_⟩
+  · exact hG_diff.of_le (by simp)
+  · intro y
+    have h1 : dist (G y) (f y) < 1 := hG_dist y
+    rw [hf_eq y] at h1
+    have h2 : ‖(g y : E n) - G y‖ = dist (G y) (g y) := by
+      rw [dist_eq_norm]
+      exact norm_sub_rev (g y : E n) (G y)
+    rwa [h2]
 
 /-- Step 2 of the V4 proof of `nullhomotopic_sphere_to_sphere`: homotopy missing a point. -/
 private lemma nullhomotopic_sphere_to_sphere_step2_homotopic (m n : ℕ)

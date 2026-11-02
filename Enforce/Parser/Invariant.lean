@@ -140,12 +140,102 @@ theorem inner_actual (m : ℕ) (N : FramedNode S) (hN : B.Contains m N) :
 def innerBlock (m : ℕ) (N : FramedNode S) (hN : B.Contains m N) : Block Y m :=
   ⟨N, B.inner_actual m N hN⟩
 
+/-- Step 1 of the V4 proof of `tiles_exact` (V4 §3.0): a physical tile is the
+height-zero carrier of its decoded framed native node. Only the realizing catalogue
+member is used; no rigidity of decoding is needed. -/
+private theorem tiles_exact_step1_tile_carrier (t : PlacedMarkedTile (systemM S P C)) :
+    t.carrier = (tileNode t).carrier 0 := by
+  have hc : t.carrier = placedSet t.placement t.prototype.val.carrier :=
+    (Classical.choose_spec (Classical.choose_spec t.realization).2).1
+  rw [hc, Compiler.decoration_carrier C t.prototype]
+  simp [tileNode, FramedNode.carrier, SubstSystem.supertile, compilerLeaf, compilerFrame]
+
+/-- Step 2 of the V4 proof of `tiles_exact` (V4 §3.0): the placed native leaves
+cover the block. -/
+private theorem tiles_exact_step2_leaves_cover :
+    (⋃ w : S.RoleWord B.node.ty n,
+      ((S.nativeTile B.node.ty n w).move B.node.frame).carrier 0) = B.carrier := by
+  have key : ∀ w : S.RoleWord B.node.ty n,
+      ((S.nativeTile B.node.ty n w).move B.node.frame).carrier 0 =
+        placedSet B.node.frame ((S.nativeTile B.node.ty n w).carrier 0) := by
+    intro w
+    simp only [FramedNode.carrier, FramedNode.move, placedSet, AffineIsometryEquiv.coe_trans,
+      Set.image_comp]
+  simp_rw [key]
+  show (⋃ w, placedSet B.node.frame _) = placedSet B.node.frame (S.supertile n B.node.ty)
+  rw [← S.native_cover]
+  simp only [placedSet, Set.image_iUnion]
+
+omit [Fact (2 ≤ d)] in
+/-- Step 3 of the V4 proof of `tiles_exact` (V4 §3.0): "pick one outside the
+(nowhere dense) union of all tile boundaries". A nonempty open set covered by finitely
+many closed carriers meets the interior of one of them. -/
+private theorem tiles_exact_step3_open_meets_interior {ι : Type} [Finite ι]
+    (f : ι → Set (E d)) (hc : ∀ i, IsClosed (f i)) (O : Set (E d)) (hO : IsOpen O)
+    (hne : O.Nonempty) (hsub : O ⊆ ⋃ i, f i) : ∃ i, (O ∩ interior (f i)).Nonempty := by
+  let g : Option ι → Set (E d) := fun o => o.elim Oᶜ f
+  have hgc : ∀ o, IsClosed (g o) := by
+    intro o
+    cases o with
+    | none => exact hO.isClosed_compl
+    | some i => exact hc i
+  have hgU : ⋃ o, g o = Set.univ := by
+    refine Set.eq_univ_of_forall fun y => ?_
+    by_cases hy : y ∈ O
+    · obtain ⟨i, hi⟩ := Set.mem_iUnion.mp (hsub hy)
+      exact Set.mem_iUnion.mpr ⟨some i, hi⟩
+    · exact Set.mem_iUnion.mpr ⟨none, hy⟩
+  have hd := dense_iUnion_interior_of_closed hgc hgU
+  obtain ⟨y, hyO, hy⟩ := hd.inter_open_nonempty O hO hne
+  obtain ⟨o, ho⟩ := Set.mem_iUnion.mp hy
+  cases o with
+  | none => exact absurd hyO (interior_subset ho)
+  | some i => exact ⟨i, y, hyO, ho⟩
+
 /-- R1, V4 §3.0: the actual tiles in a block are exactly its framed native leaves. -/
 theorem tiles_exact :
     {t | t ∈ Y.tiles ∧ t.carrier ⊆ B.carrier} =
       {t | t ∈ Y.tiles ∧ ∃ w : S.RoleWord B.node.ty n,
         tileNode t = (S.nativeTile B.node.ty n w).move B.node.frame} := by
-  sorry
+  classical
+  apply Set.Subset.antisymm
+  · rintro t ⟨ht, hsub⟩
+    have hcar : t.carrier = compilerFrame C t ''
+        (S.proto (compilerLeaf C t).prototype).carrier := by
+      rw [tiles_exact_step1_tile_carrier t]
+      simp [tileNode, FramedNode.carrier, SubstSystem.supertile, placedSet]
+    have hn : (interior t.carrier).Nonempty := by
+      rw [hcar]
+      change (interior ((compilerFrame C t).toHomeomorph ''
+        (S.proto (compilerLeaf C t).prototype).carrier)).Nonempty
+      rw [← (compilerFrame C t).toHomeomorph.image_interior]
+      exact (S.proto (compilerLeaf C t).prototype).interior_nonempty.image _
+    have hc : ∀ w : S.RoleWord B.node.ty n,
+        IsClosed (((S.nativeTile B.node.ty n w).move B.node.frame).carrier 0) := by
+      intro w
+      have hcpt : IsCompact (S.supertile 0 ((S.nativeTile B.node.ty n w).move B.node.frame).ty) :=
+        (S.proto _).compact.image (S.σ ^ 0).toContinuousLinearEquiv.continuous
+      exact (hcpt.image (AffineIsometryEquiv.continuous _)).isClosed
+    obtain ⟨w, x, hxt, hxw⟩ := tiles_exact_step3_open_meets_interior
+      (fun w => ((S.nativeTile B.node.ty n w).move B.node.frame).carrier 0) hc
+      (interior t.carrier) isOpen_interior hn
+      (by
+        rw [tiles_exact_step2_leaves_cover B]
+        exact fun y hy => hsub (interior_subset hy))
+    obtain ⟨t', ht', htile⟩ := B.actual w
+    have hcar' : t'.carrier = ((S.nativeTile B.node.ty n w).move B.node.frame).carrier 0 := by
+      rw [tiles_exact_step1_tile_carrier t', htile]
+    have heq : t = t' := by
+      by_contra hne
+      rw [← hcar'] at hxw
+      exact Set.disjoint_left.mp (Y.disjoint ht ht' hne) hxt hxw
+    subst heq
+    exact ⟨ht, w, htile⟩
+  · rintro t ⟨ht, w, htile⟩
+    refine ⟨ht, ?_⟩
+    rw [tiles_exact_step1_tile_carrier t, htile, ← tiles_exact_step2_leaves_cover B]
+    exact Set.subset_iUnion
+      (fun w => ((S.nativeTile B.node.ty n w).move B.node.frame).carrier 0) w
 
 /-- R1, V4 §3.0: the union of its actual native tiles is the whole block. -/
 theorem union_tiles : B.carrier =

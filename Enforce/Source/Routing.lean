@@ -4926,6 +4926,31 @@ private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step
   simp only [mem_compl_iff, mem_iUnion, mem_setOf_eq, exists_prop]
   exact ⟨τ, ⟨hτ, h_notsubset⟩, hy_hull⟩
 
+/-- Step 3, part 1 of the V4 proof of
+`principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step5_face_links`
+(V4 1.24): a manifold chart at the centroid exists. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step5_face_links_step3_chart_step1_open_set
+    (K : Geometry.SimplicialComplex ℝ (E d))
+    (hman : IsLocallyEuclidean (d - 1) K.space)
+    {σ : Finset (E d)} (hσ : σ ∈ K.faces) :
+    let x := Finset.centroid ℝ σ id
+    ∃ (W : Set (E d)) (V : Set (E (d - 1))), IsOpen W ∧ IsOpen V ∧ x ∈ W ∧
+      Nonempty ((K.space ∩ W : Set (E d)) ≃ₜ V) := by
+  sorry
+
+/-- Step 3, part 2 of the V4 proof of
+`principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step5_face_links`
+(V4 1.24): a manifold chart at the centroid is continuous, injective, and open on relative open subsets of its domain. -/
+private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step5_face_links_step3_chart_step2_chart_properties
+    (K : Geometry.SimplicialComplex ℝ (E d))
+    {W : Set (E d)} {V : Set (E (d - 1))} (hW : IsOpen W) (hV : IsOpen V)
+    (e : (K.space ∩ W : Set (E d)) ≃ₜ V) :
+    ∃ φ : E d → E (d - 1),
+      ContinuousOn φ (K.space ∩ W) ∧ Set.InjOn φ (K.space ∩ W) ∧
+      IsOpen (φ '' (K.space ∩ W)) ∧
+      ∀ O : Set (E d), IsOpen O → IsOpen (φ '' (K.space ∩ W ∩ O)) := by
+  sorry
+
 /-- Step 3 of the V4 proof of
 `principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step5_face_links`
 (V4 1.24): a manifold chart at the
@@ -4939,7 +4964,9 @@ private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step
       ContinuousOn φ (K.space ∩ W) ∧ Set.InjOn φ (K.space ∩ W) ∧
       IsOpen (φ '' (K.space ∩ W)) ∧
       ∀ O : Set (E d), IsOpen O → IsOpen (φ '' (K.space ∩ W ∩ O)) := by
-  sorry
+  obtain ⟨W, V, hW, hV, hx, ⟨e⟩⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step5_face_links_step3_chart_step1_open_set K hman hσ
+  obtain ⟨φ, hφ_cont, hφ_inj, hφ_open_im, hφ_open_rel⟩ := principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step5_face_links_step3_chart_step2_chart_properties K hW hV e
+  exact ⟨W, hW, hx, φ, hφ_cont, hφ_inj, hφ_open_im, hφ_open_rel⟩
 
 /-- Step 4 of the V4 proof of
 `principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step5_face_links`

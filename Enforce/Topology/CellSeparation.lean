@@ -494,6 +494,22 @@ theorem extend_sphere_to_closedBall_of_nullhomotopic (m : ℕ) (hm : 1 ≤ m)
   rw [hF_eval, eq_t, eq_y]
   exact H.apply_zero ⟨y, hy⟩
 
+/-- Step 1 of the V4 proof of `exists_extension_of_nullhomotopic` (V4 CS10): Use Tietze Extension to extend the homotopy over `X × I`. -/
+private lemma exists_extension_of_nullhomotopic_step1_tietze (n : ℕ) (X F : Set (E n)) (hX : IsCompact X) (hF : IsClosed F) (hFX : F ⊆ X)
+  (f : C(↥F, ↥(sphere (0 : E n) 1))) (x0 : ↥(sphere (0 : E n) 1))
+  (H : f.Homotopy (ContinuousMap.const _ x0)) :
+  ∃ G : C(↥X × unitInterval, E n),
+    (∀ (y : ↥F) (t : unitInterval), G (⟨y.1, hFX y.2⟩, t) = (H (t, y) : E n)) ∧
+    (∀ x : ↥X, G (x, 1) = (x0 : E n)) := by
+  sorry
+
+/-- Step 2 of the V4 proof of `exists_extension_of_nullhomotopic` (V4 CS10): Construct a Urysohn function `φ` to avoid `G = 0`. -/
+private lemma exists_extension_of_nullhomotopic_step2_phi (n : ℕ) (X F : Set (E n)) (hX : IsCompact X) (hF : IsClosed F) (hFX : F ⊆ X)
+  (G : C(↥X × unitInterval, E n)) (hG1 : ∀ y : ↥F, ∀ t, G (⟨y.1, hFX y.2⟩, t) ≠ 0)
+  (hG2 : ∀ x : ↥X, G (x, 1) ≠ 0) :
+  ∃ φ : C(↥X, unitInterval), (∀ y : ↥F, φ ⟨y.1, hFX y.2⟩ = 0) ∧ ∀ x, G (x, φ x) ≠ 0 := by
+  sorry
+
 /-- CS10: `X ⊆ E n` compact, `F ⊆ X` closed,
 `f : C(↥F, ↥(sphere (0 : E n) 1))` nullhomotopic ⇒ a continuous extension over `X`
 agreeing on `F` (Borsuk's extension lemma). -/
@@ -502,7 +518,53 @@ theorem exists_extension_of_nullhomotopic (n : ℕ) (X F : Set (E n))
     (f : C(↥F, ↥(sphere (0 : E n) 1))) (hf : f.Nullhomotopic) :
     ∃ g : C(↥X, ↥(sphere (0 : E n) 1)), ∀ x (hx : x ∈ F),
       g ⟨x, hFX hx⟩ = f ⟨x, hx⟩ := by
-  sorry
+  obtain ⟨x0, ⟨H⟩⟩ := hf
+  obtain ⟨G, hG1, hG2⟩ := exists_extension_of_nullhomotopic_step1_tietze n X F hX hF hFX f x0 H
+  have hG1_ne_zero : ∀ y : ↥F, ∀ t, G (⟨y.1, hFX y.2⟩, t) ≠ 0 := by
+    intro y t
+    rw [hG1 y t]
+    intro h
+    have := (H (t, y)).2
+    rw [mem_sphere_zero_iff_norm] at this
+    rw [h, norm_zero] at this
+    norm_num at this
+  have hG2_ne_zero : ∀ x : ↥X, G (x, 1) ≠ 0 := by
+    intro x
+    rw [hG2 x]
+    intro h
+    have := x0.2
+    rw [mem_sphere_zero_iff_norm] at this
+    rw [h, norm_zero] at this
+    norm_num at this
+  obtain ⟨φ, hφ1, hφ2⟩ := exists_extension_of_nullhomotopic_step2_phi n X F hX hF hFX G hG1_ne_zero hG2_ne_zero
+  let g : X → E n := fun x => ‖G (x, φ x)‖⁻¹ • G (x, φ x)
+  have hg_sphere : ∀ x : ↥X, g x ∈ sphere (0 : E n) 1 := by
+    intro x
+    rw [mem_sphere_zero_iff_norm, norm_smul, norm_inv, norm_norm, inv_mul_cancel₀]
+    intro h
+    apply hφ2 x
+    exact norm_eq_zero.mp h
+  let g' : C(↥X, ↥(sphere (0 : E n) 1)) := ⟨fun x => ⟨g x, hg_sphere x⟩, by
+    refine Continuous.subtype_mk ?_ _
+    have hG_cont : Continuous fun x : ↥X => G (x, φ x) :=
+      G.continuous.comp (Continuous.prodMk continuous_id φ.continuous)
+    have h_norm_inv : Continuous fun x : ↥X => ‖G (x, φ x)‖⁻¹ :=
+      (Continuous.norm hG_cont).inv₀ (by intro x; exact norm_ne_zero_iff.mpr (hφ2 x))
+    exact h_norm_inv.smul hG_cont⟩
+  use g'
+  intro x hx
+  apply Subtype.ext
+  change g ⟨x, hFX hx⟩ = (f ⟨x, hx⟩ : E n)
+  dsimp [g]
+  rw [hφ1 ⟨x, hx⟩]
+  rw [hG1 ⟨x, hx⟩ 0]
+  have H0 := H.apply_zero ⟨x, hx⟩
+  have hf_eq : (H (0, ⟨x, hx⟩) : E n) = (f ⟨x, hx⟩ : E n) := congrArg Subtype.val H0
+  rw [hf_eq]
+  have h_norm := (f ⟨x, hx⟩).2
+  rw [mem_sphere_zero_iff_norm] at h_norm
+  rw [h_norm]
+  simp
 
 /-- CS11: Brouwer for the closed unit ball, `a : E n`, `0 < R`, `ρ : E n → E n`,
 `ContinuousOn ρ (closedBall a R)`, `MapsTo ρ (closedBall a R) (sphere a R)`,

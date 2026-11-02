@@ -3148,7 +3148,34 @@ theorem stratumMap_mono (q : H.Node) (f : FacetName S q.2.val.ty)
     (hst : s.val.carrier ⊆ t.val.carrier) :
     (H.stratumMap q f hf s hs).val.carrier ⊆
       (H.stratumMap q f hf t ht).val.carrier := by
-  sorry
+  have H_anc := H.ancestor_descendant q (H.firstProvider q f hf).1
+  have hrel : ∀ e : CellName S q.2.val.ty, (relint (q.2.val.cell q.1 e.val)).Nonempty := by
+    intro e
+    rw [FramedNode.cell, hereditary_trace_step1_relint_image]
+    exact e.val.flat.relint_nonempty.image _
+  -- the whole cell `t` lies in its stratum (hereditary trace, V4 1.1)
+  have htT : q.2.val.cell q.1 t.val ⊆
+      (H.servingChild q f hf).2.val.cell (H.servingChild q f hf).1
+        (H.stratumMap q f hf t ht).val := by
+    obtain ⟨x, hx⟩ := hrel t
+    exact hereditary_trace (H.servingChild q f hf).2.val q.2.val
+      (H.servingChild q f hf).1 q.1 H_anc (H.stratumMap q f hf t ht).val t.val
+      (H.stratumMap q f hf t ht).property t.property
+      ⟨x, hx, intrinsicInterior_subset (stratumMap_spec_step1_spec q f hf t ht hx)⟩
+  -- a point of `relint s` lies in `relint τ(s)` and in `τ(t)`
+  obtain ⟨p, hp⟩ := hrel s
+  have hp1 := stratumMap_spec_step1_spec q f hf s hs hp
+  have hp2 : p ∈ (H.servingChild q f hf).2.val.cell (H.servingChild q f hf).1
+      (H.stratumMap q f hf t ht).val :=
+    htT (Set.image_mono hst (intrinsicInterior_subset hp))
+  have key := hereditary_trace (H.servingChild q f hf).2.val (H.servingChild q f hf).2.val
+    (H.servingChild q f hf).1 (H.servingChild q f hf).1
+    (ancestor_descendant_refl _ _)
+    (H.stratumMap q f hf t ht).val (H.stratumMap q f hf s hs).val
+    (H.stratumMap q f hf t ht).property (H.stratumMap q f hf s hs).property
+    ⟨p, hp1, hp2⟩
+  exact (Set.image_subset_image_iff
+    ((H.servingChild q f hf).2.val.prototypeFrame (H.servingChild q f hf).1).injective).mp key
 
 /-- Step 1 of the V4 proof of stratumMap_facet: same dimension plus subset implies equal. -/
 private lemma stratumMap_facet_step1_cell_eq_of_subset_dim {A : PolyManifoldDomain d}

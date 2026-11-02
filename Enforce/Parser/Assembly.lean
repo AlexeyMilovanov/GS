@@ -6359,6 +6359,114 @@ private theorem packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_s
     · obtain ⟨v, hv, t, ht, rfl⟩ := Set.mem_iUnion₂.mp hx
       exact (hscale t ht v).mpr ((hR v).mp hv).1
 
+open private principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step7_domain_invariance
+  principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step5_zero_stability
+  principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step4_ball_fixed
+  from Enforce.Source.Routing in
+/-- Step 1 of the V4 proof of `packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step5_book_pages` (V4 3.12(b)):
+"an `L`-book with `≥ 3` pages is not a manifold along its spine". Local invariance of
+domain, from the established Brouwer fixed-point theorem: a continuous injection of the
+closed unit ball of `E k` into `E k` sends the centre to an interior point of its image. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step5_book_pages_step1_local_domain_invariance
+    (k : ℕ) (g : closedBall (0 : E k) 1 → E k) (hg : Continuous g)
+    (hinj : Function.Injective g) :
+    g ⟨0, mem_closedBall_self zero_le_one⟩ ∈ interior (range g) :=
+  principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step7_domain_invariance k
+    (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step5_zero_stability k
+      (principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step4_invariance_dimension_step4_ball_fixed k))
+    g hg hinj
+
+/-- Step 2 of the V4 proof of `packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step5_book_pages` (V4 3.12(b)):
+"`∂C'` cannot consist of `≥ 3` rays from `0`". Two positive multiples of unit vectors
+agree only when the scalars and the vectors agree: distinct rays meet only at `0`. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step5_book_pages_step2_ray_eq
+    {a b : E 2} (ha : ‖a‖ = 1) (hb : ‖b‖ = 1) {t s : ℝ}
+    (ht : 0 < t) (hs : 0 < s) (h : t • a = s • b) : t = s ∧ a = b := by
+  have hn := congrArg norm h
+  rw [norm_smul, norm_smul, ha, hb, Real.norm_of_nonneg ht.le, Real.norm_of_nonneg hs.le,
+    mul_one, mul_one] at hn
+  subst hn
+  exact ⟨rfl, smul_right_injective (E 2) ht.ne' h⟩
+
+/-- Step 3 of the V4 proof of `packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step5_book_pages` (V4 3.12(b)):
+"`∂C'` cannot consist of `≥ 3` rays from `0`". Two pages of the book form a line:
+`s ↦ max s 0 • u + max (-s) 0 • v` is the origin at `0`, runs along `u` for `s > 0`
+and along `v` for `s < 0`. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step5_book_pages_step3_two_page_cases
+    (u v : E 2) (s : ℝ) :
+    (s = 0 ∧ max s 0 • u + max (-s) 0 • v = 0) ∨
+    (0 < s ∧ max s 0 • u + max (-s) 0 • v = s • u) ∨
+    (0 < -s ∧ max s 0 • u + max (-s) 0 • v = (-s) • v) := by
+  rcases lt_trichotomy s 0 with h | h | h
+  · right; right
+    refine ⟨neg_pos.mpr h, ?_⟩
+    rw [max_eq_right h.le, max_eq_left (neg_nonneg.mpr h.le), zero_smul, zero_add]
+  · left
+    subst h
+    simp
+  · right; left
+    refine ⟨h, ?_⟩
+    rw [max_eq_left h.le, max_eq_right (neg_nonpos.mpr h.le), zero_smul, add_zero]
+
+/-- Step 4 of the V4 proof of `packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step5_book_pages` (V4 3.12(b)):
+"`∂C'` cannot consist of `≥ 3` rays from `0`". Points of an open ray from `0`
+are nonzero. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step5_book_pages_step4_smul_ne_zero
+    {a : E 2} (ha : ‖a‖ = 1) {t : ℝ} (ht : 0 < t) : t • a ≠ 0 := by
+  intro h
+  rcases smul_eq_zero.mp h with h | h
+  · exact ht.ne' h
+  · rw [h, norm_zero] at ha
+    exact zero_ne_one ha
+
+/-- Step 5 of the V4 proof of `packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step5_book_pages` (V4 3.12(b)):
+"`∂C'` cannot consist of `≥ 3` rays from `0`". For distinct unit vectors `u ≠ v`
+the two-page parametrisation of Step 3 is injective. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step5_book_pages_step5_two_page_injective
+    {u v : E 2} (hu : ‖u‖ = 1) (hv : ‖v‖ = 1) (huv : u ≠ v) :
+    Function.Injective fun s : ℝ => max s 0 • u + max (-s) 0 • v := by
+  intro s s' h
+  simp only at h
+  rcases packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step5_book_pages_step3_two_page_cases
+      u v s with ⟨hs, e⟩ | ⟨hs, e⟩ | ⟨hs, e⟩ <;>
+  rcases packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step5_book_pages_step3_two_page_cases
+      u v s' with ⟨hs', e'⟩ | ⟨hs', e'⟩ | ⟨hs', e'⟩ <;>
+  rw [e, e'] at h
+  · rw [hs, hs']
+  · exact absurd h.symm
+      (packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step5_book_pages_step4_smul_ne_zero hu hs')
+  · exact absurd h.symm
+      (packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step5_book_pages_step4_smul_ne_zero hv hs')
+  · exact absurd h
+      (packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step5_book_pages_step4_smul_ne_zero hu hs)
+  · exact (packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step5_book_pages_step2_ray_eq
+      hu hu hs hs' h).1
+  · exact absurd (packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step5_book_pages_step2_ray_eq
+      hu hv hs hs' h).2 huv
+  · exact absurd h
+      (packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step5_book_pages_step4_smul_ne_zero hv hs)
+  · exact absurd (packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step5_book_pages_step2_ray_eq
+      hv hu hs hs' h).2 (Ne.symm huv)
+  · exact neg_injective
+      (packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step5_book_pages_step2_ray_eq
+        hv hv hs hs' h).1
+
+/-- Step 6 of the V4 proof of `packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step5_book_pages` (V4 3.12(b)):
+"`∂C'` cannot consist of `≥ 3` rays from `0`". A point of a third page (a positive
+multiple of a unit vector `w`) lies on the two-page line through `u` and `v` only if
+`w = u` or `w = v`. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step5_book_pages_step6_third_page_off
+    {u v w : E 2} (hu : ‖u‖ = 1) (hv : ‖v‖ = 1) (hw : ‖w‖ = 1) {t s : ℝ} (ht : 0 < t)
+    (h : t • w = max s 0 • u + max (-s) 0 • v) : w = u ∨ w = v := by
+  rcases packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step5_book_pages_step3_two_page_cases
+      u v s with ⟨_, e⟩ | ⟨hs, e⟩ | ⟨hs, e⟩ <;> rw [e] at h
+  · exact absurd h
+      (packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step5_book_pages_step4_smul_ne_zero hw ht)
+  · exact Or.inl (packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step5_book_pages_step2_ray_eq
+      hw hu ht hs h).2
+  · exact Or.inr (packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step5_book_pages_step2_ray_eq
+      hw hv ht hs h).2
+
 /-- Step 5 of the V4 proof of `packet_E_equality_step2_boundary_neighborhood_step5a_low_codim` (V4 3.12(b)):
 "the interior link of P at q is connected (P is a polyhedral manifold domain)".
 An `r`-dimensional spine times a finite union of distinct planar rays
@@ -6372,7 +6480,130 @@ private theorem packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_s
     (hchart : ∃ U : Set (E r × B), IsOpen U ∧ (0, ⟨0, h0⟩) ∈ U ∧
       ∃ V : Set (E (r + 1)), IsOpen V ∧ Nonempty (U ≃ₜ V)) :
     R.card ≤ 2 := by
-  sorry
+  classical
+  -- three distinct pages `u, v, w`
+  by_contra hcard
+  push_neg at hcard
+  obtain ⟨u, v, w, hu, hv, hw, huv, huw, hvw⟩ := Finset.two_lt_card_iff.mp hcard
+  have hu1 := hR u hu
+  have hv1 := hR v hv
+  have hw1 := hR w hw
+  obtain ⟨U, hU, hpU, V, hV, ⟨φ⟩⟩ := hchart
+  have hray : ∀ a ∈ R, ∀ t : ℝ, 0 < t → t • a ∈ B := by
+    intro a ha t ht
+    rw [hB]
+    exact Set.mem_insert_of_mem _ (Set.mem_iUnion₂.mpr ⟨a, ha, t, ht, rfl⟩)
+  -- the pages `u` and `v` form a line `lam` inside `B`
+  let lam : ℝ → E 2 := fun s => max s 0 • u + max (-s) 0 • v
+  have hlamB : ∀ s, lam s ∈ B := by
+    intro s
+    rcases packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step5_book_pages_step3_two_page_cases
+        u v s with ⟨_, e⟩ | ⟨hs, e⟩ | ⟨hs, e⟩
+    · rw [show lam s = 0 from e]; exact h0
+    · rw [show lam s = s • u from e]; exact hray u hu s hs
+    · rw [show lam s = (-s) • v from e]; exact hray v hv (-s) hs
+  have hlamc : Continuous lam :=
+    ((continuous_id.max continuous_const).smul continuous_const).add
+      ((continuous_neg.max continuous_const).smul continuous_const)
+  have hlaminj : Function.Injective lam :=
+    packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step5_book_pages_step5_two_page_injective
+      hu1 hv1 huv
+  -- the embedding `ψ : E (r + 1) → E r × B` onto the two-page subbook
+  let π : E (r + 1) → E r := fun z => WithLp.toLp 2 (fun i : Fin r => z (Fin.castSucc i))
+  have hπc : Continuous π :=
+    (PiLp.continuous_toLp 2 _).comp (continuous_pi fun i =>
+      (EuclideanSpace.proj (𝕜 := ℝ) (Fin.castSucc i)).continuous)
+  let ψ : E (r + 1) → E r × B := fun z => (π z, ⟨lam (z (Fin.last r)), hlamB _⟩)
+  have hψc : Continuous ψ :=
+    hπc.prodMk ((hlamc.comp (EuclideanSpace.proj (𝕜 := ℝ) (Fin.last r)).continuous).subtype_mk _)
+  have hψinj : Function.Injective ψ := by
+    intro z z' h
+    have h1 := congrArg Prod.fst h
+    have h2 := hlaminj (congrArg Subtype.val (congrArg Prod.snd h))
+    ext j
+    refine Fin.lastCases ?_ (fun i => ?_) j
+    · exact h2
+    · have := congrArg (fun p : E r => p i) h1
+      simpa [ψ, π] using this
+  have hψ0 : ψ 0 = (0, ⟨0, h0⟩) := by
+    refine Prod.ext ?_ (Subtype.ext ?_)
+    · ext i
+      simp [ψ, π]
+    · simp [ψ, lam]
+  -- a small ball of `E (r + 1)`, pushed through `ψ` and the chart `φ`
+  have hpre : IsOpen (ψ ⁻¹' U) := hU.preimage hψc
+  have h0pre : (0 : E (r + 1)) ∈ ψ ⁻¹' U := by
+    rw [mem_preimage, hψ0]
+    exact hpU
+  obtain ⟨ε, hε, hball⟩ := Metric.isOpen_iff.mp hpre 0 h0pre
+  have hε2 : 0 < ε / 2 := half_pos hε
+  have hmem : ∀ z : closedBall (0 : E (r + 1)) 1, ψ ((ε / 2) • (z : E (r + 1))) ∈ U := by
+    intro z
+    apply hball
+    rw [mem_ball, dist_zero_right, norm_smul, Real.norm_of_nonneg hε2.le]
+    have hz : ‖(z : E (r + 1))‖ ≤ 1 := by
+      simpa only [mem_closedBall, dist_zero_right] using z.property
+    nlinarith [norm_nonneg (z : E (r + 1))]
+  let g : closedBall (0 : E (r + 1)) 1 → E (r + 1) := fun z =>
+    (φ ⟨ψ ((ε / 2) • (z : E (r + 1))), hmem z⟩ : E (r + 1))
+  have hgc : Continuous g := by
+    refine continuous_subtype_val.comp (φ.continuous.comp ?_)
+    exact Continuous.subtype_mk (hψc.comp (continuous_const.smul continuous_subtype_val)) _
+  have hginj : Function.Injective g := by
+    intro z z' h
+    have h1 := φ.injective (Subtype.ext h)
+    have h2 := hψinj (congrArg Subtype.val h1)
+    exact Subtype.ext (smul_right_injective _ hε2.ne' h2)
+  -- invariance of domain: the chart image of the two-page subbook is a neighbourhood
+  have hint :=
+    packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step5_book_pages_step1_local_domain_invariance
+      (r + 1) g hgc hginj
+  have hU0 : (⟨ψ ((ε / 2) • (0 : E (r + 1))), hmem ⟨0, mem_closedBall_self zero_le_one⟩⟩ : U) =
+      ⟨(0, ⟨0, h0⟩), hpU⟩ :=
+    Subtype.ext (by simp only [smul_zero, hψ0])
+  have hg0 : g ⟨0, mem_closedBall_self zero_le_one⟩ = (φ ⟨(0, ⟨0, h0⟩), hpU⟩ : E (r + 1)) :=
+    congrArg (fun x : U => (φ x : E (r + 1))) hU0
+  rw [hg0] at hint
+  let N : Set (E r × B) :=
+    Subtype.val '' ((fun x : U => (φ x : E (r + 1))) ⁻¹' interior (range g))
+  have hN : IsOpen N :=
+    hU.isOpenMap_subtype_val _
+      (isOpen_interior.preimage (continuous_subtype_val.comp φ.continuous))
+  have h0N : ((0 : E r), (⟨0, h0⟩ : B)) ∈ N := ⟨⟨(0, ⟨0, h0⟩), hpU⟩, hint, rfl⟩
+  -- points of the third page `w` near the spine lie in that neighbourhood
+  have hcB : ∀ t : ℝ, max t 0 • w ∈ B := by
+    intro t
+    rcases le_or_gt t 0 with ht | ht
+    · rw [max_eq_right ht, zero_smul]
+      exact h0
+    · rw [max_eq_left ht.le]
+      exact hray w hw t ht
+  let c : ℝ → E r × B := fun t => (0, ⟨max t 0 • w, hcB t⟩)
+  have hcc : Continuous c :=
+    continuous_const.prodMk
+      (((continuous_id.max continuous_const).smul continuous_const).subtype_mk _)
+  have hc0 : c 0 = (0, ⟨0, h0⟩) := by
+    refine Prod.ext rfl (Subtype.ext ?_)
+    simp [c]
+  have hcN : c ⁻¹' N ∈ nhds (0 : ℝ) :=
+    hcc.continuousAt.preimage_mem_nhds (by rw [hc0]; exact hN.mem_nhds h0N)
+  obtain ⟨δ, hδ, hδN⟩ := Metric.mem_nhds_iff.mp hcN
+  have hδ2 : 0 < δ / 2 := half_pos hδ
+  have htN : c (δ / 2) ∈ N := hδN (by
+    rw [mem_ball, dist_zero_right, Real.norm_of_nonneg hδ2.le]
+    linarith)
+  -- so a third-page point lies on the two-page line: contradiction
+  obtain ⟨x, hx, hxc⟩ := htN
+  obtain ⟨z, hz⟩ := interior_subset hx
+  have h1 : φ ⟨ψ ((ε / 2) • (z : E (r + 1))), hmem z⟩ = φ x := Subtype.ext hz
+  have h2 := congrArg Subtype.val (φ.injective h1)
+  have h3 := congrArg (fun p : E r × B => (p.2 : E 2)) (h2.trans hxc)
+  simp only [ψ, c, lam] at h3
+  rw [max_eq_left hδ2.le] at h3
+  rcases packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step5_book_pages_step6_third_page_off
+      hu1 hv1 hw1 hδ2 h3.symm with h | h
+  · exact huw h.symm
+  · exact hvw h.symm
 
 /-- Step 6 of the V4 proof of `packet_E_equality_step2_boundary_neighborhood_step5a_low_codim` (V4 3.12(b)):
 "the interior link of P at q is connected (P is a polyhedral manifold domain)".

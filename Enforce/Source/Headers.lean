@@ -4246,7 +4246,9 @@ two points in a cell's carrier define a vector in its direction. -/
 private lemma tangentCone_tile_isHPiCone_step1_walls_step4_direction
     (e : Cell d) {x q : E d} (hx : x ∈ e.carrier) (hq : q ∈ e.carrier) :
     x - q ∈ (cellDirection e.carrier : Set (E d)) := by
-  sorry
+  have hx_span : x ∈ affineSpan ℝ e.carrier := subset_affineSpan _ _ hx
+  have hq_span : q ∈ affineSpan ℝ e.carrier := subset_affineSpan _ _ hq
+  exact AffineSubspace.vsub_mem_direction hx_span hq_span
 
 /-- Step 1 of the V4 proof of `tangentCone_tile_isHPiCone`
 (V4 1.16(b')): near the anchor, the boundary lies on the

@@ -587,7 +587,31 @@ private lemma exists_extension_of_nullhomotopic_step1_tietze (n : ℕ) (X F : Se
   ∃ G : C(↥X × unitInterval, E n),
     (∀ (y : ↥F) (t : unitInterval), G (⟨y.1, hFX y.2⟩, t) = (H (t, y) : E n)) ∧
     (∀ x : ↥X, G (x, 1) = (x0 : E n)) := by
-  sorry
+  let S : Set (↥X × unitInterval) := {p | (p.1 : E n) ∈ F}
+  have hS : IsClosed S := hF.preimage (continuous_subtype_val.comp continuous_fst)
+  let f' : C(↥S, E n) :=
+    ⟨fun p => (H (p.1.2, ⟨(p.1.1 : E n), p.2⟩) : E n),
+      continuous_subtype_val.comp (H.continuous.comp
+        ((continuous_snd.comp continuous_subtype_val).prodMk
+          ((continuous_subtype_val.comp (continuous_fst.comp continuous_subtype_val)).subtype_mk
+            _)))⟩
+  obtain ⟨G0, hG0⟩ := ContinuousMap.exists_restrict_eq hS f'
+  have hG0F : ∀ (y : ↥F) (t : unitInterval), G0 (⟨y.1, hFX y.2⟩, t) = (H (t, y) : E n) := by
+    intro y t
+    have h := congrArg (fun g : C(↥S, E n) => g ⟨(⟨y.1, hFX y.2⟩, t), y.2⟩) hG0
+    exact h
+  let G : C(↥X × unitInterval, E n) :=
+    ⟨fun p => G0 p - G0 (p.1, 1) + (x0 : E n),
+      ((G0.continuous.sub (G0.continuous.comp (continuous_fst.prodMk continuous_const))).add
+        continuous_const)⟩
+  refine ⟨G, ?_, ?_⟩
+  · intro y t
+    change G0 (⟨y.1, hFX y.2⟩, t) - G0 (⟨y.1, hFX y.2⟩, 1) + (x0 : E n) = (H (t, y) : E n)
+    rw [hG0F y t, hG0F y 1, H.apply_one y]
+    simp
+  · intro x
+    change G0 (x, 1) - G0 (x, 1) + (x0 : E n) = (x0 : E n)
+    simp
 
 /-- Step 2 of the V4 proof of `exists_extension_of_nullhomotopic` (V4 CS10): Construct a Urysohn function `φ` to avoid `G = 0`. -/
 private lemma exists_extension_of_nullhomotopic_step2_phi (n : ℕ) (X F : Set (E n)) (hX : IsCompact X) (hF : IsClosed F) (hFX : F ⊆ X)

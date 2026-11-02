@@ -2444,7 +2444,55 @@ theorem primitive_vertex_listed (P : FramedNode S) (n : ℕ) (i : S.I P.ty)
     (hpf : p ∈ (P.child n i).cell n f.val)
     (j : S.I P.ty) (hpj : p ∈ (P.child n j).carrier n) :
     (P.child n j).Lists n p := by
-  sorry
+  obtain ⟨e, he, hpe⟩ := hp
+  have he' : e ∈ (S.cx (P.child n i).ty).cells ∧ e.dim = 0 := by
+    unfold CellComplex.vertices at he
+    exact Finset.mem_filter.mp he
+  obtain ⟨heC, he0⟩ := he'
+  by_cases hji : j = i
+  · subst hji
+    exact ⟨e, he, hpe⟩
+  have hij : i ≠ j := fun h => hji h.symm
+  -- `mc_B(p) = {p}`: the zero-dimensional cell has `p` in its relative interior
+  have hrel : p ∈ relint ((P.child n i).cell n e) := by
+    by_contra hpi
+    obtain ⟨F', -, hlt, -, -⟩ :=
+      hereditary_trace_step2_boundary (P.child n i) n e heC p hpe hpi
+    omega
+  rw [FramedNode.cell, hereditary_trace_step1_relint_image] at hrel
+  obtain ⟨x, hxe, hpx⟩ := hrel
+  have hxfr : x ∈ frontier (S.proto (S.child P.ty i).ty).carrier := by
+    rw [← (S.cx (S.child P.ty i).ty).cover]
+    exact mem_iUnion₂.mpr ⟨e, heC, hxe⟩
+  obtain ⟨_, ⟨y, hy, rfl⟩, hyp⟩ := hpj
+  have hψ : Function.Injective (fun y => P.frame ((S.σ ^ n) y)) := fun a b hab =>
+    (S.σ ^ n).injective (P.frame.injective hab)
+  have hyx : (S.child P.ty j).frame y = (S.child P.ty i).frame x := by
+    apply hψ
+    change P.frame ((S.σ ^ n) ((S.child P.ty j).frame y)) =
+      P.frame ((S.σ ^ n) ((S.child P.ty i).frame x))
+    rw [← hereditary_trace_step3_place P n j, ← hereditary_trace_step3_place P n i]
+    exact hyp.trans hpx.symm
+  have hd2 : 2 ≤ d := Fact.out
+  -- (H6): the vertex cell of `B` is a cell of `C`
+  obtain ⟨g, hg, heg⟩ := S.sibling_conformity P.ty i j hij ((S.child P.ty i).frame x)
+    ⟨x, (S.proto (S.child P.ty i).ty).compact.isClosed.frontier_subset hxfr, rfl⟩
+    ⟨y, hy, hyx⟩ e heC
+    (by rw [(S.child P.ty i).frame.symm_apply_apply]; exact hxe) (by omega)
+  have hcell : (P.child n i).cell n e = (P.child n j).cell n g := by
+    rw [hereditary_trace_step3_child_cell, hereditary_trace_step3_child_cell, heg]
+  have hdims : e.dim = g.dim := by
+    rw [← e.flat.dimension, ← g.flat.dimension,
+      ← sibling_minimalCell_eq_step0_finrank_image ((P.child n i).prototypeFrame n) e.carrier,
+      ← sibling_minimalCell_eq_step0_finrank_image ((P.child n j).prototypeFrame n) g.carrier]
+    change Module.finrank ℝ (cellDirection ((P.child n i).cell n e)) =
+      Module.finrank ℝ (cellDirection ((P.child n j).cell n g))
+    rw [hcell]
+  refine ⟨g, ?_, ?_⟩
+  · unfold CellComplex.vertices
+    exact Finset.mem_filter.mpr ⟨hg, hdims.symm.trans he0⟩
+  · rw [← hcell]
+    exact hpe
 
 /-- P6, V4 1.6: finite primitive incidence, with both cell names and both roles.
 The roles are ordered to record the serving side; exchanging them gives the other side. -/

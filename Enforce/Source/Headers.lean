@@ -5864,13 +5864,90 @@ theorem tangentCone_union_isHPiCone (P : CompatiblePatch S)
   have h_eq : (⋃ q : Q, K q) = ⋃ q : Q, K q := rfl
   exact HPiCone_finite_union K hK
 
+open private tangentCone_polyhedral_step2_halfspace_presentation
+  tangentCone_polyhedral_step3_local_cone tangentCone_polyhedral_step5_radial_germ
+  from Enforce.Geometry.Polyhedral in
+/-- Step 1 of the V4 proof of `uniform_prototype_cone_radius_step1_min_radius`
+(V4 1.19): "For a prototile A and a vertex v there is ρ(A,v)>0".
+In fact, local agreement with the radial tangent cone holds at every point. -/
+private lemma uniform_prototype_cone_radius_step1_min_radius_step1_vertex
+    (S : SubstSystem d) (A : S.ι) (v : E d) :
+    ∃ ρ : ℝ, 0 < ρ ∧
+      (S.proto A).carrier ∩ ball v ρ =
+        ((fun x => v + x) '' tangentCone (S.proto A).carrier v) ∩ ball v ρ := by
+  obtain ⟨s, hs⟩ :=
+    tangentCone_polyhedral_step2_halfspace_presentation (S.proto A).polyhedral
+  obtain ⟨C, hC, hloc⟩ := tangentCone_polyhedral_step3_local_cone s v
+  rw [← hs] at hloc
+  have ht := tangentCone_polyhedral_step5_radial_germ v hC hloc
+  obtain ⟨ρ, hρ, hnear⟩ := Metric.eventually_nhds_iff.mp hloc
+  refine ⟨ρ, hρ, ?_⟩
+  have himage (x : E d) :
+      x ∈ (fun u => v + u) '' tangentCone (S.proto A).carrier v ↔ x - v ∈ C := by
+    rw [ht]
+    constructor
+    · rintro ⟨u, hu, rfl⟩
+      simpa only [add_sub_cancel_left] using hu
+    · intro hx
+      exact ⟨x - v, hx, add_sub_cancel _ _⟩
+  ext x
+  by_cases hx : x ∈ ball v ρ
+  · simpa only [Set.mem_inter_iff, himage, hx, and_true] using
+      (hnear (Metric.mem_ball.mp hx))
+  · simp only [Set.mem_inter_iff, hx, and_false]
+
+open scoped Topology in
+/-- Step 2 of the V4 proof of `uniform_prototype_cone_radius_step1_min_radius`
+(V4 1.19): "take r₀ the minimum over the finite catalogue".
+A finite family of positive radii has a common positive lower bound, even when empty. -/
+private lemma uniform_prototype_cone_radius_step1_min_radius_step2_finite
+    {J : Type*} [Finite J] (ρ : J → ℝ) (hρ : ∀ j, 0 < ρ j) :
+    ∃ r : ℝ, 0 < r ∧ ∀ j, r < ρ j := by
+  have he : ∀ᶠ r : ℝ in 𝓝 (0 : ℝ), ∀ j, r < ρ j :=
+    Filter.eventually_all.mpr (fun j => eventually_lt_nhds (hρ j))
+  obtain ⟨δ, hδ, hall⟩ := Metric.eventually_nhds_iff.mp he
+  refine ⟨δ / 2, by positivity, ?_⟩
+  apply hall
+  rw [Real.dist_eq, sub_zero, abs_of_pos (by positivity : 0 < δ / 2)]
+  linarith
+
 /-- Step 1 of the V4 proof of `uniform_prototype_cone_radius` (V4 1.19): For a prototile A
 and a vertex v there is ρ>0 with exact cone intersection; take r₀ the minimum over the finite catalogue. -/
 private lemma uniform_prototype_cone_radius_step1_min_radius (S : SubstSystem d) :
     ∃ r₀ : ℝ, 0 < r₀ ∧ ∀ (A : S.ι) (e : Cell d), e ∈ (S.cx A).vertices → ∀ v ∈ e.carrier,
       (S.proto A).carrier ∩ ball v r₀ =
         ((fun x => v + x) '' tangentCone (S.proto A).carrier v) ∩ ball v r₀ := by
-  sorry
+  classical
+  have hsing : ∀ (A : S.ι) (e : Cell d),
+      e ∈ (S.cx A).vertices → e.carrier.Subsingleton := by
+    intro A e he
+    have hd : e.dim = 0 := (Finset.mem_filter.mp he).2
+    have hb : cellDirection e.carrier = ⊥ :=
+      Submodule.finrank_eq_zero.mp (e.flat.dimension.trans hd)
+    apply (vectorSpan_eq_bot_iff_subsingleton ℝ).mp
+    simpa only [cellDirection, direction_affineSpan] using hb
+  let Pts : Set (E d) := ⋃ A : S.ι, ⋃ e ∈ (S.cx A).vertices, e.carrier
+  have hf : Pts.Finite := Set.finite_iUnion fun A =>
+    (S.cx A).vertices.finite_toSet.biUnion fun e he => (hsing A e he).finite
+  letI : Fintype Pts := hf.fintype
+  have hex (j : S.ι × Pts) :=
+    uniform_prototype_cone_radius_step1_min_radius_step1_vertex S j.1 j.2.val
+  choose ρ hρ hc using hex
+  obtain ⟨r, hr, hb⟩ :=
+    uniform_prototype_cone_radius_step1_min_radius_step2_finite ρ hρ
+  refine ⟨r, hr, ?_⟩
+  intro A e he v hv
+  have hvPts : v ∈ Pts :=
+    Set.mem_iUnion.mpr ⟨A, Set.mem_iUnion₂.mpr ⟨e, he, hv⟩⟩
+  let j : S.ι × Pts := ⟨A, ⟨v, hvPts⟩⟩
+  have hj : (S.proto A).carrier ∩ ball v (ρ j) =
+      ((fun x => v + x) '' tangentCone (S.proto A).carrier v) ∩ ball v (ρ j) := hc j
+  ext x
+  by_cases hx : x ∈ ball v r
+  · have hlarge : x ∈ ball v (ρ j) := ball_subset_ball (hb j).le hx
+    have hh := Set.ext_iff.mp hj x
+    simpa only [Set.mem_inter_iff, hx, hlarge, and_true] using hh
+  · simp only [Set.mem_inter_iff, hx, and_false]
 
 /-- Step 2 of the V4 proof of `uniform_prototype_cone_radius` (V4 1.19): the cone equality
 is invariant under isometric placement. -/

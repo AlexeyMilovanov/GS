@@ -6344,6 +6344,151 @@ theorem state_semantics_c (P : Params S) (s : State P) (hs : s ∈ honestStates 
       dsimp [FacetRecord.kappaPlus, FacetRecord.kappaMinus]
       rw [h_cp]
 
+/-- Step 1 of the V4 proof of `state_semantics_d` (V4 1.1, 1.20):
+"each intermediate ancestor ... has a 1-cell": a placed cell contained in another
+placed cell has no larger dimension, whatever the two full affine frames. -/
+private theorem state_semantics_d_step1_dim_le (N M : FramedNode S) (n m : ℕ)
+    (s t : Cell d) (hsub : N.cell n s ⊆ M.cell m t) : s.dim ≤ t.dim := by
+  have hfin (K : FramedNode S) (k : ℕ) (x : Cell d) :
+      Module.finrank ℝ (cellDirection (K.cell k x)) = x.dim := by
+    unfold FramedNode.cell cellDirection
+    rw [show (K.prototypeFrame k '' x.carrier) =
+        (K.prototypeFrame k).toAffineMap '' x.carrier from rfl,
+      ← AffineSubspace.map_span, AffineSubspace.map_direction]
+    exact (LinearEquiv.finrank_map_eq (K.prototypeFrame k).linear _).trans x.flat.dimension
+  rw [← hfin N n s, ← hfin M m t]
+  exact Submodule.finrank_mono (AffineSubspace.direction_le (affineSpan_mono ℝ hsub))
+
+open private hereditary_trace_step1_cell_frontier hereditary_trace_step1_cell_subset
+  stratumMap_facet_step1_cell_eq_of_subset_dim from Enforce.Source.Trace in
+open private CoherentHierarchy.boundaryOffsets_initial_step2_ancestor_mono
+  from Enforce.Source.Trace in
+/-- Step 2 of the V4 proof of `state_semantics_d` (V4 1.7(d), 1.20):
+"each intermediate ancestor between `B̃` and `H` has a 1-cell on `h` containing `e`,
+giving a `Γ`-path". If an edge of `q` lies in an edge `h` of its `a`-th ancestor,
+the minimal cells of the intermediate ancestors are edges, nested by (H5). -/
+private theorem state_semantics_d_step2_path (U : HonestSource S) :
+    ∀ (a : ℕ) (q : U.Node) (e : PrototypeEdge S q.2.val.ty) (A : S.ι)
+      (h : PrototypeEdge S A), A = (U.hierarchy.ancestor q a).2.val.ty →
+      q.2.val.cell q.1 e.val ⊆
+        (U.hierarchy.ancestor q a).2.val.cell (U.hierarchy.ancestor q a).1 h.val →
+      Relation.ReflTransGen (edgeGraph S) ⟨A, h⟩ ⟨q.2.val.ty, e⟩ := by
+  intro a
+  induction a with
+  | zero =>
+    intro q e A h hA hsub
+    subst hA
+    change q.2.val.prototypeFrame q.1 '' e.val.carrier ⊆
+      q.2.val.prototypeFrame q.1 '' h.val.carrier at hsub
+    have hsub' : e.val.carrier ⊆ h.val.carrier :=
+      (Set.image_subset_image_iff (q.2.val.prototypeFrame q.1).injective).mp hsub
+    have he := Finset.mem_filter.mp e.property
+    have hh := Finset.mem_filter.mp h.property
+    have heq : e.val = h.val :=
+      stratumMap_facet_step1_cell_eq_of_subset_dim (S.cx q.2.val.ty) _ _ he.1 hh.1 hsub'
+        (he.2.trans hh.2.symm)
+    have hname : (⟨(U.hierarchy.ancestor q 0).2.val.ty, h⟩ : EdgeName S) =
+        ⟨q.2.val.ty, e⟩ := Sigma.ext rfl (heq_of_eq (Subtype.ext heq.symm))
+    rw [hname]
+  | succ a ih =>
+    intro q e A h hA hsub
+    let q' := U.hierarchy.parentNode q
+    let C := U.hierarchy.ancestor q' a
+    change A = C.2.val.ty at hA
+    change q.2.val.cell q.1 e.val ⊆ C.2.val.cell C.1 h.val at hsub
+    have he := Finset.mem_filter.mp e.property
+    have hh : h.val ∈ (S.cx C.2.val.ty).cells := by
+      subst hA
+      exact (Finset.mem_filter.mp h.property).1
+    have hhdim : h.val.dim = 1 := (Finset.mem_filter.mp h.property).2
+    have hfr : q.2.val.cell q.1 e.val ⊆ frontier (q'.2.val.carrier q'.1) := by
+      intro x hx
+      have hxC : x ∈ frontier (C.2.val.carrier C.1) :=
+        hereditary_trace_step1_cell_frontier C.2.val C.1 h.val hh (hsub hx)
+      have hxq : x ∈ q'.2.val.carrier q'.1 :=
+        CoherentHierarchy.boundaryOffsets_initial_step2_ancestor_mono U.hierarchy q
+          (Nat.zero_le 1) (hereditary_trace_step1_cell_subset q.2.val q.1 e.val he.1 hx)
+      exact ⟨subset_closure hxq, fun hint => hxC.2
+        (interior_mono (CoherentHierarchy.boundaryOffsets_initial_step2_ancestor_mono
+          U.hierarchy q' (Nat.zero_le a)) hint)⟩
+    have hdesc : q.2.val.IsDescendant q.1 q'.2.val q'.1 :=
+      U.hierarchy.ancestor_descendant q 1
+    obtain ⟨e', hrel, hdim⟩ : ∃ e' : CellName S q'.2.val.ty,
+        relint (q.2.val.cell q.1 e.val) ⊆ relint (q'.2.val.cell q'.1 e'.val) ∧
+          e.val.dim ≤ e'.val.dim :=
+      ⟨_, ancestralStratum_spec q'.2.val q.2.val q'.1 q.1 hdesc (edgeCell e) hfr⟩
+    obtain ⟨p, hp⟩ := exists_childMap_step5_cell_nonempty q.2.val q.1 e.val
+    have hsub' : q'.2.val.cell q'.1 e'.val ⊆ C.2.val.cell C.1 h.val :=
+      hereditary_trace C.2.val q'.2.val C.1 q'.1 (U.hierarchy.ancestor_descendant q' a)
+        h.val e'.val hh e'.property ⟨p, hrel hp, hsub (intrinsicInterior_subset hp)⟩
+    have hqq : q.2.val.cell q.1 e.val ⊆ q'.2.val.cell q'.1 e'.val :=
+      hereditary_trace q'.2.val q.2.val q'.1 q.1 hdesc e'.val e.val e'.property he.1
+        ⟨p, hp, intrinsicInterior_subset (hrel hp)⟩
+    have hdim' : e'.val.dim = 1 := by
+      have h1 : e'.val.dim ≤ h.val.dim := state_semantics_d_step1_dim_le _ _ _ _ _ _ hsub'
+      have h2 : e.val.dim = 1 := he.2
+      omega
+    let e'' : PrototypeEdge S q'.2.val.ty :=
+      ⟨e'.val, Finset.mem_filter.mpr ⟨e'.property, hdim'⟩⟩
+    refine Relation.ReflTransGen.tail (ih q' e'' A h hA hsub') ?_
+    have hframe : q.2.val.prototypeFrame q.1 =
+        (rolePlacement (U.hierarchy.nodeRole q)).trans (q'.2.val.prototypeFrame (q.1 + 1)) := by
+      have h := congrArg (fun N : FramedNode S => N.prototypeFrame q.1)
+        (U.hierarchy.child_eq q.1 q.2)
+      exact h.trans (exists_childMap_step1_frame _ _ _)
+    refine ⟨U.hierarchy.role q.1 q.2,
+      (congrArg FramedNode.ty (U.hierarchy.child_eq q.1 q.2)).symm, ?_⟩
+    rintro _ ⟨x, hx, rfl⟩
+    have hmem : q.2.val.prototypeFrame q.1 x ∈ q'.2.val.cell q'.1 e'.val := hqq ⟨x, hx, rfl⟩
+    rw [hframe] at hmem
+    obtain ⟨y, hy, hxy⟩ := hmem
+    have hyx : y = rolePlacement (U.hierarchy.nodeRole q) x :=
+      (q'.2.val.prototypeFrame q'.1).injective hxy
+    refine ⟨y, hy, ?_⟩
+    rw [hyx]
+    change S.σ (S.σ.symm ((S.child (U.hierarchy.parent q.1 q.2).val.ty
+      (U.hierarchy.role q.1 q.2)).frame x)) = _
+    exact S.σ.apply_symm_apply _
+
+/-- Step 3 of the V4 proof of `state_semantics_d` (V4 §2.1 (P2), 2.4(d)):
+"the edge type of `h`": the serving side's flag edge, placed by the serving child's
+full frame, is the positioned edge of the canonical flag. -/
+private theorem state_semantics_d_step3_flag_edge (P : Params S) (U : HonestSource S)
+    (q : U.Node) (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f) :
+    (U.hierarchy.servingChild q f hf).2.val.cell (U.hierarchy.servingChild q f hf).1
+        ((P.sideFlag (U.recordIncidence P q f hf) (U.recordSide P q f hf)).cell
+          edgeIndex).val =
+      U.providerPlacement P q f hf ''
+        ((P.flag (U.recordIncidence P q f hf)).flag.cell edgeIndex).val.carrier := by
+  have key : ∀ (G : E d ≃ᵃ[ℝ] E d) (φ ψ : Iso d) (K K' : Set (E d)), φ '' K = ψ '' K' →
+      ((φ.toAffineEquiv.trans S.σ.symm.toAffineEquiv).trans G) '' K =
+        (ψ.toAffineEquiv.trans (S.σ.symm.toAffineEquiv.trans G)) '' K' := by
+    intro G φ ψ K K' hK
+    have h1 : ((φ.toAffineEquiv.trans S.σ.symm.toAffineEquiv).trans G) '' K =
+        (fun x => G (S.σ.symm x)) '' (φ '' K) := by
+      rw [Set.image_image]; try rfl
+    have h2 : (ψ.toAffineEquiv.trans (S.σ.symm.toAffineEquiv.trans G)) '' K' =
+        (fun x => G (S.σ.symm x)) '' (ψ '' K') := by
+      rw [Set.image_image]; try rfl
+    rw [h1, h2, hK]
+  unfold FramedNode.cell
+  rw [exists_childMap_step4_profile_step4_serving_frame P U q f hf]
+  exact key ((U.hierarchy.birthParent q f hf).2.val.prototypeFrame
+    (U.hierarchy.birthHeight q f hf)) _ _ _ _
+    (P.sideFlag_eq (U.recordIncidence P q f hf) (U.recordSide P q f hf) edgeIndex)
+
+/-- Step 4 of the V4 proof of `state_semantics_d` (V4 1.7(b), 2.4(d)):
+"the serving flag edge `h`": the side's flag type is the serving child's type. -/
+private theorem state_semantics_d_step4_side_type (P : Params S) (U : HonestSource S)
+    (q : U.Node) (f : FacetName S q.2.val.ty) (hf : ¬ U.hierarchy.IsFault q f) :
+    (U.recordIncidence P q f hf).val.sideType (U.recordSide P q f hf) =
+      (U.hierarchy.servingChild q f hf).2.val.ty := by
+  have hrole := (Classical.choose_spec (U.recordSide_exists P q f hf)).1
+  change (U.recordIncidence P q f hf).val.sideRole (U.recordSide P q f hf) =
+    U.hierarchy.nodeRole (U.hierarchy.servingChild q f hf) at hrole
+  exact (congrArg (fun r : S.Role => (S.child r.1 r.2).ty) hrole).trans
+    (U.address_data P (U.hierarchy.servingChild q f hf)).1
+
 /-- Q7, V4 2.4(d): every active edge type is reachable from the serving flag edge.
 The graph is the existing hereditary edge graph of V4 1.20. -/
 theorem state_semantics_d (P : Params S) (s : State P) (hs : s ∈ honestStates S P)
@@ -6353,7 +6498,47 @@ theorem state_semantics_d (P : Params S) (s : State P) (hs : s ∈ honestStates 
       h.val = ((P.sideFlag r.incidence r.sideIndex).cell edgeIndex).val ∧
       Relation.ReflTransGen (edgeGraph S)
         ⟨r.incidence.val.sideType r.sideIndex, h⟩ ⟨r.ty, e⟩ := by
-  sorry
+  classical
+  obtain ⟨U, q, rfl⟩ := hs
+  change U.facetRecordOf P q f = some r at hr
+  unfold HonestSource.facetRecordOf at hr
+  split at hr
+  · contradiction
+  · rename_i hf
+    cases Option.some.inj hr
+    obtain ⟨c, hc, hce⟩ := he
+    have hact : U.ActiveChain P q f hf c := (Finset.mem_filter.mp hc).2
+    obtain ⟨hs, hstrat, -⟩ := hact.1 edgeIndex
+    have hspec := U.hierarchy.stratumMap_spec q f hf (c.chain.val.cell edgeIndex) hs
+    obtain ⟨p, hp⟩ := exists_childMap_step5_cell_nonempty q.2.val q.1
+      (c.chain.val.cell edgeIndex).val
+    have hsub : q.2.val.cell q.1 (c.chain.val.cell edgeIndex).val ⊆
+        (U.hierarchy.servingChild q f hf).2.val.cell (U.hierarchy.servingChild q f hf).1
+          (U.hierarchy.stratumMap q f hf (c.chain.val.cell edgeIndex) hs).val :=
+      hereditary_trace (U.hierarchy.servingChild q f hf).2.val q.2.val
+        (U.hierarchy.servingChild q f hf).1 q.1
+        (U.hierarchy.ancestor_descendant q (U.hierarchy.firstProvider q f hf).1) _ _
+        (U.hierarchy.stratumMap q f hf (c.chain.val.cell edgeIndex) hs).property
+        (c.chain.val.cell edgeIndex).property
+        ⟨p, hp, intrinsicInterior_subset (hspec.1 hp)⟩
+    rw [hstrat, ← state_semantics_d_step3_flag_edge P U q f hf] at hsub
+    have hce' : (c.chain.val.cell edgeIndex).val = e.val := hce
+    rw [hce'] at hsub
+    obtain ⟨h, hh⟩ : ∃ h : PrototypeEdge S
+        ((U.recordIncidence P q f hf).val.sideType (U.recordSide P q f hf)),
+        h.val = ((P.sideFlag (U.recordIncidence P q f hf) (U.recordSide P q f hf)).cell
+          edgeIndex).val :=
+      ⟨⟨((P.sideFlag (U.recordIncidence P q f hf) (U.recordSide P q f hf)).cell
+          edgeIndex).val,
+        Finset.mem_filter.mpr
+          ⟨((P.sideFlag (U.recordIncidence P q f hf) (U.recordSide P q f hf)).cell
+            edgeIndex).property,
+          (P.sideFlag (U.recordIncidence P q f hf) (U.recordSide P q f hf)).dimension
+            edgeIndex⟩⟩, rfl⟩
+    rw [← hh] at hsub
+    exact ⟨h, hh, state_semantics_d_step2_path U (U.hierarchy.firstProvider q f hf).1 q e
+      ((U.recordIncidence P q f hf).val.sideType (U.recordSide P q f hf)) h
+      (state_semantics_d_step4_side_type P U q f hf) hsub⟩
 
 /-- Q7, V4 2.4(e): uncapped ages give the serving-residue congruence. -/
 theorem state_semantics_e (P : Params S) (s : State P) (hs : s ∈ honestStates S P)

@@ -1541,6 +1541,94 @@ private lemma base_level_step5_I5_step1_boundary_step4_honest_step1_leafPacket
     rw [dif_pos g.2]
   exact key ((tileNode (B.leaf v)).ty) h_ty f
 
+/-- Step 1 of the V4 proof of `base_level_step5_I5_step1_boundary_step4_honest_step2_inherited` (V4 2.6(d)): honest source hierarchy ancestor relation. -/
+private lemma base_level_step5_I5_step1_boundary_step4_honest_step2_inherited_step1_anc_desc
+    (U : HonestSource S) (h r : ℕ) (N : FramedNode S)
+    (hN : N ∈ U.hierarchy.nodes (h + r)) (w : S.RoleWord N.ty r)
+    (hc : (S.descendantNode N.ty h r w).move N.frame ∈ U.hierarchy.nodes h) :
+    U.hierarchy.ancestor ⟨h, ⟨(S.descendantNode N.ty h r w).move N.frame, hc⟩⟩ r
+      = ⟨h + r, ⟨N, hN⟩⟩ := by
+  sorry
+
+/-- Step 2 of the V4 proof of `base_level_step5_I5_step1_boundary_step4_honest_step2_inherited` (V4 2.6(d)): word extension. -/
+private lemma base_level_step5_I5_step1_boundary_step4_honest_step2_inherited_step2_leaf_extends_inner
+    (Y : MarkedTiling (systemM S P C)) (B : KBlock Y) (a : ℕ) (ha : a ≤ P.K)
+    (w : S.RoleWord B.certificate.val.ty a) (v : S.RoleWord B.certificate.val.ty P.K)
+    (h : (tileNode (B.leaf v)).IsDescendant 0 (B.innerNode a ha w) (P.K - a)) :
+    ∃ x : S.RoleWord (B.innerNode a ha w).ty (P.K - a),
+      S.descendantNode B.certificate.val.ty 0 P.K v =
+        (S.descendantNode (B.innerNode a ha w).ty 0 (P.K - a) x).move
+          (S.descendantNode B.certificate.val.ty (P.K - a) a w).frame := by
+  sorry
+
+/-- Step 3 of the V4 proof of `base_level_step5_I5_step1_boundary_step4_honest_step2_inherited` (V4 2.6(d)): split cast transport auxiliary. -/
+private lemma base_level_step5_I5_step1_boundary_step4_honest_step2_inherited_step3_split_cast_aux
+    {T T' T1 : S.ι} (e : T' = T) (n m k : ℕ)
+    (w : S.RoleWord T' n) (v : S.RoleWord T' m) (x : S.RoleWord T1 k)
+    (h : S.descendantNode T' 0 m v =
+        (S.descendantNode T1 0 k x).move (S.descendantNode T' k n w).frame)
+    (A_ty : S.ι) (hA : A_ty = T1) :
+    ∃ x' : S.RoleWord A_ty k,
+      S.descendantNode T 0 m (e.symm ▸ v) =
+        (S.descendantNode A_ty 0 k x').move (S.descendantNode T k n (e.symm ▸ w)).frame := by
+  subst e
+  subst hA
+  exact ⟨x, h⟩
+
+/-- Step 3 of the V4 proof of `base_level_step5_I5_step1_boundary_step4_honest_step2_inherited` (V4 2.6(d)): descendant splitting cast. -/
+private lemma base_level_step5_I5_step1_boundary_step4_honest_step2_inherited_step3_split_cast
+    (Y : MarkedTiling (systemM S P C)) (B : KBlock Y)
+    (a : ℕ) (ha : a ≤ P.K)
+    (w : S.RoleWord B.certificate.val.ty a)
+    (v : S.RoleWord B.certificate.val.ty P.K)
+    (x : S.RoleWord (B.innerNode a ha w).ty (P.K - a))
+    (h_split : S.descendantNode B.certificate.val.ty 0 P.K v =
+        (S.descendantNode (B.innerNode a ha w).ty 0 (P.K - a) x).move
+          (S.descendantNode B.certificate.val.ty (P.K - a) a w).frame)
+    (U : HonestSource S) (N_honest : FramedNode S) (hN_honest : N_honest ∈ U.hierarchy.nodes P.K)
+    (h_ty_eq : (⟨P.K, N_honest, hN_honest⟩ : U.Node).2.val.ty = B.certificate.val.ty)
+    (A : U.Node) (hA : A = U.descendant ⟨P.K, N_honest, hN_honest⟩ a ha (h_ty_eq.symm ▸ w))
+    (h_ty_A : A.2.val.ty = (B.innerNode a ha w).ty) :
+    ∃ x' : S.RoleWord A.2.val.ty (P.K - a),
+      S.descendantNode (⟨P.K, N_honest, hN_honest⟩ : U.Node).2.val.ty 0 P.K (h_ty_eq.symm ▸ v) =
+        (S.descendantNode A.2.val.ty 0 (P.K - a) x').move
+          (S.descendantNode (⟨P.K, N_honest, hN_honest⟩ : U.Node).2.val.ty (P.K - a) a (h_ty_eq.symm ▸ w)).frame := by
+  exact base_level_step5_I5_step1_boundary_step4_honest_step2_inherited_step3_split_cast_aux h_ty_eq.symm a P.K (P.K - a) w v x h_split A.2.val.ty h_ty_A
+
+/-- Step 4 of the V4 proof of `base_level_step5_I5_step1_boundary_step4_honest_step2_inherited` (V4 2.6(d)): descendant node ancestor. -/
+private lemma base_level_step5_I5_step1_boundary_step4_honest_step2_inherited_step4_ancestor
+    (U : HonestSource S) (P : Params S) (q : U.Node) (a : ℕ) (ha : a ≤ q.fst)
+    (w : S.RoleWord q.2.val.ty a) (v : S.RoleWord q.2.val.ty q.fst)
+    (A L : U.Node) (hA : A = U.descendant q a ha w) (hL : L = U.descendant q q.fst le_rfl v)
+    (x : S.RoleWord A.2.val.ty (q.fst - a))
+    (h_split : S.descendantNode q.2.val.ty 0 q.fst v =
+        (S.descendantNode A.2.val.ty 0 (q.fst - a) x).move
+          (S.descendantNode q.2.val.ty (q.fst - a) a w).frame) :
+    U.hierarchy.ancestor L (q.fst - a) = A := by
+  sorry
+
+/-- Step 5 of the V4 proof of `base_level_step5_I5_step1_boundary_step4_honest_step2_inherited` (V4 2.6(d)): descendant cell inclusion. -/
+private lemma base_level_step5_I5_step1_boundary_step4_honest_step2_inherited_step5_cell
+    (Y : MarkedTiling (systemM S P C)) (B : KBlock Y)
+    (a : ℕ) (ha : a ≤ P.K)
+    (w : S.RoleWord B.certificate.val.ty a)
+    (F : FacetName S (B.innerNode a ha w).ty)
+    (U : HonestSource S) (N_honest : FramedNode S) (hN_honest : N_honest ∈ U.hierarchy.nodes P.K)
+    (h_cert : certOf U P N_honest hN_honest = B.certificate.val)
+    (h_ty_eq : (⟨P.K, N_honest, hN_honest⟩ : U.Node).2.val.ty = B.certificate.val.ty)
+    (v : S.RoleWord B.certificate.val.ty P.K)
+    (f : FacetName S (tileNode (B.leaf v)).ty)
+    (h_piece : Parser.IsFacetPiece Y (P.K - a) (B.innerNode a ha w) F (B.leaf v) f)
+    (h_ty_A : (U.descendant ⟨P.K, N_honest, hN_honest⟩ a ha (h_ty_eq.symm ▸ w)).2.val.ty = (B.innerNode a ha w).ty)
+    (h_ty_L : (U.descendant ⟨P.K, N_honest, hN_honest⟩ P.K le_rfl (h_ty_eq.symm ▸ v)).2.val.ty = (tileNode (B.leaf v)).ty) :
+    (U.descendant ⟨P.K, N_honest, hN_honest⟩ P.K le_rfl (h_ty_eq.symm ▸ v)).2.val.cell
+        (U.descendant ⟨P.K, N_honest, hN_honest⟩ P.K le_rfl (h_ty_eq.symm ▸ v)).1
+        (h_ty_L.symm ▸ f).val ⊆
+      (U.descendant ⟨P.K, N_honest, hN_honest⟩ a ha (h_ty_eq.symm ▸ w)).2.val.cell
+        (U.descendant ⟨P.K, N_honest, hN_honest⟩ a ha (h_ty_eq.symm ▸ w)).1
+        (h_ty_A.symm ▸ F).val := by
+  sorry
+
 /-- Step 2 of the V4 proof of `base_level_step5_I5_step1_boundary_step4_honest` (V4 2.6(d)): packets are inherited unchanged along the tracks. -/
 private lemma base_level_step5_I5_step1_boundary_step4_honest_step2_inherited
     (Y : MarkedTiling (systemM S P C)) (B : KBlock Y)
@@ -1557,7 +1645,13 @@ private lemma base_level_step5_I5_step1_boundary_step4_honest_step2_inherited
     (h_ty_L : (U.descendant ⟨P.K, N_honest, hN_honest⟩ P.K le_rfl (h_ty_eq.symm ▸ v)).2.val.ty = (tileNode (B.leaf v)).ty) :
     U.facetPacket P (U.descendant ⟨P.K, N_honest, hN_honest⟩ P.K le_rfl (h_ty_eq.symm ▸ v)) (h_ty_L.symm ▸ f) =
     U.facetPacket P (U.descendant ⟨P.K, N_honest, hN_honest⟩ a ha (h_ty_eq.symm ▸ w)) (h_ty_A.symm ▸ F) := by
-  sorry
+  obtain ⟨x, hx⟩ := base_level_step5_I5_step1_boundary_step4_honest_step2_inherited_step2_leaf_extends_inner Y B a ha w v h_piece.2.1
+  obtain ⟨x', hx'⟩ := base_level_step5_I5_step1_boundary_step4_honest_step2_inherited_step3_split_cast Y B a ha w v x hx U N_honest hN_honest h_ty_eq _ rfl h_ty_A
+  have hca : U.hierarchy.ancestor (U.descendant ⟨P.K,N_honest,hN_honest⟩ P.K le_rfl (h_ty_eq.symm ▸ v)) (P.K - a)
+      = U.descendant ⟨P.K,N_honest,hN_honest⟩ a ha (h_ty_eq.symm ▸ w) :=
+    base_level_step5_I5_step1_boundary_step4_honest_step2_inherited_step4_ancestor U P ⟨P.K,N_honest,hN_honest⟩ a ha (h_ty_eq.symm ▸ w) (h_ty_eq.symm ▸ v) _ _ rfl rfl x' hx'
+  have hgf := base_level_step5_I5_step1_boundary_step4_honest_step2_inherited_step5_cell Y B a ha w F U N_honest hN_honest h_cert h_ty_eq v f h_piece h_ty_A h_ty_L
+  exact packet_inherited U P _ _ (P.K - a) hca (h_ty_A.symm ▸ F) (h_ty_L.symm ▸ f) hgf
 
 open private exists_honest_step7_descendant_type from Enforce.Tiling in
 /-- Step 4 of the V4 proof of `base_level_step5_I5_step1_boundary` (V4 2.6(c),(d)): honest packet constancy for prescribed leaves. -/

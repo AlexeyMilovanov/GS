@@ -508,7 +508,55 @@ private lemma exists_extension_of_nullhomotopic_step2_phi (n : ℕ) (X F : Set (
   (G : C(↥X × unitInterval, E n)) (hG1 : ∀ y : ↥F, ∀ t, G (⟨y.1, hFX y.2⟩, t) ≠ 0)
   (hG2 : ∀ x : ↥X, G (x, 1) ≠ 0) :
   ∃ φ : C(↥X, unitInterval), (∀ y : ↥F, φ ⟨y.1, hFX y.2⟩ = 0) ∧ ∀ x, G (x, φ x) ≠ 0 := by
-  sorry
+  let Z := { p : ↥X × unitInterval | G p = 0 }
+  have hZ_closed : IsClosed Z := isClosed_eq G.continuous continuous_const
+  have hX_comp : CompactSpace ↥X := isCompact_iff_compactSpace.mp hX
+  have hZ_comp : IsCompact Z := IsClosed.isCompact hZ_closed
+  let pX : ↥X × unitInterval → ↥X := Prod.fst
+  let A := pX '' Z
+  have hA_comp : IsCompact A := IsCompact.image hZ_comp continuous_fst
+  have hA_closed : IsClosed A := IsCompact.isClosed hA_comp
+  have hF_closed_X : IsClosed { x : ↥X | (x : E n) ∈ F } := by
+    apply (isClosed_induced_iff).mpr
+    exact ⟨F, hF, rfl⟩
+  have hF_A_disj : Disjoint { x : ↥X | (x : E n) ∈ F } A := by
+    rw [disjoint_iff_inter_eq_empty]
+    ext x'
+    simp only [mem_inter_iff, mem_setOf_eq, mem_empty_iff_false, iff_false, not_and]
+    intro hx h_mem_A
+    rcases h_mem_A with ⟨⟨x'', t⟩, h_G, h_fst⟩
+    dsimp [pX] at h_fst
+    subst h_fst
+    have hG_eq : G (x'', t) = 0 := h_G
+    have h_ne := hG1 ⟨x''.1, hx⟩ t
+    have h_eq : (⟨x''.1, hFX hx⟩ : ↥X) = x'' := Subtype.ext rfl
+    rw [h_eq] at h_ne
+    contradiction
+  have h_norm : NormalSpace ↥X := inferInstance
+  have h_Urysohn := exists_continuous_zero_one_of_isClosed hF_closed_X hA_closed hF_A_disj
+  rcases h_Urysohn with ⟨φ0, hφF, hφA, hφ_range⟩
+  have hφ0_cont : Continuous φ0 := φ0.continuous
+  let φ_fun : ↥X → unitInterval := fun x => ⟨φ0 x, hφ_range x⟩
+  have hφ_cont : Continuous φ_fun := Continuous.subtype_mk hφ0_cont _
+  let φ : C(↥X, unitInterval) := ⟨φ_fun, hφ_cont⟩
+  use φ
+  constructor
+  · intro y
+    apply Subtype.ext
+    change φ0 ⟨y.1, hFX y.2⟩ = 0
+    apply hφF
+    change (y.1 : E n) ∈ F
+    exact y.2
+  · intro x h_eq
+    have h_G : G (x, φ x) = 0 := h_eq
+    have h_mem_A : x ∈ A := ⟨⟨x, φ x⟩, h_G, rfl⟩
+    have h_φA := hφA h_mem_A
+    change φ0 x = 1 at h_φA
+    have h_φx : (φ x : ℝ) = 1 := h_φA
+    have h_φ_eq_1 : φ x = 1 := Subtype.ext h_φx
+    rw [h_φ_eq_1] at h_G
+    have := hG2 x
+    contradiction
 
 /-- CS10: `X ⊆ E n` compact, `F ⊆ X` closed,
 `f : C(↥F, ↥(sphere (0 : E n) 1))` nullhomotopic ⇒ a continuous extension over `X`

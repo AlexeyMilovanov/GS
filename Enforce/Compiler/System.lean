@@ -561,6 +561,22 @@ theorem colour_disjointness_ii (C : ClusterData S P) :
     · exact False.elim (hreadout (Classical.choose hr) l j a x.val
         (Classical.choose_spec hr).2 h)
 
+/-- Decoding a physical tile (V4 2.11): the carrier is the decoded frame's image of
+the leaf prototype, and every point reads the augmented colour of the decoded leaf. -/
+private theorem colour_disjointness_iii_decode (C : ClusterData S P)
+    (t : PlacedMarkedTile (systemM S P C)) (x : E d) :
+    (x ∈ t.carrier ↔
+      (compilerFrame C t).symm x ∈ (S.proto (compilerLeaf C t).prototype).carrier) ∧
+    ∀ hx : x ∈ t.carrier,
+      t.mark ⟨x, hx⟩ = augmentedColour C (compilerLeaf C t) ((compilerFrame C t).symm x) := by
+  have h := placedLeaf_decode C t
+  generalize compilerLeaf C t = l at h ⊢
+  generalize compilerFrame C t = φ at h ⊢
+  subst h
+  refine ⟨⟨?_, fun hx => ⟨φ.symm x, hx, φ.apply_symm_apply x⟩⟩, fun _ => rfl⟩
+  rintro ⟨y, hy, rfl⟩
+  simpa only [AffineIsometryEquiv.symm_apply_apply] using hy
+
 /-- M4, V4 2.12(iii): a microcolour's locus is precisely one radius-rho ball
 in each tile of that leaf type. Distinct tiles' corresponding centres are at
 least 2 delta apart. Properness is not needed for this geometric assertion. -/
@@ -575,7 +591,47 @@ theorem colour_disjointness_iii (C : ClusterData S P)
       compilerLeaf C t = l → compilerLeaf C u = l → t ≠ u →
       2 * C.δ ≤ dist (compilerFrame C t (C.centre l κ a))
         (compilerFrame C u (C.centre l κ a)) := by
-  sorry
+  have hdist (t : PlacedMarkedTile (systemM S P C)) (x : E d) :
+      dist ((compilerFrame C t).symm x) (C.centre l κ a) =
+        dist x (compilerFrame C t (C.centre l κ a)) := by
+    rw [← (compilerFrame C t).dist_map ((compilerFrame C t).symm x) (C.centre l κ a),
+      AffineIsometryEquiv.apply_symm_apply]
+  -- the δ-ball about a transported centre lies in the tile's interior
+  have hball (t : PlacedMarkedTile (systemM S P C)) (hl : compilerLeaf C t = l) :
+      ball (compilerFrame C t (C.centre l κ a)) C.δ ⊆ interior t.carrier := by
+    refine interior_maximal (fun y hy => ?_) isOpen_ball
+    refine (colour_disjointness_iii_decode C t y).1.2 ?_
+    rw [hl]
+    refine interior_subset (C.centre_ball_inside l κ a ?_)
+    rw [mem_ball, hdist]
+    exact hy
+  refine ⟨?_, ?_⟩
+  · ext x
+    simp only [mem_setOf_eq, mem_iUnion]
+    constructor
+    · intro hx
+      obtain ⟨t, ht, hxt⟩ := Y.cover x
+      rw [Y.marking_eq_tile t ht x hxt, (colour_disjointness_iii_decode C t x).2 hxt] at hx
+      obtain ⟨hl, hm⟩ := (augmentedColour_micro_iff C l (compilerLeaf C t) κ a _).1 hx
+      refine ⟨⟨t, ht, hl⟩, ?_⟩
+      rw [mem_closedBall, ← hdist]
+      exact hm
+    · rintro ⟨⟨t, ht, hl⟩, hx⟩
+      have hy : (compilerFrame C t).symm x ∈ C.microball l κ a := by
+        rw [ClusterData.microball, mem_closedBall, hdist]
+        exact hx
+      have hxt : x ∈ t.carrier := by
+        refine (colour_disjointness_iii_decode C t x).1.2 ?_
+        rw [hl]
+        exact interior_subset (C.cluster_inside l κ (mem_iUnion.2 ⟨a, hy⟩))
+      rw [Y.marking_eq_tile t ht x hxt, (colour_disjointness_iii_decode C t x).2 hxt,
+        augmentedColour_micro_iff]
+      exact ⟨hl, hy⟩
+  · intro t ht u hu hlt hlu hne
+    have h_disj : Disjoint (interior t.carrier) (interior u.carrier) := Y.disjoint ht hu hne
+    have h_balls := h_disj.mono (hball t hlt) (hball u hlu)
+    have h := (disjoint_ball_ball_iff C.δ_pos C.δ_pos).mp h_balls
+    linarith
 
 /-- Step 1 of the V4 proof of `cluster_rigidity` (V4 2.13): Each source microball ψ(B̄(c_a, ρ))
 is connected and coloured (κ,D,i,a) throughout, so it lies in the set of points of Y with that colour. -/

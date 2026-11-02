@@ -1421,6 +1421,11 @@ private lemma base_level_step5_I5_step1_boundary_step3_leaf
     exact ⟨ht, hsub⟩
   exact hmem
 
+private lemma cert_leaves_of_eq {d : ℕ} [Fact (2 ≤ d)] {S : SubstSystem d} {P : Params S} {D₁ D₂ : Certificate P} (h : D₁ = D₂) (hty : D₁.ty = D₂.ty) (w : S.RoleWord D₂.ty P.K) : D₁.leaves (hty.symm ▸ w) = D₂.leaves w := by
+  subst h
+  cases hty
+  rfl
+
 /-- Step 1 of the V4 proof of `base_level_step5_I5_step1_boundary_step4_honest` (V4 2.6(c)): the leaf packet equals the honest source facet packet. -/
 private lemma base_level_step5_I5_step1_boundary_step4_honest_step1_leafPacket
     (Y : MarkedTiling (systemM S P C)) (B : KBlock Y)
@@ -1432,7 +1437,19 @@ private lemma base_level_step5_I5_step1_boundary_step4_honest_step1_leafPacket
     (h_ty : (U.descendant ⟨P.K, N_honest, hN_honest⟩ P.K le_rfl (h_ty_eq.symm ▸ v)).2.val.ty = (tileNode (B.leaf v)).ty) :
     leafPacket (compilerLeaf C (B.leaf v)) f.val =
       U.facetPacket P (U.descendant ⟨P.K, N_honest, hN_honest⟩ P.K le_rfl (h_ty_eq.symm ▸ v)) (h_ty.symm ▸ f) := by
-  sorry
+  have hl : prePatternOf U P (U.descendant ⟨P.K, ⟨N_honest, hN_honest⟩⟩ P.K le_rfl (h_ty_eq.symm ▸ v)) (Nat.sub_self P.K) = B.certificate.val.leaves v := cert_leaves_of_eq h_cert h_ty_eq v
+  rw [(B.leaf_data v).1]
+  unfold leafPacket
+  classical
+  show (if hf : f.val ∈ (S.cx (B.certificate.val.leaves v).ty).facets then (B.certificate.val.leaves v).packets ⟨f.val, hf⟩ else none) = _
+  rw [← hl]
+  change (if hf : f.val ∈ (S.cx (U.descendant ⟨P.K, ⟨N_honest, hN_honest⟩⟩ P.K le_rfl (h_ty_eq.symm ▸ v)).2.val.ty).facets then U.facetPacket P (U.descendant ⟨P.K, ⟨N_honest, hN_honest⟩⟩ P.K le_rfl (h_ty_eq.symm ▸ v)) ⟨f.val, hf⟩ else none) = U.facetPacket P (U.descendant ⟨P.K, ⟨N_honest, hN_honest⟩⟩ P.K le_rfl (h_ty_eq.symm ▸ v)) (h_ty.symm ▸ f)
+  generalize hq' : U.descendant ⟨P.K, ⟨N_honest, hN_honest⟩⟩ P.K le_rfl (h_ty_eq.symm ▸ v) = q' at h_ty ⊢
+  have key : ∀ (T : S.ι) (hT : q'.2.val.ty = T) (g : FacetName S T), (if hf : g.val ∈ (S.cx q'.2.val.ty).facets then U.facetPacket P q' ⟨g.val, hf⟩ else none) = U.facetPacket P q' (hT.symm ▸ g) := by
+    intro T hT g
+    cases hT
+    rw [dif_pos g.2]
+  exact key ((tileNode (B.leaf v)).ty) h_ty f
 
 /-- Step 2 of the V4 proof of `base_level_step5_I5_step1_boundary_step4_honest` (V4 2.6(d)): packets are inherited unchanged along the tracks. -/
 private lemma base_level_step5_I5_step1_boundary_step4_honest_step2_inherited

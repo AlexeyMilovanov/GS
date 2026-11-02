@@ -162,7 +162,27 @@ theorem cone_image_null (m n : ℕ) (hmn : m + 1 ≤ n) (G : E m → E n)
 theorem exists_direction_off_cone (m n : ℕ) (hmn : m + 1 ≤ n) (G : E m → E n)
     (hG : ContDiff ℝ 1 G) :
     ∃ p ∈ sphere (0 : E n) 1, ∀ t : ℝ, ∀ y ∈ sphere (0 : E m) 1, t • G y ≠ p := by
-  sorry
+  by_contra h
+  push_neg at h
+  let S := {z : E n | ∃ t : ℝ, ∃ y ∈ sphere (0 : E m) 1, z = t • G y}
+  have h_sub : (univ : Set (E n)) ⊆ S ∪ {0} := by
+    intro z _
+    by_cases hz0 : z = 0
+    · right; exact hz0
+    · left
+      have hn : ‖z‖ ≠ 0 := norm_ne_zero_iff.mpr hz0
+      obtain ⟨t, y, hy, hty⟩ := h (‖z‖⁻¹ • z) (by rw [mem_sphere_zero_iff_norm, norm_smul, norm_inv, norm_norm, inv_mul_cancel₀ hn])
+      use ‖z‖ * t, y, hy
+      have hty_symm : ‖z‖⁻¹ • z = t • G y := hty.symm
+      rw [mul_smul, ← hty_symm, smul_smul, mul_inv_cancel₀ hn, one_smul]
+  have h_meas : MeasureTheory.volume (univ : Set (E n)) ≤ MeasureTheory.volume S + MeasureTheory.volume ({0} : Set (E n)) := by
+    calc MeasureTheory.volume (univ : Set (E n)) ≤ MeasureTheory.volume (S ∪ {0}) := MeasureTheory.measure_mono h_sub
+      _ ≤ MeasureTheory.volume S + MeasureTheory.volume ({0} : Set (E n)) := MeasureTheory.measure_union_le S {0}
+  have hS : MeasureTheory.volume S = 0 := cone_image_null m n hmn G hG
+  haveI : Nontrivial (E n) := Module.nontrivial_of_finrank_pos (R := ℝ) (by have hE : Module.finrank ℝ (E n) = n := finrank_euclideanSpace_fin; rw [hE]; exact (by linarith : 1 ≤ n))
+  have h0 : MeasureTheory.volume ({0} : Set (E n)) = 0 := MeasureTheory.measure_singleton (0 : E n)
+  rw [hS, h0, add_zero] at h_meas
+  exact (IsOpen.measure_pos MeasureTheory.volume isOpen_univ ⟨0, mem_univ 0⟩).ne.symm (nonpos_iff_eq_zero.mp h_meas)
 
 
 /-- Step 1 of the V4 proof of `nullhomotopic_sphere_to_sphere`: smooth approximation. -/

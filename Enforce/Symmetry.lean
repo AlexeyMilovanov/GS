@@ -1637,7 +1637,25 @@ For any two tiles, the set of isometries mapping the marked tile of one to the o
 The frame markers break continuous symmetries. -/
 private lemma point_stabilizer_finite_step2_finite_isometries (t u : PlacedMarkedTile (systemM S P C)) :
     {g : Iso d | t.toMarkedSet.move g = u.toMarkedSet}.Finite := by
-  sorry
+  refine Set.Subsingleton.finite ?_
+  intro g hg h hh
+  have hg' : t.toMarkedSet.move g = u.toMarkedSet := hg
+  have hh' : t.toMarkedSet.move h = u.toMarkedSet := hh
+  set l := compilerLeaf C t
+  set φ0 := compilerFrame C t
+  have hdec : (placedLeaf C l φ0).toMarkedSet = t.toMarkedSet :=
+    congrArg PlacedMarkedTile.toMarkedSet (placedLeaf_decode C t)
+  have hgh : (placedLeaf C l φ0).toMarkedSet.move g = (placedLeaf C l φ0).toMarkedSet.move h := by
+    rw [hdec, hg', hh']
+  have h_move_move : (augmentedLeaf C l).toMarkedSet.move (g * φ0) =
+      (augmentedLeaf C l).toMarkedSet.move (h * φ0) := by
+    have H1 : (placedLeaf C l φ0).toMarkedSet.move g =
+        ((augmentedLeaf C l).toMarkedSet.move φ0).move g := rfl
+    have H2 : (placedLeaf C l φ0).toMarkedSet.move h =
+        ((augmentedLeaf C l).toMarkedSet.move φ0).move h := rfl
+    rw [H1, H2, markedSet_move_move, markedSet_move_move] at hgh
+    exact hgh
+  exact mul_right_cancel (augmentedLeaf_rigid C l l _ _ h_move_move).2
 
 /-- Y1, V4 5.7, Step 4(i),(iv): the symmetry stabilizer of any fixed point is finite.
 The marked tile frame isolates the identity; the point stabilizer in the full

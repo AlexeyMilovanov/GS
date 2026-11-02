@@ -6101,6 +6101,161 @@ private theorem uniform_cone_radius_step1_catalogue
   rw [hy_eq] at h_trans
   rwa [hc]
 
+/-- Step 1 of the V4 proof of `uniform_cone_radius_step2_union` (V4 1.19): "its tangent
+cone at `σⁿp` is `σⁿG`, the cone of directions `σⁿ(G - p)`": a linear automorphism
+transports radial tangent cones. -/
+private theorem uniform_cone_radius_step2_union_step1_transport
+    {k : ℕ} (L : E k ≃ₗ[ℝ] E k) (K : Set (E k)) (p : E k) :
+    tangentCone (L '' K) (L p) = L '' tangentCone K p := by
+  ext w
+  constructor
+  · rintro ⟨ε, hε, h⟩
+    refine ⟨L.symm w, ⟨ε, hε, fun s hs hsε => ?_⟩, L.apply_symm_apply w⟩
+    obtain ⟨x, hx, hxe⟩ := h s hs hsε
+    have hLx : L x = L (p + s • L.symm w) := by
+      rw [hxe, map_add, map_smul, L.apply_symm_apply]
+    exact L.injective hLx ▸ hx
+  · rintro ⟨v, ⟨ε, hε, h⟩, rfl⟩
+    exact ⟨ε, hε, fun s hs hsε => ⟨p + s • v, h s hs hsε, by rw [map_add, map_smul]⟩⟩
+
+/-- Step 2 of the V4 proof of `uniform_cone_radius_step2_union` (V4 1.19): "the tangent
+cone of a finite union ... is the union of the tangent cones of the members containing
+the point"; radial tangent cones are monotone. -/
+private theorem uniform_cone_radius_step2_union_step2_tangent_mono
+    {k : ℕ} {K L : Set (E k)} (h : K ⊆ L) (p : E k) :
+    tangentCone K p ⊆ tangentCone L p := by
+  rintro v ⟨ε, hε, hv⟩
+  exact ⟨ε, hε, fun t ht htε => h (hv t ht htε)⟩
+
+open scoped Topology in
+/-- Step 2 of the V4 proof of `uniform_cone_radius_step2_union` (V4 1.19): "the tangent
+cone of a finite union ... is the union of the tangent cones of the members containing
+the point", for finitely many closed convex members: a radial germ in the union lies,
+for small times, in a member containing the point, and convexity fills in the segment. -/
+private theorem uniform_cone_radius_step2_union_step2_convex_germ
+    {k : ℕ} {ι : Type*} [Finite ι]
+    (K : ι → Set (E k)) (hclosed : ∀ i, IsClosed (K i)) (hconv : ∀ i, Convex ℝ (K i))
+    (p : E k) :
+    tangentCone (⋃ i, K i) p ⊆ ⋃ i, ⋃ (_ : p ∈ K i), tangentCone (K i) p := by
+  classical
+  rintro v ⟨ε, hε, hv⟩
+  have hgood : ∀ᶠ t : ℝ in 𝓝 0, ∀ i, p ∉ K i → p + t • v ∉ K i := by
+    rw [Filter.eventually_all]
+    intro i
+    by_cases hi : p ∈ K i
+    · exact Filter.Eventually.of_forall (fun _ h => (h hi).elim)
+    · have hcont : Continuous (fun t : ℝ => p + t • v) := by fun_prop
+      have hnbd : (K i)ᶜ ∈ 𝓝 p := (hclosed i).isOpen_compl.mem_nhds hi
+      have hlim : Filter.Tendsto (fun t : ℝ => p + t • v) (𝓝 0) (𝓝 p) := by
+        simpa using (hcont.continuousAt (x := 0)).tendsto
+      exact (hlim.eventually hnbd).mono (fun t ht _ => ht)
+  have hgood' : ∀ᶠ t : ℝ in 𝓝[>] 0,
+      0 < t ∧ t < ε ∧ ∀ i, p ∉ K i → p + t • v ∉ K i := by
+    filter_upwards [self_mem_nhdsWithin,
+      (eventually_lt_nhds hε).filter_mono nhdsWithin_le_nhds,
+      hgood.filter_mono nhdsWithin_le_nhds] with t ht htε hg
+    exact ⟨ht, htε, hg⟩
+  obtain ⟨t, ht, htε, hg⟩ := hgood'.exists
+  obtain ⟨i, hi⟩ := Set.mem_iUnion.mp (hv t ht htε)
+  have hp : p ∈ K i := by
+    by_contra h
+    exact hg i h hi
+  refine Set.mem_iUnion₂.mpr ⟨i, hp, t, ht, fun u hu hut => ?_⟩
+  have hfrac : u / t ∈ Set.Icc (0 : ℝ) 1 :=
+    ⟨le_of_lt (div_pos hu ht), (div_le_one ht).mpr hut.le⟩
+  have hc := (hconv i).add_smul_mem hp hi hfrac
+  simpa only [smul_smul, div_mul_cancel₀ u ht.ne'] using hc
+
+/-- Step 3 of the V4 proof of `uniform_cone_radius_step2_union` (V4 1.19): "the tangent
+cone of a finite union of polyhedral sets at a point is the union of the tangent cones
+of the members containing the point". -/
+private theorem uniform_cone_radius_step2_union_step3_polyhedral_union
+    {k : ℕ} {ι : Type*} [Finite ι]
+    (K : ι → Set (E k)) (hK : ∀ i, Polyhedron (K i)) (p : E k) :
+    tangentCone (⋃ i, K i) p = ⋃ i, ⋃ (_ : p ∈ K i), tangentCone (K i) p := by
+  classical
+  apply Set.Subset.antisymm
+  · choose s hs using hK
+    let J := Σ i : ι, {t // t ∈ s i}
+    let C : J → Set (E k) := fun a => convexHull ℝ (a.2.val : Set (E k))
+    have hU : (⋃ i, K i) = ⋃ a : J, C a := by
+      simp only [hs, C, J, Set.iUnion_sigma, Set.iUnion_subtype]
+    have hCK : ∀ a : J, C a ⊆ K a.1 := by
+      rintro ⟨i, t, ht⟩
+      rw [hs i]
+      exact Set.subset_iUnion_of_subset t (Set.subset_iUnion_of_subset ht Set.Subset.rfl)
+    rw [hU]
+    intro v hv
+    obtain ⟨a, hpa, hva⟩ := Set.mem_iUnion₂.mp
+      (uniform_cone_radius_step2_union_step2_convex_germ C
+        (fun a => a.2.val.finite_toSet.isClosed_convexHull)
+        (fun _ => convex_convexHull _ _) p hv)
+    exact Set.mem_iUnion₂.mpr ⟨a.1, hCK a hpa,
+      uniform_cone_radius_step2_union_step2_tangent_mono (hCK a) p hva⟩
+  · intro v hv
+    obtain ⟨i, _, hvi⟩ := Set.mem_iUnion₂.mp hv
+    exact uniform_cone_radius_step2_union_step2_tangent_mono (Set.subset_iUnion K i) p hvi
+
+/-- Step 4 of the V4 proof of `uniform_cone_radius_step2_union` (V4 1.19): "every `t ∈ Iₙ`
+is a placed prototile", so it is polyhedral: affine images of polyhedra are polyhedra. -/
+private theorem uniform_cone_radius_step2_union_step4_polyhedron_image
+    {k : ℕ} (f : E k →ᵃ[ℝ] E k) {K : Set (E k)} (hK : Polyhedron K) :
+    Polyhedron (f '' K) := by
+  classical
+  obtain ⟨s, rfl⟩ := hK
+  refine ⟨s.image (fun t => t.image f), ?_⟩
+  simp only [Set.image_iUnion]
+  ext x
+  simp only [Set.mem_iUnion, exists_prop, Finset.mem_image]
+  constructor
+  · rintro ⟨t, ht, hx⟩
+    refine ⟨t.image f, ⟨t, ht, rfl⟩, ?_⟩
+    rw [Finset.coe_image]
+    exact (AffineMap.image_convexHull f (t : Set (E k))) ▸ hx
+  · rintro ⟨_, ⟨t, ht, rfl⟩, hx⟩
+    refine ⟨t, ht, ?_⟩
+    rw [Finset.coe_image] at hx
+    exact (AffineMap.image_convexHull f (t : Set (E k))).symm ▸ hx
+
+/-- Step 4 of the V4 proof of `uniform_cone_radius_step2_union` (V4 1.19): "every `t ∈ Iₙ`
+is a placed prototile", hence a polyhedron. -/
+private theorem uniform_cone_radius_step2_union_step4_node_polyhedron
+    {k : ℕ} [Fact (2 ≤ k)] {T : SubstSystem k} (N : FramedNode T) :
+    Polyhedron (N.carrier 0) := by
+  rw [incident_parent_exists_unique_step1_carrier_zero]
+  exact uniform_cone_radius_step2_union_step4_polyhedron_image
+    N.frame.toAffineEquiv.toAffineMap (T.proto N.ty).polyhedral
+
+/-- Step 5 of the V4 proof of `uniform_cone_radius_step2_union` (V4 1.19): "`σⁿ(⋃ Π_G)` is
+the union of its native descendants". -/
+private theorem uniform_cone_radius_step2_union_step5_cover
+    {k : ℕ} [Fact (2 ≤ k)] {T : SubstSystem k} (R : CompatiblePatch T)
+    (Q : Finset (FramedNode T)) (hQ : Q ⊆ R.tiles) (n : ℕ) :
+    (⋃ a : R.Address n, ⋃ (_ : a.1.val ∈ Q), (R.native n a).carrier 0) =
+      (T.σ ^ n) '' (⋃ t ∈ Q, t.carrier 0) := by
+  apply Set.Subset.antisymm
+  · intro x hx
+    obtain ⟨a, haQ, hxa⟩ := Set.mem_iUnion₂.mp hx
+    obtain ⟨y, hy, rfl⟩ := incident_parent_exists_unique_step4_native_subset R n a hxa
+    exact Set.mem_image_of_mem _ (Set.mem_iUnion₂.mpr ⟨a.1.val, haQ, hy⟩)
+  · rintro x ⟨y, hy, rfl⟩
+    obtain ⟨t, ht, hyt⟩ := Set.mem_iUnion₂.mp hy
+    rw [incident_parent_exists_unique_step1_carrier_zero] at hyt
+    obtain ⟨z, hz, rfl⟩ := hyt
+    have hcov : (T.σ ^ n) z ∈
+        ⋃ w : T.RoleWord t.ty n, (T.nativeTile t.ty n w).carrier 0 := by
+      rw [T.native_cover]
+      exact Set.mem_image_of_mem _ hz
+    obtain ⟨w, hw⟩ := Set.mem_iUnion.mp hcov
+    rw [incident_parent_exists_unique_step1_carrier_zero] at hw
+    obtain ⟨u, hu, hzu⟩ := hw
+    refine Set.mem_iUnion₂.mpr ⟨⟨⟨t, hQ ht⟩, w⟩, ht, ?_⟩
+    rw [incident_parent_exists_unique_step1_carrier_zero]
+    refine ⟨u, hu, ?_⟩
+    change compatibleInflatedFrame t (R.compatible t (hQ ht)) n
+      ((T.nativeTile t.ty n w).frame u) = (T.σ ^ n) (t.frame z)
+    rw [hzu, incident_parent_exists_unique_step4_inflated_pow]
+
 /-- Step 2 of the V4 proof of `uniform_cone_radius` (V4 1.19):
 "its tangent cone ... is σⁿG = ⋃ T ... over the descendants";
 nonincident descendants contribute no germ. -/
@@ -6112,7 +6267,29 @@ private theorem uniform_cone_radius_step2_union
     (⋃ a : R.Incident q n, ⋃ (_ : a.val.1.val ∈ Q),
       tangentCone ((R.native n a.val).carrier 0) ((T.σ ^ n) q)) =
         (T.σ ^ n) '' tangentCone (⋃ t ∈ Q, t.carrier 0) q := by
-  sorry
+  classical
+  let J := {a : R.Address n // a.1.val ∈ Q}
+  haveI : Finite J := Subtype.finite
+  let K : J → Set (E k) := fun a => (R.native n a.val).carrier 0
+  have hU : (T.σ ^ n) '' (⋃ t ∈ Q, t.carrier 0) = ⋃ a : J, K a := by
+    rw [← uniform_cone_radius_step2_union_step5_cover R Q hQ n]
+    ext x
+    simp only [Set.mem_iUnion]
+    constructor
+    · rintro ⟨a, haQ, hx⟩
+      exact ⟨⟨a, haQ⟩, hx⟩
+    · rintro ⟨⟨a, haQ⟩, hx⟩
+      exact ⟨a, haQ, hx⟩
+  rw [← uniform_cone_radius_step2_union_step1_transport, hU,
+    uniform_cone_radius_step2_union_step3_polyhedral_union K
+      (fun a => uniform_cone_radius_step2_union_step4_node_polyhedron _)]
+  ext v
+  simp only [Set.mem_iUnion]
+  constructor
+  · rintro ⟨⟨a, ha⟩, haQ, hv⟩
+    exact ⟨⟨a, haQ⟩, ha, hv⟩
+  · rintro ⟨⟨a, haQ⟩, ha, hv⟩
+    exact ⟨⟨a, ha⟩, haQ, hv⟩
 
 /-- P14, V4 1.19: uniform native-scale cone radius and the union formula for
 any selected collection of original tiles whose cones form the chosen cone.

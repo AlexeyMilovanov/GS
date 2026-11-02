@@ -1629,7 +1629,24 @@ private lemma base_level_step5_I5_step1_boundary_step4_honest_step2_inherited_st
         (S.descendantNode A.2.val.ty 0 (q.fst - a) x).move
           (S.descendantNode q.2.val.ty (q.fst - a) a w).frame) :
     U.hierarchy.ancestor L (q.fst - a) = A := by
-  sorry
+  subst hA hL
+  have hd : (U.descendant q q.fst le_rfl v).2.val.IsDescendant
+      (U.descendant q q.fst le_rfl v).1
+      (U.descendant q a ha w).2.val (U.descendant q a ha w).1 := by
+    refine ⟨q.fst - a, ?_, x, ?_⟩
+    · show q.fst - a = q.fst - q.fst + (q.fst - a)
+      omega
+    · show (S.descendantNode q.2.val.ty (q.fst - q.fst) q.fst v).move q.2.val.frame =
+        (S.descendantNode (U.descendant q a ha w).2.val.ty (q.fst - q.fst) (q.fst - a) x).move
+          ((S.descendantNode q.2.val.ty (q.fst - a) a w).frame.trans q.2.val.frame)
+      rw [Nat.sub_self, h_split]
+      rfl
+  have h := base_level_step4_I4_step2_ancestor_node U.hierarchy _ _ hd
+  have he : (U.descendant q a ha w).1 - (U.descendant q q.fst le_rfl v).1 = q.fst - a := by
+    show q.fst - a - (q.fst - q.fst) = q.fst - a
+    omega
+  rw [he] at h
+  exact h
 
 /-- Step 5 of the V4 proof of `base_level_step5_I5_step1_boundary_step4_honest_step2_inherited` (V4 2.6(d)): descendant cell inclusion. -/
 private lemma base_level_step5_I5_step1_boundary_step4_honest_step2_inherited_step5_cell

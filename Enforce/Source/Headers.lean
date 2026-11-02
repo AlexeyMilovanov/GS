@@ -4373,7 +4373,25 @@ every cell is contained in a facet. -/
 private lemma tangentCone_tile_isHPiCone_step1_walls_step3_cell_in_facet
     (A : S.ι) (e : Cell d) (he : e ∈ (S.cx A).cells) :
     ∃ F ∈ (S.cx A).cells, F.dim + 1 = d ∧ e.carrier ⊆ F.carrier := by
-  sorry
+  classical
+  let K := S.cx A
+  obtain ⟨x, hx⟩ := e.flat.relint_nonempty
+  have hx_front : x ∈ frontier (S.proto A).carrier := by
+    rw [← K.cover]
+    exact Set.mem_iUnion₂.mpr ⟨e, he, hx⟩
+  obtain ⟨F, hF_mem, hF_dim, hF_carrier⟩ := CompatiblePatch.power_factorisation_aux_step10_prototype_facets (S.proto A) K x hx_front
+  use F, hF_mem
+  constructor
+  · have h1 : F.dim = d - 1 := hF_dim
+    have hd : 2 ≤ d := (inferInstance : Fact (2 ≤ d)).out
+    omega
+  · have h_min := K.minimalCell_subset x hx_front F hF_mem hF_carrier
+    have h_min_eq : K.minimalCell x hx_front = e := by
+      by_contra h_neq
+      have h_disj := K.relint_disjoint _ (K.minimalCell_mem x hx_front) e he h_neq
+      exact Set.disjoint_left.mp h_disj (K.mem_relint_minimalCell x hx_front) hx
+    rw [← h_min_eq]
+    exact h_min
 
 /-- Step 1d of the V4 proof of `tangentCone_tile_isHPiCone_step1_walls` (V4 1.16(b')):
 two points in a cell's carrier define a vector in its direction. -/

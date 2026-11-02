@@ -2202,11 +2202,58 @@ theorem honestLift_projection_eq (C : ClusterData S P) (U : HonestSource S) :
     π S P ∘ (honestLift C U).marking = oldMarking U.tiling :=
   funext (honestLift_projection C U)
 
+open private MarkedSet.ext_of_mark from Enforce.Rules in
+/-- Step 1 of the V4 proof of `honestLift_covariant` (V4 2.14(d): "the leaf type of `t` is
+intrinsic to the hierarchy"): moving the lifted tile of a native tile gives the lifted
+tile of the moved native tile. -/
+private theorem honestLift_covariant_step1_tile (C : ClusterData S P) (U : HonestSource S)
+    (g : Iso d) (t : Compiler.GroundNode U) :
+    (Compiler.honestTile C U t).move g =
+      Compiler.honestTile C (U.move g) (U.movedNode g ⟨0, t⟩).2 := by
+  have hext : ∀ u v : PlacedMarkedTile (systemM S P C),
+      u.toMarkedSet = v.toMarkedSet → u = v := by
+    rintro ⟨u, hu⟩ ⟨v, hv⟩ h
+    cases h
+    rfl
+  apply hext
+  have hl : leafTypeOf (U.move g) P ⟨0, (U.movedNode g ⟨0, t⟩).2⟩ rfl =
+      leafTypeOf U P ⟨0, t⟩ rfl := leafTypeOf_move U g ⟨0, t⟩ rfl
+  change ((augmentedLeaf C (leafTypeOf U P ⟨0, t⟩ rfl)).toMarkedSet.move t.val.frame).move g =
+    (augmentedLeaf C (leafTypeOf (U.move g) P ⟨0, (U.movedNode g ⟨0, t⟩).2⟩ rfl)).toMarkedSet.move
+      (t.val.frame.trans g)
+  rw [hl]
+  refine MarkedSet.ext_of_mark ?_ ?_
+  · show g '' (t.val.frame '' _) = (t.val.frame.trans g) '' _
+    rw [Set.image_image]
+    rfl
+  · intro x hx hx'
+    exact congrArg (augmentedLeaf C (leafTypeOf U P ⟨0, t⟩ rfl)).mark (Subtype.ext rfl)
+
 /-- M6, V4 2.14(d): covariance as equality of full physical marked tilings.
 The motion uses all Euclidean isometries, including reflections. -/
 theorem honestLift_covariant (C : ClusterData S P) (U : HonestSource S) (g : Iso d) :
     honestLift C (U.move g) = (honestLift C U).move g := by
-  sorry
+  have key : ∀ T1 T2 : MarkedTiling (systemM S P C), T1.tiles = T2.tiles → T1 = T2 := by
+    rintro ⟨t1, c1, d1, a1⟩ ⟨t2, c2, d2, a2⟩ h
+    cases h
+    rfl
+  apply key
+  change Set.range (Compiler.honestTile C (U.move g)) =
+    (fun t : PlacedMarkedTile (systemM S P C) => t.move g) ''
+      Set.range (Compiler.honestTile C U)
+  ext u
+  constructor
+  · rintro ⟨s, rfl⟩
+    have hs : s.val ∈ (fun N : FramedNode S => N.move g) '' U.hierarchy.nodes 0 := by
+      rw [← (U.move_spec g).nodes 0]
+      exact s.property
+    obtain ⟨N, hN, hNs⟩ := hs
+    refine ⟨Compiler.honestTile C U ⟨N, hN⟩, ⟨⟨N, hN⟩, rfl⟩, ?_⟩
+    refine (honestLift_covariant_step1_tile C U g ⟨N, hN⟩).trans ?_
+    congr 1
+    exact Subtype.ext hNs
+  · rintro ⟨_, ⟨t, rfl⟩, rfl⟩
+    exact ⟨_, (honestLift_covariant_step1_tile C U g t).symm⟩
 
 /-- M6, V4 2.14(d): the compiler marking meets the existing section lemma's
 translation-covariance hypothesis on the whole honest class. -/

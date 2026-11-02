@@ -4232,7 +4232,27 @@ private lemma tangentCone_tile_isHPiCone_step1_walls_step2_radius
     (A : S.ι) (q : E d) :
     ∃ r : ℝ, 0 < r ∧
       ∀ e ∈ (S.cx A).cells, q ∉ e.carrier → ∀ x ∈ e.carrier, r ≤ dist x q := by
-  sorry
+  have key : ∀ s : Finset (Cell d), ∃ r : ℝ, 0 < r ∧ ∀ e ∈ s, q ∉ e.carrier → ∀ x ∈ e.carrier, r ≤ dist x q := by
+    classical
+    intro s
+    induction s using Finset.induction_on with
+    | empty => exact ⟨1, zero_lt_one, by simp⟩
+    | insert a s ha ih =>
+      obtain ⟨r, hr, hrs⟩ := ih
+      obtain ⟨ra, hra, hra'⟩ : ∃ ra : ℝ, 0 < ra ∧ (q ∉ a.carrier → ∀ x ∈ a.carrier, ra ≤ dist x q) := by
+        rcases a.carrier.eq_empty_or_nonempty with h | hne
+        · exact ⟨1, zero_lt_one, fun _ x hx => by simp [h] at hx⟩
+        · by_cases hq : q ∈ a.carrier
+          · exact ⟨1, zero_lt_one, fun h => absurd hq h⟩
+          · have hpos := (a.flat.compact.isClosed.notMem_iff_infDist_pos hne).1 hq
+            exact ⟨Metric.infDist q a.carrier, hpos, fun _ x hx => by
+              rw [dist_comm]; exact Metric.infDist_le_dist_of_mem hx⟩
+      refine ⟨min r ra, lt_min hr hra, ?_⟩
+      intro e he hq x hx
+      rcases Finset.mem_insert.mp he with rfl | he
+      · exact (min_le_right _ _).trans (hra' hq x hx)
+      · exact (min_le_left _ _).trans (hrs e he hq x hx)
+  exact key _
 
 /-- Step 1c of the V4 proof of `tangentCone_tile_isHPiCone_step1_walls` (V4 1.16(b')):
 every cell is contained in a facet. -/

@@ -8053,7 +8053,50 @@ theorem honest_counter_endpoint_site (U : HonestSource S) (P : Params S) (q : U.
     (v : VertexName S q.2.val.ty) (hv : vertexPoint v ∈ e.val.carrier) :
     (U.recordOf P q f hf).isSite v = true ↔
       ∃ a : Fin P.N, U.sitePoint P q f hf a = q.2.val.prototypeFrame q.1 (vertexPoint v) :=
-  by sorry
+  by
+  classical
+  rcases hc : (U.recordOf P q f hf).counter with c | w
+  · have hcp : c = U.constantProfile P q f hf := by
+      change U.counterProfile P q f hf = .inl c at hc
+      unfold HonestSource.counterProfile at hc
+      dsimp only at hc
+      split at hc
+      · contradiction
+      · exact (Sum.inl.inj hc).symm
+    subst hcp
+    have hs : (U.recordOf P q f hf).isSite v =
+        ((U.constantProfile P q f hf).endpointSite v).getD false := by
+      rw [FacetRecord.isSite, hc]
+    have hex : ∃ z ∈ U.recordChains P q f hf,
+        vertexPoint v ∈ (z.chain.val.cell edgeIndex).val.carrier := by
+      obtain ⟨z, hz, hze⟩ := he
+      exact ⟨z, hz, by rw [hze]; exact hv⟩
+    rw [hs]
+    unfold HonestSource.constantProfile
+    dsimp only
+    rw [if_pos hex]
+    simp [List.any_eq_true]
+  · have hword : w.word = U.downRoles q (U.hierarchy.firstProvider q f hf).1 := by
+      change U.counterProfile P q f hf = .inr w at hc
+      unfold HonestSource.counterProfile at hc
+      dsimp only at hc
+      split at hc
+      · cases Sum.inr.inj hc
+        rfl
+      · contradiction
+    have hframe : q.2.val.prototypeFrame q.1 = (wordPlacement w.word).trans
+        ((U.hierarchy.servingChild q f hf).2.val.prototypeFrame
+          (U.hierarchy.servingChild q f hf).1) := by
+      rw [hword]
+      exact honest_counter_germs_step1_word_frame U q _
+    have hs : (U.recordOf P q f hf).isSite v = true ↔
+        ∃ a : Fin P.N, P.sites (U.recordIncidence P q f hf) (U.recordSide P q f hf) a =
+          wordPlacement w.word (vertexPoint v) := by
+      rw [FacetRecord.isSite, hc]
+      simp [List.any_eq_true, HonestSource.recordOf]
+    rw [hs, hframe]
+    simp only [honest_counter_germs_step2_site_frame, AffineEquiv.trans_apply,
+      AffineEquiv.apply_eq_iff_eq]
 
 /-- Step 1 of the V4 proof of `honest_E_finite_providers` (V4 2.2 (S5)):
 "both have finite providers". An ancestor facet containing a nonfault facet

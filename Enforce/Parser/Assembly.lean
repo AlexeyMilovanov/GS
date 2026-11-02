@@ -6605,6 +6605,196 @@ private theorem packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_s
   · exact huw h.symm
   · exact hvw h.symm
 
+/-- Two-ray case of `packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step6_planar_sectors`
+(V4 3.12(b)). For unit vectors `v ≠ w` with `det (v, w) ≥ 0`, the plane minus the origin
+and the rays through `v` and `w` is the union of the open sector
+`{det (x, w) > 0, det (v, x) > 0}` and the union of the two open half-planes
+`{det (x, w) < 0}` and `{det (v, x) < 0}`; these half-planes meet at the
+point `J (w - v)`. If `w = -v` both pieces are open half-planes. -/
+private theorem packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step6_planar_sectors_two_rays
+    (v w : E 2) (hv : v 0 ^ 2 + v 1 ^ 2 = 1)
+    (hw : w 0 ^ 2 + w 1 ^ 2 = 1) (hvw : v ≠ w) (hc : 0 ≤ v 0 * w 1 - v 1 * w 0) :
+    ∃ U V : Set (E 2), IsOpen U ∧ IsOpen V ∧
+      IsPreconnected U ∧ IsPreconnected V ∧ Disjoint U V ∧
+      (insert 0 ({x | ∃ t : ℝ, 0 < t ∧ x = t • v} ∪ {x | ∃ t : ℝ, 0 < t ∧ x = t • w}))ᶜ =
+        U ∪ V := by
+  have hext : ∀ y z : E 2, y 0 = z 0 → y 1 = z 1 → y = z := by
+    intro y z h0 h1
+    ext i
+    fin_cases i
+    · exact h0
+    · exact h1
+  let α : E 2 → ℝ := fun x => x 0 * w 1 - x 1 * w 0
+  let β : E 2 → ℝ := fun x => v 0 * x 1 - v 1 * x 0
+  have hαc : Continuous α := by fun_prop
+  have hβc : Continuous β := by fun_prop
+  have hαl : IsLinearMap ℝ α := by
+    refine ⟨fun x y => ?_, fun a x => ?_⟩ <;> simp only [α, PiLp.add_apply, PiLp.smul_apply,
+      smul_eq_mul] <;> ring
+  have hβl : IsLinearMap ℝ β := by
+    refine ⟨fun x y => ?_, fun a x => ?_⟩ <;> simp only [β, PiLp.add_apply, PiLp.smul_apply,
+      smul_eq_mul] <;> ring
+  have hvw' : v 0 ≠ w 0 ∨ v 1 ≠ w 1 := by
+    by_contra h
+    push_neg at h
+    exact hvw (hext v w h.1 h.2)
+  have hpos : 0 < (v 0 - w 0) ^ 2 + (v 1 - w 1) ^ 2 := by
+    rcases hvw' with h | h
+    · have := sq_pos_of_ne_zero (sub_ne_zero.mpr h)
+      positivity
+    · have := sq_pos_of_ne_zero (sub_ne_zero.mpr h)
+      positivity
+  refine ⟨{x | 0 < α x} ∩ {x | 0 < β x}, {x | α x < 0} ∪ {x | β x < 0},
+    (isOpen_lt continuous_const hαc).inter (isOpen_lt continuous_const hβc),
+    (isOpen_lt hαc continuous_const).union (isOpen_lt hβc continuous_const),
+    ((convex_halfSpace_gt hαl 0).inter (convex_halfSpace_gt hβl 0)).isPreconnected, ?_, ?_, ?_⟩
+  · let p : E 2 := !₂[v 1 - w 1, w 0 - v 0]
+    have hp0 : p 0 = v 1 - w 1 := rfl
+    have hp1 : p 1 = w 0 - v 0 := rfl
+    refine IsPreconnected.union p ?_ ?_ (convex_halfSpace_lt hαl 0).isPreconnected
+      (convex_halfSpace_lt hβl 0).isPreconnected
+    · change p 0 * w 1 - p 1 * w 0 < 0
+      rw [hp0, hp1]
+      nlinarith
+    · change v 0 * p 1 - v 1 * p 0 < 0
+      rw [hp0, hp1]
+      nlinarith
+  · rw [Set.disjoint_left]
+    rintro x ⟨h1, h2⟩ (h3 | h3)
+    · change 0 < α x at h1
+      change α x < 0 at h3
+      linarith
+    · change 0 < β x at h2
+      change β x < 0 at h3
+      linarith
+  · have hmem : ∀ x : E 2, x ∈ insert 0 ({x | ∃ t : ℝ, 0 < t ∧ x = t • v} ∪
+        {x | ∃ t : ℝ, 0 < t ∧ x = t • w}) ↔
+        x = 0 ∨ (∃ t : ℝ, 0 < t ∧ x = t • v) ∨ (∃ t : ℝ, 0 < t ∧ x = t • w) := by
+      intro x
+      simp only [Set.mem_insert_iff, Set.mem_union, Set.mem_setOf_eq]
+    ext x
+    rw [Set.mem_compl_iff, hmem]
+    simp only [Set.mem_union, Set.mem_inter_iff, Set.mem_setOf_eq]
+    have hα : α x = x 0 * w 1 - x 1 * w 0 := rfl
+    have hβ : β x = v 0 * x 1 - v 1 * x 0 := rfl
+    constructor
+    · intro h
+      by_contra h'
+      push_neg at h'
+      obtain ⟨h1, h2, h3⟩ := h'
+      apply h
+      have hcr0 : (v 0 * w 1 - v 1 * w 0) * x 0 = α x * v 0 + β x * w 0 := by
+        rw [hα, hβ]; ring
+      have hcr1 : (v 0 * w 1 - v 1 * w 0) * x 1 = α x * v 1 + β x * w 1 := by
+        rw [hα, hβ]; ring
+      rcases hc.lt_or_eq with hc' | hc'
+      · rcases h2.lt_or_eq with ha | ha
+        · have hb : β x = 0 := le_antisymm (h1 ha) h3
+          refine Or.inr (Or.inl ⟨α x / (v 0 * w 1 - v 1 * w 0), div_pos ha hc', ?_⟩)
+          apply hext
+          · simp only [PiLp.smul_apply, smul_eq_mul]
+            field_simp
+            rw [hb] at hcr0
+            linarith
+          · simp only [PiLp.smul_apply, smul_eq_mul]
+            field_simp
+            rw [hb] at hcr1
+            linarith
+        · rcases h3.lt_or_eq with hb | hb
+          · refine Or.inr (Or.inr ⟨β x / (v 0 * w 1 - v 1 * w 0), div_pos hb hc', ?_⟩)
+            apply hext
+            · simp only [PiLp.smul_apply, smul_eq_mul]
+              field_simp
+              rw [← ha] at hcr0
+              linarith
+            · simp only [PiLp.smul_apply, smul_eq_mul]
+              field_simp
+              rw [← ha] at hcr1
+              linarith
+          · left
+            apply hext
+            · rw [← ha, ← hb] at hcr0
+              simp only [PiLp.zero_apply]
+              have := mul_eq_zero.mp (hcr0.trans (by ring))
+              rcases this with h0 | h0
+              · exact absurd h0 hc'.ne'
+              · exact h0
+            · rw [← ha, ← hb] at hcr1
+              simp only [PiLp.zero_apply]
+              have := mul_eq_zero.mp (hcr1.trans (by ring))
+              rcases this with h0 | h0
+              · exact absurd h0 hc'.ne'
+              · exact h0
+      · have hc0 : v 0 * w 1 - v 1 * w 0 = 0 := hc'.symm
+        obtain ⟨s, hs⟩ : ∃ s : ℝ, s = v 0 * w 0 + v 1 * w 1 := ⟨_, rfl⟩
+        have hw0 : w 0 = s * v 0 := by
+          rw [hs]; linear_combination (-w 0) * hv + (-v 1) * hc0
+        have hw1 : w 1 = s * v 1 := by
+          rw [hs]; linear_combination (-w 1) * hv + (v 0) * hc0
+        have hs2 : s ^ 2 = 1 := by
+          have h := hw
+          rw [hw0, hw1] at h
+          linear_combination h - s ^ 2 * hv
+        have hs1 : s = -1 := by
+          have h : (s - 1) * (s + 1) = 0 := by linear_combination hs2
+          rcases mul_eq_zero.mp h with h | h
+          · exfalso
+            have hs' : s = 1 := by linarith
+            rw [hs', one_mul] at hw0 hw1
+            rcases hvw' with h' | h'
+            · exact h' hw0.symm
+            · exact h' hw1.symm
+          · linarith
+        rw [hs1] at hw0 hw1
+        have hαβ : α x = β x := by
+          rw [hα, hβ, hw0, hw1]; ring
+        have hb : β x = 0 := by
+          rcases h3.lt_or_eq with hb | hb
+          · exact absurd (h1 (hαβ ▸ hb)) (not_le.mpr hb)
+          · exact hb.symm
+        have hb' : v 0 * x 1 - v 1 * x 0 = 0 := by rw [← hβ]; exact hb
+        obtain ⟨r, hr⟩ : ∃ r : ℝ, r = v 0 * x 0 + v 1 * x 1 := ⟨_, rfl⟩
+        have hx0 : x 0 = r * v 0 := by
+          rw [hr]; linear_combination (-x 0) * hv + (-v 1) * hb'
+        have hx1 : x 1 = r * v 1 := by
+          rw [hr]; linear_combination (-x 1) * hv + (v 0) * hb'
+        rcases lt_trichotomy r 0 with hr0 | hr0 | hr0
+        · refine Or.inr (Or.inr ⟨-r, neg_pos.mpr hr0, ?_⟩)
+          apply hext
+          · simp only [PiLp.smul_apply, smul_eq_mul]
+            rw [hx0, hw0]; ring
+          · simp only [PiLp.smul_apply, smul_eq_mul]
+            rw [hx1, hw1]; ring
+        · left
+          apply hext
+          · simp only [PiLp.zero_apply]
+            rw [hx0, hr0, zero_mul]
+          · simp only [PiLp.zero_apply]
+            rw [hx1, hr0, zero_mul]
+        · refine Or.inr (Or.inl ⟨r, hr0, ?_⟩)
+          apply hext
+          · simp only [PiLp.smul_apply, smul_eq_mul]
+            exact hx0
+          · simp only [PiLp.smul_apply, smul_eq_mul]
+            exact hx1
+    · intro h hrem
+      rw [hα, hβ] at h
+      rcases hrem with rfl | ⟨t, ht, rfl⟩ | ⟨t, ht, rfl⟩
+      · simp only [PiLp.zero_apply, zero_mul, mul_zero, sub_self, lt_self_iff_false,
+          and_self, or_self] at h
+      · simp only [PiLp.smul_apply, smul_eq_mul] at h
+        have hct : 0 ≤ t * (v 0 * w 1 - v 1 * w 0) := mul_nonneg ht.le hc
+        rcases h with ⟨_, h⟩ | h | h
+        · nlinarith
+        · nlinarith
+        · nlinarith
+      · simp only [PiLp.smul_apply, smul_eq_mul] at h
+        have hct : 0 ≤ t * (v 0 * w 1 - v 1 * w 0) := mul_nonneg ht.le hc
+        rcases h with ⟨h, _⟩ | h | h
+        · nlinarith
+        · nlinarith
+        · nlinarith
+
 /-- Step 6 of the V4 proof of `packet_E_equality_step2_boundary_neighborhood_step5a_low_codim` (V4 3.12(b)):
 "the interior link of P at q is connected (P is a polyhedral manifold domain)".
 Removing the origin and at most two distinct rays from the plane leaves
@@ -6676,7 +6866,24 @@ private theorem packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_s
         (hstar.isPathConnected hneg).isConnected.isPreconnected,
         isPreconnected_empty, Set.disjoint_empty _, ?_⟩
       simp only [hB, Set.union_empty]
-    · sorry
+    · have hR2 : R.card = 2 := by
+        have h0 : R.card ≠ 0 := fun h => hR0 (Finset.card_eq_zero.mp h)
+        omega
+      obtain ⟨v, w, hvw, rfl⟩ := Finset.card_eq_two.mp hR2
+      have hsq : ∀ u : E 2, ‖u‖ = 1 → u 0 ^ 2 + u 1 ^ 2 = 1 := by
+        intro u hu
+        have h := EuclideanSpace.norm_sq_eq u
+        rw [hu, Fin.sum_univ_two, Real.norm_eq_abs, Real.norm_eq_abs, sq_abs, sq_abs] at h
+        linarith
+      have hv := hsq v (hR v (by simp))
+      have hw := hsq w (hR w (by simp))
+      rw [Finset.set_biUnion_insert, Finset.set_biUnion_singleton]
+      rcases le_total 0 (v 0 * w 1 - v 1 * w 0) with hc | hc
+      · exact packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step6_planar_sectors_two_rays
+          v w hv hw hvw hc
+      · rw [Set.union_comm {x | ∃ t : ℝ, 0 < t ∧ x = t • v}]
+        exact packet_E_equality_step2_boundary_neighborhood_step5a_low_codim_step6_planar_sectors_two_rays
+          w v hw hv hvw.symm (by linarith [mul_comm (w 0) (v 1), mul_comm (w 1) (v 0)])
 
 /-- Step 7 of the V4 proof of `packet_E_equality_step2_boundary_neighborhood_step5a_low_codim` (V4 3.12(b)):
 "the interior link of P at q is connected (P is a polyhedral manifold domain)".

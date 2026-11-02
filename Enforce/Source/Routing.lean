@@ -5006,7 +5006,218 @@ private lemma principal_component_step1_hull_geometry_step10_jordan_brouwer_step
     (hfg : ¬ Relation.ReflTransGen
       (fun u v : K.facets => σ ⊆ u.val ∧ σ ⊆ v.val ∧
         σ.card < (u.val ∩ v.val).card) f g) : False := by
-  sorry
+  classical
+  letI : Finite K.facets := (hfin.subset K.facets_subset).to_subtype
+  let R := fun u v : K.facets => σ ⊆ u.val ∧ σ ⊆ v.val ∧ σ.card < (u.val ∩ v.val).card
+  obtain ⟨hxσ, -⟩ :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step5_face_links_step1_centroid_relint
+      K hσ
+  obtain ⟨r, hr, hstar⟩ :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step5_face_links_step2_star_radius
+      K hfin hσ
+  obtain ⟨W, hWo, hxW, φ, hφc, hφi, -, hφo⟩ :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step5_face_links_step3_chart
+      K hman hσ
+  obtain ⟨r₁, hr₁, hcell⟩ :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains_step5_face_links_step4_round_cell
+      K hσ hσc
+  set x : E d := Finset.centroid ℝ σ id with hx
+  obtain ⟨ρ, hρ, hρW⟩ := Metric.isOpen_iff.mp hWo x hxW
+  set r' : ℝ := min (r / 2) (min (ρ / 2) r₁) with hr'
+  have hr'0 : 0 < r' := lt_min (by linarith) (lt_min (by linarith) hr₁)
+  have hr'r : r' < r := (min_le_left _ _).trans_lt (by linarith)
+  have hr'ρ : r' < ρ := ((min_le_right _ _).trans (min_le_left _ _)).trans_lt (by linarith)
+  have hr'1 : r' ≤ r₁ := (min_le_right _ _).trans (min_le_right _ _)
+  obtain ⟨e₀, he₀i, he₀r, he₀1, he₀2⟩ := hcell r' hr'0 hr'1
+  have hcbW : Metric.closedBall x r' ⊆ W := (Metric.closedBall_subset_ball hr'ρ).trans hρW
+  have hbW : Metric.ball x r' ⊆ W := Metric.ball_subset_closedBall.trans hcbW
+  have hσK : convexHull ℝ (σ : Set (E d)) ⊆ K.space := K.convexHull_subset_space hσ
+  have hTD : ∀ y, e₀ y ∈ K.space ∩ W := by
+    intro y
+    have hy : e₀ y ∈ convexHull ℝ (σ : Set (E d)) ∩ Metric.closedBall x r' := by
+      rw [← he₀r]
+      exact Set.mem_range_self y
+    exact ⟨hσK hy.1, hcbW hy.2⟩
+  -- The properly embedded round cell in the chart.
+  let e : C(↥(Metric.closedBall (0 : E (σ.card - 1)) 1), E (d - 1)) :=
+    ⟨φ ∘ e₀, hφc.comp_continuous e₀.continuous hTD⟩
+  have hrange : range e = φ '' (convexHull ℝ (σ : Set (E d)) ∩ Metric.closedBall x r') := by
+    rw [← he₀r]
+    exact Set.range_comp φ e₀
+  -- The chart neighbourhood.
+  let U : Set (E (d - 1)) := φ '' (K.space ∩ W ∩ Metric.ball x r')
+  have hUo : IsOpen U := hφo _ Metric.isOpen_ball
+  have hcover : K.space = ⋃ h : K.facets, convexHull ℝ (h.val : Set (E d)) :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step9_facets_cover K hfin
+  have hnear : ∀ y ∈ K.space, y ∈ Metric.ball x r' →
+      ∃ h : K.facets, σ ⊆ h.val ∧ y ∈ convexHull ℝ (h.val : Set (E d)) := by
+    intro y hyK hyb
+    rw [hcover] at hyK
+    obtain ⟨h, hyh⟩ := Set.mem_iUnion.mp hyK
+    exact ⟨h, hstar h.val h.property.1 ⟨y, hyh, Metric.ball_subset_ball hr'r.le hyb⟩, hyh⟩
+  have hstarc : StarConvex ℝ x (K.space ∩ W ∩ Metric.ball x r') := by
+    rw [starConvex_iff_segment_subset]
+    rintro y ⟨⟨hyK, -⟩, hyb⟩
+    obtain ⟨h, hσh, hyh⟩ := hnear y hyK hyb
+    have hxh : x ∈ convexHull ℝ (h.val : Set (E d)) :=
+      convexHull_mono (Finset.coe_subset.mpr hσh) hxσ
+    have hseg : segment ℝ x y ⊆ convexHull ℝ (h.val : Set (E d)) :=
+      (convex_convexHull ℝ _).segment_subset hxh hyh
+    have hsegb : segment ℝ x y ⊆ Metric.ball x r' :=
+      (convex_ball x r').segment_subset (Metric.mem_ball_self hr'0) hyb
+    intro z hz
+    exact ⟨⟨K.convexHull_subset_space h.property.1 (hseg hz), hbW (hsegb hz)⟩, hsegb hz⟩
+  have hxD : x ∈ K.space ∩ W ∩ Metric.ball x r' :=
+    ⟨⟨hσK hxσ, hxW⟩, Metric.mem_ball_self hr'0⟩
+  have hUc : IsConnected U :=
+    (hstarc.isPathConnected hxD).isConnected.image φ (hφc.mono Set.inter_subset_left)
+  have he1 : ∀ y : ↥(Metric.closedBall (0 : E (σ.card - 1)) 1),
+      ‖(y : E (σ.card - 1))‖ < 1 → e y ∈ U := by
+    intro y hy
+    exact ⟨e₀ y, ⟨hTD y, he₀1 y hy⟩, rfl⟩
+  have he2 : ∀ y : ↥(Metric.closedBall (0 : E (σ.card - 1)) 1),
+      ‖(y : E (σ.card - 1))‖ = 1 → e y ∉ U := by
+    rintro y hy ⟨z, hz, hzy⟩
+    have hzeq : z = e₀ y := hφi hz.1 (hTD y) hzy
+    have hs := he₀2 y hy
+    rw [← hzeq, Metric.mem_sphere] at hs
+    have hzb := hz.2
+    rw [Metric.mem_ball] at hzb
+    linarith
+  have hinj : Function.Injective e := by
+    intro a b hab
+    exact he₀i (hφi (hTD a) (hTD b) hab)
+  -- CS14: the chart neighbourhood minus the cell is preconnected.
+  have hpc : IsPreconnected (U \ range e) :=
+    CellSeparation.isPreconnected_diff_cell (σ.card - 1) (d - 1) hB hkn U hUo hUc e hinj he1 he2
+  -- Reachable and unreachable facets around `σ`.
+  have hreach : ∀ h : K.facets, Relation.ReflTransGen R f h → σ ⊆ h.val := by
+    intro h hh
+    induction hh with
+    | refl => exact hf
+    | tail _ hst _ => exact hst.2.1
+  let P : Set (E d) := ⋃ h : {h : K.facets // Relation.ReflTransGen R f h},
+    convexHull ℝ (h.val.val : Set (E d))
+  let Q : Set (E d) := ⋃ h : {h : K.facets // σ ⊆ h.val ∧ ¬ Relation.ReflTransGen R f h},
+    convexHull ℝ (h.val.val : Set (E d))
+  have hcl : ∀ h : K.facets, IsClosed (convexHull ℝ (h.val : Set (E d))) :=
+    fun h => h.val.finite_toSet.isCompact_convexHull.isClosed
+  have hP : IsClosed P := isClosed_iUnion_of_finite fun h => hcl h.val
+  have hQ : IsClosed Q := isClosed_iUnion_of_finite fun h => hcl h.val
+  have hSig : IsClosed (convexHull ℝ (σ : Set (E d))) :=
+    σ.finite_toSet.isCompact_convexHull.isClosed
+  have hPQ : P ∩ Q ⊆ convexHull ℝ (σ : Set (E d)) := by
+    rintro y ⟨hyP, hyQ⟩
+    obtain ⟨h, hyh⟩ := Set.mem_iUnion.mp hyP
+    obtain ⟨h', hyh'⟩ := Set.mem_iUnion.mp hyQ
+    have hyi := K.inter_subset_convexHull h.val.property.1 h'.val.property.1 ⟨hyh, hyh'⟩
+    have hσi : σ ⊆ h.val.val ∩ h'.val.val :=
+      Finset.subset_inter (hreach h.val h.property) h'.property.1
+    have hcard : (h.val.val ∩ h'.val.val).card ≤ σ.card := by
+      by_contra hc
+      exact h'.property.2 (h.property.tail ⟨hreach h.val h.property, h'.property.1, by omega⟩)
+    have heq : σ = h.val.val ∩ h'.val.val := Finset.eq_of_subset_of_card_le hσi hcard
+    rw [← Finset.coe_inter, ← heq] at hyi
+    exact hyi
+  have hPQcov : ∀ y ∈ K.space, y ∈ Metric.ball x r' → y ∈ P ∨ y ∈ Q := by
+    intro y hyK hyb
+    obtain ⟨h, hσh, hyh⟩ := hnear y hyK hyb
+    by_cases hrh : Relation.ReflTransGen R f h
+    · exact Or.inl (Set.mem_iUnion.mpr ⟨⟨h, hrh⟩, hyh⟩)
+    · exact Or.inr (Set.mem_iUnion.mpr ⟨⟨h, hσh, hrh⟩, hyh⟩)
+  -- Points of a facet through `σ` near the centroid but off `σ`.
+  have hoff : ∀ h : K.facets, σ ⊆ h.val → ∃ p ∈ convexHull ℝ (h.val : Set (E d)),
+      p ∈ Metric.ball x r' ∧ p ∉ convexHull ℝ (σ : Set (E d)) := by
+    intro h hσh
+    have hlt : σ.card < h.val.card := by rw [hpure h.val h.property]; omega
+    obtain ⟨w, hwh, hwσ⟩ := Finset.exists_mem_notMem_of_card_lt_card hlt
+    have hD : 0 ≤ dist x w := dist_nonneg
+    have hpos : 0 < dist x w + r' := by linarith
+    set t : ℝ := r' / (2 * (dist x w + r')) with ht
+    have ht0 : 0 < t := div_pos hr'0 (by positivity)
+    have ht1 : t ≤ 1 := by
+      rw [ht, div_le_one (by positivity)]
+      linarith
+    have hkey : t * dist x w + t * r' = r' / 2 := by
+      rw [← mul_add, ht]
+      field_simp
+    have htD : t * dist x w < r' := by
+      have := mul_pos ht0 hr'0
+      linarith
+    have hxh : x ∈ convexHull ℝ (h.val : Set (E d)) :=
+      convexHull_mono (Finset.coe_subset.mpr hσh) hxσ
+    refine ⟨AffineMap.lineMap x w t, ?_, ?_, ?_⟩
+    · apply (convex_convexHull ℝ _).segment_subset hxh
+        (subset_convexHull ℝ _ (Finset.mem_coe.mpr hwh))
+      rw [segment_eq_image_lineMap]
+      exact ⟨t, ⟨ht0.le, ht1⟩, rfl⟩
+    · rw [Metric.mem_ball, dist_lineMap_left, Real.norm_eq_abs, abs_of_pos ht0]
+      exact htD
+    · intro hpσ
+      have hspan : (AffineMap.lineMap x w t : E d) ∈ affineSpan ℝ (σ : Set (E d)) :=
+        convexHull_subset_affineSpan _ hpσ
+      have hxspan : x ∈ affineSpan ℝ (σ : Set (E d)) := convexHull_subset_affineSpan _ hxσ
+      have hw : w ∈ affineSpan ℝ (σ : Set (E d)) := by
+        have := AffineMap.lineMap_mem t⁻¹ hxspan hspan
+        rwa [AffineMap.lineMap_lineMap_right, inv_mul_cancel₀ ht0.ne',
+          AffineMap.lineMap_apply_one] at this
+      have hind : AffineIndependent ℝ ((↑) : h.val → E d) := K.indep h.property.1
+      have himg : ((↑) : h.val → E d) '' {i | i.val ∈ σ} = (σ : Set (E d)) := by
+        ext z
+        constructor
+        · rintro ⟨i, hi, rfl⟩
+          exact hi
+        · intro hz
+          exact ⟨⟨z, hσh hz⟩, hz, rfl⟩
+      have hw' : ((↑) : h.val → E d) ⟨w, hwh⟩ ∈
+          affineSpan ℝ (((↑) : h.val → E d) '' {i | i.val ∈ σ}) := by
+        rw [himg]
+        exact hw
+      exact hwσ ((hind.mem_affineSpan_iff ⟨w, hwh⟩ {i | i.val ∈ σ}).mp hw')
+  -- The separation of `U \ range e`.
+  have hnotT : ∀ y ∈ K.space ∩ W, y ∉ convexHull ℝ (σ : Set (E d)) → φ y ∉ range e := by
+    intro y hy hyσ hyr
+    rw [hrange] at hyr
+    obtain ⟨z, hz, hzy⟩ := hyr
+    have hzy' : z = y := hφi ⟨hσK hz.1, hcbW hz.2⟩ hy hzy
+    exact hyσ (hzy' ▸ hz.1)
+  have hO₁ : IsOpen (Metric.ball x r' ∩ (convexHull ℝ (σ : Set (E d)))ᶜ ∩ Qᶜ) :=
+    (Metric.isOpen_ball.inter hSig.isOpen_compl).inter hQ.isOpen_compl
+  have hO₂ : IsOpen (Metric.ball x r' ∩ (convexHull ℝ (σ : Set (E d)))ᶜ ∩ Pᶜ) :=
+    (Metric.isOpen_ball.inter hSig.isOpen_compl).inter hP.isOpen_compl
+  have hA₁ := hφo _ hO₁
+  have hA₂ := hφo _ hO₂
+  have hcov : U \ range e ⊆
+      φ '' (K.space ∩ W ∩ (Metric.ball x r' ∩ (convexHull ℝ (σ : Set (E d)))ᶜ ∩ Qᶜ)) ∪
+        φ '' (K.space ∩ W ∩ (Metric.ball x r' ∩ (convexHull ℝ (σ : Set (E d)))ᶜ ∩ Pᶜ)) := by
+    rintro z ⟨⟨y, ⟨⟨hyK, hyW⟩, hyb⟩, rfl⟩, hyr⟩
+    have hyσ : y ∉ convexHull ℝ (σ : Set (E d)) := by
+      intro hyσ
+      apply hyr
+      rw [hrange]
+      exact ⟨y, ⟨hyσ, Metric.ball_subset_closedBall hyb⟩, rfl⟩
+    rcases hPQcov y hyK hyb with hyP | hyQ
+    · exact Or.inl ⟨y, ⟨⟨hyK, hyW⟩, ⟨⟨hyb, hyσ⟩, fun hyQ => hyσ (hPQ ⟨hyP, hyQ⟩)⟩⟩, rfl⟩
+    · exact Or.inr ⟨y, ⟨⟨hyK, hyW⟩, ⟨⟨hyb, hyσ⟩, fun hyP => hyσ (hPQ ⟨hyP, hyQ⟩)⟩⟩, rfl⟩
+  obtain ⟨p, hpf, hpb, hpσ⟩ := hoff f hf
+  have hpK : p ∈ K.space := K.convexHull_subset_space f.property.1 hpf
+  have hpP : p ∈ P := Set.mem_iUnion.mpr ⟨⟨f, Relation.ReflTransGen.refl⟩, hpf⟩
+  have hne₁ : ((U \ range e) ∩
+      φ '' (K.space ∩ W ∩ (Metric.ball x r' ∩ (convexHull ℝ (σ : Set (E d)))ᶜ ∩ Qᶜ))).Nonempty :=
+    ⟨φ p, ⟨⟨p, ⟨⟨hpK, hbW hpb⟩, hpb⟩, rfl⟩, hnotT p ⟨hpK, hbW hpb⟩ hpσ⟩,
+      ⟨p, ⟨⟨hpK, hbW hpb⟩, ⟨⟨hpb, hpσ⟩, fun hpQ => hpσ (hPQ ⟨hpP, hpQ⟩)⟩⟩, rfl⟩⟩
+  obtain ⟨q, hqg, hqb, hqσ⟩ := hoff g hg
+  have hqK : q ∈ K.space := K.convexHull_subset_space g.property.1 hqg
+  have hqQ : q ∈ Q := Set.mem_iUnion.mpr ⟨⟨g, hg, hfg⟩, hqg⟩
+  have hne₂ : ((U \ range e) ∩
+      φ '' (K.space ∩ W ∩ (Metric.ball x r' ∩ (convexHull ℝ (σ : Set (E d)))ᶜ ∩ Pᶜ))).Nonempty :=
+    ⟨φ q, ⟨⟨q, ⟨⟨hqK, hbW hqb⟩, hqb⟩, rfl⟩, hnotT q ⟨hqK, hbW hqb⟩ hqσ⟩,
+      ⟨q, ⟨⟨hqK, hbW hqb⟩, ⟨⟨hqb, hqσ⟩, fun hqP => hqσ (hPQ ⟨hqP, hqQ⟩)⟩⟩, rfl⟩⟩
+  obtain ⟨z, -, ⟨a, ha, rfl⟩, ⟨b, hb, hab⟩⟩ := hpc _ _ hA₁ hA₂ hcov hne₁ hne₂
+  have hba : b = a := hφi hb.1 ha.1 hab
+  rcases hPQcov a ha.1.1 ha.2.1.1 with haP | haQ
+  · exact hb.2.2 (hba ▸ haP)
+  · exact ha.2.2 haQ
 
 /-- Step 5 of the V4 proof of `principal_component_step1_hull_geometry_step10_jordan_brouwer_step11_facet_chains` (V4 1.24):
 "`∂t` is a compact `(d-1)`-manifold ... a connected union of facets". Links of

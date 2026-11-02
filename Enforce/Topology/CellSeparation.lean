@@ -164,12 +164,31 @@ theorem exists_direction_off_cone (m n : ℕ) (hmn : m + 1 ≤ n) (G : E m → E
     ∃ p ∈ sphere (0 : E n) 1, ∀ t : ℝ, ∀ y ∈ sphere (0 : E m) 1, t • G y ≠ p := by
   sorry
 
+
+/-- Step 1 of the V4 proof of `nullhomotopic_sphere_to_sphere`: smooth approximation. -/
+private lemma nullhomotopic_sphere_to_sphere_step1_approx (m n : ℕ)
+    (g : C(↥(sphere (0 : E m) 1), ↥(sphere (0 : E n) 1))) :
+    ∃ G : E m → E n, ContDiff ℝ 1 G ∧ ∀ y : ↥(sphere (0 : E m) 1), ‖(g y : E n) - G (y : E m)‖ < 1 := by
+  sorry
+
+/-- Step 2 of the V4 proof of `nullhomotopic_sphere_to_sphere`: homotopy missing a point. -/
+private lemma nullhomotopic_sphere_to_sphere_step2_homotopic (m n : ℕ)
+    (g : C(↥(sphere (0 : E m) 1), ↥(sphere (0 : E n) 1))) (G : E m → E n)
+    (h_approx : ∀ y : ↥(sphere (0 : E m) 1), ‖(g y : E n) - G (y : E m)‖ < 1)
+    (p : E n) (hp : p ∈ sphere (0 : E n) 1)
+    (h_miss : ∀ t : ℝ, ∀ y ∈ sphere (0 : E m) 1, t • G y ≠ p) :
+    g.Nullhomotopic := by
+  sorry
+
 /-- CS8: `1 ≤ m`, `m < n`,
 `g : C(↥(sphere (0 : E m) 1), ↥(sphere (0 : E n) 1))` ⇒ `g.Nullhomotopic`.
 This is `π_(m-1)(S^(n-1)) = 0`. -/
 theorem nullhomotopic_sphere_to_sphere (m n : ℕ) (hm : 1 ≤ m) (hmn : m < n)
     (g : C(↥(sphere (0 : E m) 1), ↥(sphere (0 : E n) 1))) : g.Nullhomotopic := by
-  sorry
+  obtain ⟨G, hG_diff, hG_approx⟩ := nullhomotopic_sphere_to_sphere_step1_approx m n g
+  have hmn_le : m + 1 ≤ n := by omega
+  obtain ⟨p, hp, h_miss⟩ := exists_direction_off_cone m n hmn_le G hG_diff
+  exact nullhomotopic_sphere_to_sphere_step2_homotopic m n g G hG_approx p hp h_miss
 
 /-- CS9: `1 ≤ m`, `Z` topological space, `g : C(↥(sphere (0 : E m) 1), Z)`
 nullhomotopic ⇒ a continuous extension over `closedBall (0 : E m) 1` agreeing on the sphere. -/

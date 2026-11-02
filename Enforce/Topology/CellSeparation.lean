@@ -250,7 +250,85 @@ private lemma nullhomotopic_sphere_to_sphere_step2_homotopic (m n : ℕ)
     (p : E n) (hp : p ∈ sphere (0 : E n) 1)
     (h_miss : ∀ t : ℝ, ∀ y ∈ sphere (0 : E m) 1, t • G y ≠ p) :
     g.Nullhomotopic := by
-  sorry
+  have hpNorm : ‖p‖ = 1 := by simpa using hp
+  let v : ↥(Icc (0 : ℝ) 1) × ↥(sphere (0 : E m) 1) → E n :=
+    fun z => (1 - (z.1 : ℝ)) • (g z.2 : E n) + (z.1 : ℝ) • G (z.2 : E m)
+  have hv : ∀ z, v z ≠ 0 := by
+    rintro ⟨t, y⟩ hz
+    have h1 : (g y : E n) = (t : ℝ) • ((g y : E n) - G (y : E m)) := by
+      calc (g y : E n) = (1 - (t : ℝ)) • (g y : E n) + (t : ℝ) • (g y : E n) := by
+            rw [← add_smul, sub_add_cancel, one_smul]
+        _ = (1 - (t : ℝ)) • (g y : E n) + (t : ℝ) • G (y : E m) + (t : ℝ) • ((g y : E n) - G (y : E m)) := by
+            simp only [smul_sub]; abel
+        _ = v (t, y) + (t : ℝ) • ((g y : E n) - G (y : E m)) := rfl
+        _ = (t : ℝ) • ((g y : E n) - G (y : E m)) := by rw [hz, zero_add]
+    have h2 : ‖(g y : E n)‖ = ‖(t : ℝ) • ((g y : E n) - G (y : E m))‖ := congrArg norm h1
+    have h_norm_g : ‖(g y : E n)‖ = 1 := by
+      have hgy := (g y).property
+      simp only [mem_sphere_zero_iff_norm] at hgy
+      exact hgy
+    rw [h_norm_g, norm_smul] at h2
+    have h3 : ‖(g y : E n) - G (y : E m)‖ < 1 := h_approx y
+    have h_abs_t : ‖(t : ℝ)‖ = t := Real.norm_of_nonneg t.property.1
+    rw [h_abs_t] at h2
+    by_cases ht0 : (t : ℝ) = 0
+    · rw [ht0] at h2
+      norm_num at h2
+    · have ht_pos : (0 : ℝ) < t := lt_of_le_of_ne t.property.1 (Ne.symm ht0)
+      have h4 : (t : ℝ) * ‖(g y : E n) - G (y : E m)‖ < (t : ℝ) * 1 :=
+        mul_lt_mul_of_pos_left h3 ht_pos
+      rw [mul_one, ← h2] at h4
+      exact lt_irrefl _ (h4.trans_le t.property.2)
+  have hvCont : Continuous v := by
+    refine Continuous.add ?_ ?_
+    · refine Continuous.smul ?_ ?_
+      · exact (continuous_const.sub (continuous_subtype_val.comp continuous_fst))
+      · exact continuous_subtype_val.comp (g.continuous.comp continuous_snd)
+    · refine Continuous.smul ?_ ?_
+      · exact continuous_subtype_val.comp continuous_fst
+      · have hG2 : Continuous (fun (y : ↥(sphere (0 : E m) 1)) => G (y : E m)) :=
+          continuousOn_iff_continuous_restrict.mp hG_cont
+        exact hG2.comp continuous_snd
+  let H_fun : ↥(Icc (0 : ℝ) 1) × ↥(sphere (0 : E m) 1) → ↥(sphere (0 : E n) 1) :=
+    fun z => ⟨‖v z‖⁻¹ • v z, by
+      simp only [mem_sphere_zero_iff_norm, norm_smul, norm_inv, norm_norm, inv_mul_cancel₀ (norm_ne_zero_iff.mpr (hv z))]⟩
+  have hH_funCont : Continuous H_fun := by
+    refine Continuous.subtype_mk ?_ _
+    refine Continuous.smul ?_ hvCont
+    refine Continuous.inv₀ ?_ (fun z => norm_ne_zero_iff.mpr (hv z))
+    exact Continuous.norm hvCont
+  let g_prime : C(↥(sphere (0 : E m) 1), ↥(sphere (0 : E n) 1)) :=
+    ⟨fun y => H_fun (1, y), hH_funCont.comp (Continuous.prodMk continuous_const continuous_id)⟩
+  have h_homotopy : g.Homotopic g_prime :=
+    Nonempty.intro {
+      toFun := H_fun
+      continuous_toFun := hH_funCont
+      map_zero_left := by
+        intro y
+        apply Subtype.ext
+        have h_v0 : v (0, y) = (g y : E n) := by
+          change (1 - (0 : ℝ)) • (g y : E n) + (0 : ℝ) • G (y : E m) = (g y : E n)
+          simp only [sub_zero, one_smul, zero_smul, add_zero]
+        have h_norm : ‖(g y : E n)‖ = 1 := by
+          have hgy := (g y).property
+          simp only [mem_sphere_zero_iff_norm] at hgy
+          exact hgy
+        change ‖v (0, y)‖⁻¹ • v (0, y) = (g y : E n)
+        rw [h_v0, h_norm, inv_one, one_smul]
+      map_one_left := by
+        intro y
+        rfl }
+  have h_prime_miss : ∀ y, (g_prime y : E n) ≠ p := by
+    intro y
+    change ‖v (1, y)‖⁻¹ • v (1, y) ≠ p
+    have h_v1 : v (1, y) = G (y : E m) := by
+      change (1 - (1 : ℝ)) • (g y : E n) + (1 : ℝ) • G (y : E m) = G (y : E m)
+      simp only [sub_self, zero_smul, one_smul, zero_add]
+    rw [h_v1]
+    exact h_miss ‖G (y : E m)‖⁻¹ y y.property
+  have h_prime_null : g_prime.Nullhomotopic := nullhomotopic_of_ne n g_prime p hp h_prime_miss
+  rcases h_prime_null with ⟨c, hc⟩
+  exact ⟨c, ContinuousMap.Homotopic.trans h_homotopy hc⟩
 
 /-- CS8: `1 ≤ m`, `m < n`,
 `g : C(↥(sphere (0 : E m) 1), ↥(sphere (0 : E n) 1))` ⇒ `g.Nullhomotopic`.

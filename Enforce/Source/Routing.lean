@@ -11118,7 +11118,76 @@ private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two
     (t : {t ∈ K.facets | s ⊆ t}) :
     ∃! f : {f : Cell d | f ∈ C.cells ∧ f.dim = d - 1 ∧ g.carrier ⊆ f.carrier},
       convexHull ℝ (t.val : Set (E d)) ⊆ f.val.carrier := by
-  sorry
+  classical
+  obtain ⟨t, htF, hst⟩ := t
+  have htK : t ∈ K.faces := htF.1
+  have htcard : t.card = d := hpure t htF
+  have htdim : Module.finrank ℝ (affineSpan ℝ (t : Set (E d))).direction = d - 1 := by
+    have := principal_component_step1_hull_geometry_step10_jordan_brouwer_step7_pure_triangulation_step6_simplex_cardinality K t htK
+    omega
+  -- a `(d-1)`-cell containing the simplex has the same affine span, hence contains its relint
+  have key : ∀ f : Cell d, f.dim = d - 1 → convexHull ℝ (t : Set (E d)) ⊆ f.carrier →
+      relint (convexHull ℝ (t : Set (E d))) ⊆ relint f.carrier := by
+    intro f hfd htf
+    have hle : affineSpan ℝ (t : Set (E d)) ≤ affineSpan ℝ f.carrier :=
+      affineSpan_mono ℝ ((subset_convexHull ℝ _).trans htf)
+    have hfr : Module.finrank ℝ (affineSpan ℝ f.carrier).direction = f.dim := f.flat.dimension
+    have hdir : (affineSpan ℝ (t : Set (E d))).direction = (affineSpan ℝ f.carrier).direction :=
+      Submodule.eq_of_le_of_finrank_le (AffineSubspace.direction_le hle) (by rw [hfr, htdim, hfd])
+    have hne : (affineSpan ℝ (t : Set (E d)) : Set (E d)).Nonempty :=
+      (K.nonempty_of_mem_faces htK).to_set.mono (subset_affineSpan ℝ _)
+    have hspan : affineSpan ℝ (t : Set (E d)) = affineSpan ℝ f.carrier :=
+      AffineSubspace.eq_of_direction_eq_of_nonempty_of_le hdir hne hle
+    change intrinsicInterior ℝ (convexHull ℝ (t : Set (E d))) ⊆ intrinsicInterior ℝ f.carrier
+    unfold intrinsicInterior
+    rw [affineSpan_convexHull, hspan]
+    exact Set.image_mono (interior_mono (Set.preimage_mono htf))
+  obtain ⟨x, hx⟩ : (relint (convexHull ℝ (t : Set (E d)))).Nonempty :=
+    Set.Nonempty.intrinsicInterior (convex_convexHull ℝ _)
+      ((K.nonempty_of_mem_faces htK).to_set.mono (subset_convexHull ℝ _))
+  have hxfr : x ∈ frontier D.carrier :=
+    hspace ▸ K.convexHull_subset_space htK (intrinsicInterior_subset hx)
+  have hxcov : x ∈ ⋃ e ∈ C.cells, relint e.carrier := C.cover.symm ▸ hxfr
+  obtain ⟨m, hm, hxm⟩ := Set.mem_iUnion₂.mp hxcov
+  obtain ⟨t', ht', hxt', ht'm⟩ := hcompat m hm x (intrinsicInterior_subset hxm)
+  have htt' : t ⊆ t' :=
+    principal_component_step1_hull_geometry_step10_jordan_brouwer_step10_ridge_degree_step3_relint_incidence
+      K htK ht' hx hxt'
+  have htm : convexHull ℝ (t : Set (E d)) ⊆ m.carrier :=
+    (convexHull_mono (by exact_mod_cast htt')).trans ht'm
+  have hmdim : m.dim = d - 1 := by
+    have hle : affineSpan ℝ (t : Set (E d)) ≤ affineSpan ℝ m.carrier :=
+      affineSpan_mono ℝ ((subset_convexHull ℝ _).trans htm)
+    have hmr : Module.finrank ℝ (affineSpan ℝ m.carrier).direction = m.dim := m.flat.dimension
+    have h1 := Submodule.finrank_mono (AffineSubspace.direction_le hle)
+    have h2 := C.dim_lt m hm
+    rw [htdim, hmr] at h1
+    omega
+  have hgm : g.carrier ⊆ m.carrier := by
+    have hsne : s.Nonempty := by
+      rw [← Finset.card_pos]
+      omega
+    obtain ⟨y, hy⟩ : (relint (convexHull ℝ (s : Set (E d)))).Nonempty :=
+      Set.Nonempty.intrinsicInterior (convex_convexHull ℝ _)
+        (hsne.to_set.mono (subset_convexHull ℝ _))
+    have hyg : y ∈ relint g.carrier := hrel hy
+    have hyfr : y ∈ frontier D.carrier := by
+      rw [← C.cover]
+      exact Set.mem_iUnion₂.mpr ⟨g, hg, hyg⟩
+    have hmin : C.minimalCell y hyfr = g := by
+      by_contra hne
+      exact Set.disjoint_left.mp
+        (C.relint_disjoint _ (C.minimalCell_mem y hyfr) g hg hne)
+        (C.mem_relint_minimalCell y hyfr) hyg
+    have hym : y ∈ m.carrier :=
+      htm ((convexHull_mono (by exact_mod_cast hst)) (intrinsicInterior_subset hy))
+    simpa only [hmin] using C.minimalCell_subset y hyfr m hm hym
+  refine ⟨⟨m, hm, hmdim, hgm⟩, htm, ?_⟩
+  rintro ⟨f, hf, hfd, hgf⟩ htf
+  apply Subtype.ext
+  change f = m
+  by_contra hne
+  exact Set.disjoint_left.mp (C.relint_disjoint f hf m hm hne) (key f hfd htf hx) hxm
 
 /-- Step 2 of the V4 proof of `birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets` (V4 1.25, using (H1)–(H2) of V4 §1.0): "near a boundary point the polyhedral boundary separates a small ball into two sides" — incidence transfer establishing a bijection between original listed cell facets and the simplex cofacets in the compatible triangulation. -/
 private lemma birth_ascent_routing_step4_lower_cell_neighborhood_step1_ridge_two_facets_step2_incidence_equiv

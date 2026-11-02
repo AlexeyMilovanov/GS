@@ -974,7 +974,26 @@ private theorem packet_inherited_step1_fault (U : HonestSource S) (P : Params S)
     (f : FacetName S q.2.val.ty) (g : FacetName S c.2.val.ty)
     (hgf : c.2.val.cell c.1 g.val ⊆ q.2.val.cell q.1 f.val) :
     U.hierarchy.IsFault q f ↔ U.hierarchy.IsFault c g := by
-  sorry
+  have hanc (s : ℕ) : U.hierarchy.ancestor c (a + s) = U.hierarchy.ancestor q s := by
+    rw [← hca]
+    dsimp [CoherentHierarchy.ancestor]
+    rw [← Function.iterate_add_apply, Nat.add_comm s a]
+  constructor
+  · intro hq
+    have hshift (s : ℕ) : a + s ∈ U.hierarchy.boundaryOffsets c g := by
+      change c.2.val.cell c.1 g.val ⊆ frontier
+        ((U.hierarchy.ancestor c (a + s)).2.val.carrier (U.hierarchy.ancestor c (a + s)).1)
+      rw [hanc]
+      exact hgf.trans (hq s)
+    rcases U.hierarchy.boundaryOffsets_initial c g with ⟨b, _, hb⟩ | hc
+    · have hmem := hshift b
+      rw [hb] at hmem
+      exact absurd hmem (by simp)
+    · exact hc
+  · intro hc
+    by_contra hq
+    obtain ⟨hg, -⟩ := U.hierarchy.provider_inherited q c a hca f g hq hgf
+    exact hg hc
 
 /-- Step 1 of the V4 proof of `packet_inherited_step2_occurrence`: by induction on a, the
 provider carrier and birth parent of the inherited facet match those of the original facet. -/

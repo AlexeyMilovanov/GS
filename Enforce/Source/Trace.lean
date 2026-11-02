@@ -2341,7 +2341,49 @@ private lemma vertex_inherited_step2_H6 {d : ℕ} [Fact (2 ≤ d)] {S : SubstSys
     (j : S.I P.ty) (hpj : (P.child n j).Lists n p)
     (i : S.I P.ty) (hi : p ∈ (P.child n i).carrier n) :
     (P.child n i).Lists n p := by
-  sorry
+  by_cases hji : j = i
+  · subst hji
+    exact hpj
+  obtain ⟨e, he, x, hx, rfl⟩ := hpj
+  unfold CellComplex.vertices at he
+  obtain ⟨he, he0⟩ := Finset.mem_filter.mp he
+  -- `x` is a frontier point of the prototile of `B`
+  have hxfr : x ∈ frontier (S.proto (S.child P.ty j).ty).carrier := by
+    rw [← (S.cx (S.child P.ty j).ty).carriers_cover]
+    exact mem_iUnion₂.mpr ⟨e, he, hx⟩
+  -- `mc_B(σ v) = {σ v}`: a point of a `0`-cell lies in its relative interior
+  have hxe : x ∈ relint e.carrier := by
+    by_contra hxe
+    obtain ⟨F', -, hlt, -, -⟩ :=
+      hereditary_trace_step2_proto _ (S.cx (S.child P.ty j).ty) e he x hx hxe
+    omega
+  -- the same point seen from `C`
+  obtain ⟨_, ⟨y, hy, rfl⟩, hyp⟩ := hi
+  have hyi : (S.child P.ty i).frame y = (S.child P.ty j).frame x := by
+    apply (S.σ ^ n).injective
+    apply P.frame.injective
+    rw [← hereditary_trace_step3_place P n i y, ← hereditary_trace_step3_place P n j x]
+    exact hyp
+  -- (H6): the vertex is a cell of `C`
+  obtain ⟨f, hf, hfe⟩ := S.sibling_conformity P.ty j i hji ((S.child P.ty j).frame x)
+    ⟨x, (S.proto (S.child P.ty j).ty).compact.isClosed.frontier_subset hxfr, rfl⟩
+    ⟨y, hy, hyi⟩ e he (by rw [AffineIsometryEquiv.symm_apply_apply]; exact hxe)
+    (by rw [he0]; exact Nat.zero_le _)
+  have hcell : (P.child n j).cell n e = (P.child n i).cell n f := by
+    rw [hereditary_trace_step3_child_cell, hereditary_trace_step3_child_cell, hfe]
+  -- it is again `0`-dimensional
+  have hfd : f.dim = 0 := by
+    have h1 := sibling_facet_eq_step0_finrank_image ((P.child n j).prototypeFrame n) e.carrier
+    have h2 := sibling_facet_eq_step0_finrank_image ((P.child n i).prototypeFrame n) f.carrier
+    have hcell' : (P.child n j).prototypeFrame n '' e.carrier =
+        (P.child n i).prototypeFrame n '' f.carrier := hcell
+    rw [hcell', h2, f.flat.dimension, e.flat.dimension, he0] at h1
+    exact h1
+  refine ⟨f, ?_, ?_⟩
+  · unfold CellComplex.vertices
+    exact Finset.mem_filter.mpr ⟨hf, hfd⟩
+  · rw [← hcell]
+    exact ⟨x, hx, rfl⟩
 
 /-- P5, V4 1.5(a): listed vertices pass to every containing child. -/
 theorem vertex_inherited (P : FramedNode S) (n : ℕ) (p : E d)

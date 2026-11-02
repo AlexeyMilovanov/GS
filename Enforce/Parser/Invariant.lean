@@ -1572,7 +1572,7 @@ private lemma base_level_step5_I5_step1_boundary_step4_honest_step2_inherited_st
     (hc : (S.descendantNode N.ty h r w).move N.frame ∈ U.hierarchy.nodes h) :
     U.hierarchy.ancestor ⟨h, ⟨(S.descendantNode N.ty h r w).move N.frame, hc⟩⟩ r
       = ⟨h + r, ⟨N, hN⟩⟩ := by
-  sorry
+  exact base_level_step4_I4_step2_ancestor U.hierarchy h r N hN w hc
 
 /-- Step 2 of the V4 proof of `base_level_step5_I5_step1_boundary_step4_honest_step2_inherited` (V4 2.6(d)): word extension. -/
 private lemma base_level_step5_I5_step1_boundary_step4_honest_step2_inherited_step2_leaf_extends_inner

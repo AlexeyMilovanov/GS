@@ -142,7 +142,12 @@ theorem radialMap_nullhomotopic_of_escape (n : ℕ) (hn : 1 ≤ n) (Y : Set (E n
     (hY : Y ⊆ closedBall (0 : E n) R) (a : E n) (ha : a ∉ Y)
     (hescape : ∃ a', JoinedIn Yᶜ a a' ∧ R < ‖a'‖) :
     (radialMap n a Y ha).Nullhomotopic := by
-  sorry
+  obtain ⟨a', hjoin, hfar⟩ := hescape
+  have ha' : a' ∉ Y := hjoin.target_mem
+  have h1 := radialMap_homotopic_of_joinedIn n Y a a' ha ha' hjoin
+  have h2 := radialMap_nullhomotopic_of_far n hn Y R hY a' hfar ha'
+  rcases h2 with ⟨y, hy⟩
+  exact ⟨y, h1.trans hy⟩
 
 /-- CS6: `m + 1 ≤ n`, `G : E m → E n`, `ContDiff ℝ 1 G` ⇒
 `volume {z : E n | ∃ t : ℝ, ∃ y ∈ sphere (0 : E m) 1, z = t • G y} = 0`. -/

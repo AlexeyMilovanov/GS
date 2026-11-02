@@ -4215,6 +4215,39 @@ private theorem tangentCone_tile_isHPiCone_step0_ambient (A : S.ι) :
   · rw [hI]
     exact (S.proto A).regularClosed
 
+
+/-- Step 1a of the V4 proof of `tangentCone_tile_isHPiCone_step1_walls` (V4 1.16(b')):
+collect all facets containing `q`. -/
+private lemma tangentCone_tile_isHPiCone_step1_walls_step1_facets
+    (A : S.ι) (q : E d) :
+    ∃ (n : ℕ) (f : Fin n → Cell d) (ℓ : Fin n → E d →ₗ[ℝ] ℝ),
+      (∀ i, f i ∈ (S.cx A).cells ∧ q ∈ (f i).carrier ∧ (f i).dim + 1 = d ∧
+        {x | ℓ i x = 0} = (cellDirection (f i).carrier : Set (E d))) ∧
+      (∀ F ∈ (S.cx A).cells, q ∈ F.carrier → F.dim + 1 = d → ∃ i, f i = F) := by
+  sorry
+
+/-- Step 1b of the V4 proof of `tangentCone_tile_isHPiCone_step1_walls` (V4 1.16(b')):
+find a neighborhood where no non-incident cell enters. -/
+private lemma tangentCone_tile_isHPiCone_step1_walls_step2_radius
+    (A : S.ι) (q : E d) :
+    ∃ r : ℝ, 0 < r ∧
+      ∀ e ∈ (S.cx A).cells, q ∉ e.carrier → ∀ x ∈ e.carrier, r ≤ dist x q := by
+  sorry
+
+/-- Step 1c of the V4 proof of `tangentCone_tile_isHPiCone_step1_walls` (V4 1.16(b')):
+every cell is contained in a facet. -/
+private lemma tangentCone_tile_isHPiCone_step1_walls_step3_cell_in_facet
+    (A : S.ι) (e : Cell d) (he : e ∈ (S.cx A).cells) :
+    ∃ F ∈ (S.cx A).cells, F.dim + 1 = d ∧ e.carrier ⊆ F.carrier := by
+  sorry
+
+/-- Step 1d of the V4 proof of `tangentCone_tile_isHPiCone_step1_walls` (V4 1.16(b')):
+two points in a cell's carrier define a vector in its direction. -/
+private lemma tangentCone_tile_isHPiCone_step1_walls_step4_direction
+    (e : Cell d) {x q : E d} (hx : x ∈ e.carrier) (hq : q ∈ e.carrier) :
+    x - q ∈ (cellDirection e.carrier : Set (E d)) := by
+  sorry
+
 /-- Step 1 of the V4 proof of `tangentCone_tile_isHPiCone`
 (V4 1.16(b')): near the anchor, the boundary lies on the
 hyperplanes of incident listed facets. -/
@@ -4229,7 +4262,30 @@ private theorem tangentCone_tile_isHPiCone_step1_walls
       ∃ r : ℝ, 0 < r ∧
         ∀ x ∈ frontier (S.proto A).carrier, dist x q < r →
           ∃ i, ℓ i (x - q) = 0 := by
-  sorry
+  obtain ⟨n, f, ℓ, hf, hF⟩ := tangentCone_tile_isHPiCone_step1_walls_step1_facets A q
+  obtain ⟨r, hr, hdist⟩ := tangentCone_tile_isHPiCone_step1_walls_step2_radius A q
+  refine ⟨n, f, ℓ, hf, r, hr, ?_⟩
+  intro x hx hxr
+  have h_cov := CellComplex.carriers_cover (S.cx A)
+  rw [← h_cov] at hx
+  simp only [Set.mem_iUnion, exists_prop] at hx
+  rcases hx with ⟨e, he, hxe⟩
+  have hqe : q ∈ e.carrier := by
+    by_contra hqn
+    have := hdist e he hqn x hxe
+    linarith
+  obtain ⟨F, hFc, hFdim, hsub⟩ := tangentCone_tile_isHPiCone_step1_walls_step3_cell_in_facet A e he
+  have hqF : q ∈ F.carrier := hsub hqe
+  have hxF : x ∈ F.carrier := hsub hxe
+  obtain ⟨i, hi⟩ := hF F hFc hqF hFdim
+  use i
+  have hdir := tangentCone_tile_isHPiCone_step1_walls_step4_direction F hxF hqF
+  have H := (hf i).2.2.2
+  rw [hi] at H
+  have h_eq : x - q ∈ {x | (ℓ i) x = 0} := by
+    rw [H]
+    exact hdir
+  exact h_eq
 
 /-- Step 2 of the V4 proof of `tangentCone_tile_isHPiCone`
 (V4 1.16(b')): finite unions of ambient closed chambers

@@ -382,6 +382,26 @@ private lemma extend_sphere_to_closedBall_of_nullhomotopic_step3a_continuousOn_n
     Continuous.subtype_mk (Continuous.smul (Continuous.inv₀ hn hne) (Continuous.comp continuous_subtype_val continuous_subtype_val)) _
   exact H.continuous.comp (h1.prodMk h2)
 
+
+/-- Step 3b of the V4 proof of extend_sphere_to_closedBall_of_nullhomotopic (V4 CS9): tube lemma part -/
+private lemma extend_sphere_to_closedBall_of_nullhomotopic_step3b_continuousAt_zero_step1_tube
+    (m : ℕ) {Z : Type*} [TopologicalSpace Z] (g : C(↥(Metric.sphere (0 : E m) 1), Z))
+    (x : Z) (H : g.Homotopy (ContinuousMap.const _ x)) (U : Set Z) (hU : U ∈ nhds x) :
+    ∀ᶠ t in nhds (1 : unitInterval), ∀ y, H (t, y) ∈ U := by
+  have hS : IsCompact (Set.univ : Set ↥(Metric.sphere (0 : E m) 1)) := isCompact_univ
+  have h_compact := @IsCompact.eventually_forall_of_forall_eventually _ _ _ _ (1 : unitInterval) Set.univ hS (fun t y => H (t, y) ∈ U)
+  have h_pre : ∀ y ∈ Set.univ, ∀ᶠ (z : unitInterval × ↥(Metric.sphere (0 : E m) 1)) in nhds (1, y), H z ∈ U := by
+    intro y _
+    have h_apply : H (1, y) = x := H.apply_one y
+    have h_tendsto := H.continuous.continuousAt (x := (1, y))
+    have h_nhds : U ∈ nhds (H (1, y)) := by
+      rw [h_apply]
+      exact hU
+    exact Filter.Tendsto.eventually h_tendsto h_nhds
+  have h_post := h_compact h_pre
+  exact Filter.Eventually.mono h_post (fun t ht y => ht y (Set.mem_univ y))
+
+
 /-- Step 3b of the V4 proof of extend_sphere_to_closedBall_of_nullhomotopic (V4 CS9): continuous at 0. -/
 private lemma extend_sphere_to_closedBall_of_nullhomotopic_step3b_continuousAt_zero
     (m : ℕ) {Z : Type*} [TopologicalSpace Z] (g : C(↥(sphere (0 : E m) 1), Z))
@@ -391,7 +411,30 @@ private lemma extend_sphere_to_closedBall_of_nullhomotopic_step3b_continuousAt_z
       H (⟨1 - ‖(p:E m)‖, extend_sphere_to_closedBall_of_nullhomotopic_step1_t m p p.2⟩,
          ⟨‖(p:E m)‖⁻¹ • (p:E m), extend_sphere_to_closedBall_of_nullhomotopic_step2_y m p hp⟩))
     ⟨0, by simp⟩ := by
-  sorry
+  set a : ↥(Metric.closedBall (0 : E m) 1) := ⟨0, by simp⟩ with ha
+  set τ : ↥(Metric.closedBall (0 : E m) 1) → unitInterval := fun p =>
+    ⟨1 - ‖(p : E m)‖, extend_sphere_to_closedBall_of_nullhomotopic_step1_t m p.1 p.2⟩ with hτdef
+  have hτ : Continuous τ := by
+    refine Continuous.subtype_mk ?_ _
+    fun_prop
+  have hτa : τ a = 1 := by
+    apply Subtype.ext
+    simp [hτdef, ha]
+  rw [ContinuousAt, Filter.tendsto_def]
+  intro U hU
+  have hU' : U ∈ nhds x := by
+    have this : (if hp : ((a : E m)) = 0 then x else H (⟨1 - ‖(a : E m)‖, extend_sphere_to_closedBall_of_nullhomotopic_step1_t m a.1 a.2⟩, ⟨‖(a : E m)‖⁻¹ • (a : E m), extend_sphere_to_closedBall_of_nullhomotopic_step2_y m a hp⟩)) = x := dif_pos (by simp [ha])
+    rwa [this] at hU
+  have hT : ∀ᶠ t in nhds (τ a), ∀ y, H (t, y) ∈ U := by
+    rw [hτa]
+    exact extend_sphere_to_closedBall_of_nullhomotopic_step3b_continuousAt_zero_step1_tube m g x H U hU'
+  have hT2 : ∀ᶠ p : ↥(Metric.closedBall (0 : E m) 1) in nhds a, ∀ y, H (τ p, y) ∈ U := hτ.continuousAt.tendsto.eventually hT
+  filter_upwards [hT2] with p hp
+  by_cases hne : (p : E m) = 0
+  · simp only [Set.mem_preimage, dif_pos hne]
+    exact mem_of_mem_nhds hU'
+  · simp only [Set.mem_preimage, dif_neg hne]
+    exact hp ⟨‖(p : E m)‖⁻¹ • (p : E m), extend_sphere_to_closedBall_of_nullhomotopic_step2_y m p hne⟩
 
 /-- Step 3 of the V4 proof of extend_sphere_to_closedBall_of_nullhomotopic (V4 CS9): continuous over the closed ball. -/
 private lemma extend_sphere_to_closedBall_of_nullhomotopic_step3_continuous

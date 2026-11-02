@@ -240,7 +240,22 @@ theorem tiles_exact :
 /-- R1, V4 §3.0: the union of its actual native tiles is the whole block. -/
 theorem union_tiles : B.carrier =
     ⋃ t ∈ {t | t ∈ Y.tiles ∧ t.carrier ⊆ B.carrier}, t.carrier := by
-  sorry
+  apply Set.Subset.antisymm
+  · intro x hx
+    rw [← tiles_exact_step2_leaves_cover B] at hx
+    obtain ⟨w, hw⟩ := Set.mem_iUnion.mp hx
+    obtain ⟨t, ht, htile⟩ := B.actual w
+    have hcar : t.carrier = ((S.nativeTile B.node.ty n w).move B.node.frame).carrier 0 := by
+      rw [tiles_exact_step1_tile_carrier t, htile]
+    have hsub : t.carrier ⊆ B.carrier := by
+      rw [hcar, ← tiles_exact_step2_leaves_cover B]
+      exact Set.subset_iUnion
+        (fun w => ((S.nativeTile B.node.ty n w).move B.node.frame).carrier 0) w
+    have hxt : x ∈ t.carrier := by
+      rw [hcar]
+      exact hw
+    exact Set.mem_biUnion (x := t) ⟨ht, hsub⟩ hxt
+  · exact Set.iUnion₂_subset fun t ht => ht.2
 
 /-- R1, V4 §3.0: a block has compact, regular closed support and nonempty interior. -/
 theorem carrier_regular : IsCompact B.carrier ∧ IsRegularClosed B.carrier ∧

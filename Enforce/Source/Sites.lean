@@ -1463,6 +1463,140 @@ def inflatedNative (A : S.ι) (r : ℕ) (w : S.RoleWord A r) (s : ℕ) : FramedN
   ⟨(S.nativeTile A r w).ty,
     compatibleInflatedFrame (S.nativeTile A r w) (nativeFrame_mem A r w) s⟩
 
+open private incidentForest_step1_inflated_pow from Enforce.Source.Headers in
+open private exists_honest_step7_descendant_scaled exists_honest_step7_descendant_type
+  from Enforce.Tiling in
+/-- Step 1 of the V4 proof of `trace_refines` (V4 1.22(b)): "the owner a
+descendant of the recorded owner". Inflating a native owner gives its exact
+height-`s` node in the standard hierarchy, including its frame. -/
+private theorem trace_refines_step1_inflated_eq (A : S.ι) (r : ℕ)
+    (w : S.RoleWord A r) (s : ℕ) :
+    inflatedNative A r w s = S.descendantNode A s r w := by
+  apply FramedNode.ext
+  · exact (exists_honest_step7_descendant_type A s r w).symm
+  · apply DFunLike.ext
+    intro x
+    obtain ⟨y, rfl⟩ := (S.σ ^ s).surjective x
+    change compatibleInflatedFrame (S.nativeTile A r w) (nativeFrame_mem A r w) s
+      ((S.σ ^ s) y) = (S.descendantNode A s r w).frame ((S.σ ^ s) y)
+    rw [incidentForest_step1_inflated_pow, exists_honest_step7_descendant_scaled]
+
+open private exists_honest_step7_split_word from Enforce.Tiling in
+/-- Step 1 of the V4 proof of `trace_refines` (V4 1.22(b)): "the owner a
+descendant of the recorded owner". Split the actual address at depth `r`,
+retaining both the descendant relation and the relation to the fixed root. -/
+private theorem trace_refines_step1_owner (A : S.ι) (r s n : ℕ)
+    (hn : n = s + r) (v : S.RoleWord A n) :
+    ∃ w : S.RoleWord A r,
+      (S.nativeTile A n v).IsDescendant 0 (inflatedNative A r w s) s ∧
+      (inflatedNative A r w s).IsDescendant s
+        (⟨A, AffineIsometryEquiv.refl ℝ (E d)⟩ : FramedNode S) n := by
+  subst n
+  obtain ⟨w, u, hu⟩ := exists_honest_step7_split_word A 0 s r v
+  refine ⟨w, ?_, ?_⟩
+  · rw [trace_refines_step1_inflated_eq]
+    have hc : (S.nativeTile A (s + r) v).IsDescendant 0
+        (S.descendantNode A (0 + s) r w) s :=
+      ⟨s, (Nat.zero_add s).symm, u, hu⟩
+    simpa only [Nat.zero_add] using hc
+  · rw [trace_refines_step1_inflated_eq]
+    refine ⟨r, rfl, w, ?_⟩
+    simp [FramedNode.move]
+
+open private hereditary_trace_step7_carrier hereditary_trace_step1_cell_subset
+  hereditary_trace_step1_cell_frontier ancestor_descendant_refl from Enforce.Source.Trace in
+/-- Step 2 of the V4 proof of `trace_refines` (V4 1.22(b)): "a finer facet
+lies in the unique coarser facet containing its relative interior ... the same
+argument at each stage". Lift each named cell to its ancestral stratum.
+Heredity places that stratum in the same flag cell, forcing equal dimensions,
+and also preserves the nesting of the complete coface chain. -/
+private theorem trace_refines_step2_lift_chain
+    {A : S.ι} {F : FacetFlag S A} {n h j : ℕ} (P C : FramedNode S)
+    (hP : P.IsDescendant h ⟨A, AffineIsometryEquiv.refl ℝ (E d)⟩ n)
+    (hC : C.IsDescendant 0 P h) (a : ChainOccurrence A F n C 0 j) :
+    ∃ c : ChainOccurrence A F n P h j,
+      ∀ i, C.cell 0 (a.cell i).val ⊆ P.cell h (c.cell i).val := by
+  let R : FramedNode S := ⟨A, AffineIsometryEquiv.refl ℝ (E d)⟩
+  have hPsub : P.carrier h ⊆ R.carrier n := by
+    obtain ⟨k, rfl, _⟩ := id hP
+    exact hereditary_trace_step7_carrier R P h k hP
+  have hCsub : C.carrier 0 ⊆ P.carrier h := by
+    simpa only [Nat.zero_add] using
+      hereditary_trace_step7_carrier P C 0 h (by simpa only [Nat.zero_add] using hC)
+  have hfront (i : ChainIndex d j) :
+      C.cell 0 (a.cell i).val ⊆ frontier (P.carrier h) := by
+    intro x hx
+    have hxC := hereditary_trace_step1_cell_subset C 0 (a.cell i).val
+      (a.cell i).property hx
+    have hxR : x ∈ frontier (R.carrier n) := by
+      apply hereditary_trace_step1_cell_frontier R n
+        (F.cell ⟨i.val.val, i.property.2, i.val.isLt⟩).val
+        (F.cell ⟨i.val.val, i.property.2, i.val.isLt⟩).property
+      simpa [R, FramedNode.cell, FramedNode.prototypeFrame] using a.contained i hx
+    exact ⟨subset_closure (hCsub hxC), fun hi => hxR.2 (interior_mono hPsub hi)⟩
+  let c (i : ChainIndex d j) := ancestralStratum P C h 0 hC (a.cell i) (hfront i)
+  have hs (i : ChainIndex d j) :=
+    ancestralStratum_spec P C h 0 hC (a.cell i) (hfront i)
+  have hne (i : ChainIndex d j) : (relint (C.cell 0 (a.cell i).val)).Nonempty := by
+    rw [recursiveTrace_tiles_step0_relint_cell]
+    exact (a.cell i).val.flat.relint_nonempty.image C.frame
+  have hsub (i : ChainIndex d j) : C.cell 0 (a.cell i).val ⊆ P.cell h (c i).val := by
+    obtain ⟨x, hx⟩ := hne i
+    exact hereditary_trace P C h 0 hC (c i).val (a.cell i).val
+      (c i).property (a.cell i).property
+      ⟨x, hx, intrinsicInterior_subset ((hs i).1 hx)⟩
+  have hcont (i : ChainIndex d j) :
+      P.cell h (c i).val ⊆
+        (S.σ ^ n) '' (F.cell ⟨i.val.val, i.property.2, i.val.isLt⟩).val.carrier := by
+    obtain ⟨x, hx⟩ := hne i
+    have ht := hereditary_trace R P n h hP
+      (F.cell ⟨i.val.val, i.property.2, i.val.isLt⟩).val (c i).val
+      (F.cell ⟨i.val.val, i.property.2, i.val.isLt⟩).property (c i).property
+      ⟨x, (hs i).1 hx, by
+        simpa [R, FramedNode.cell, FramedNode.prototypeFrame] using
+          a.contained i (intrinsicInterior_subset hx)⟩
+    simpa [R, FramedNode.cell, FramedNode.prototypeFrame] using ht
+  refine ⟨{ cell := c, dimension := ?_, nested := ?_, contained := hcont }, ?_⟩
+  · intro i
+    have hlo : i.val.val ≤ (c i).val.dim := by simpa [a.dimension i] using (hs i).2
+    have hle := Submodule.finrank_mono
+      (AffineSubspace.direction_le (affineSpan_mono ℝ (hcont i)))
+    have hdimL : Module.finrank ℝ (cellDirection (P.cell h (c i).val)) =
+        (c i).val.dim :=
+      (recursiveTrace_tiles_step0_finrank_image (P.prototypeFrame h) _).trans
+        (c i).val.flat.dimension
+    have hdimR : Module.finrank ℝ (cellDirection ((S.σ ^ n) ''
+        (F.cell ⟨i.val.val, i.property.2, i.val.isLt⟩).val.carrier)) = i.val.val :=
+      (recursiveTrace_tiles_step0_finrank_image (S.σ ^ n).toAffineEquiv _).trans
+        ((F.cell ⟨i.val.val, i.property.2, i.val.isLt⟩).val.flat.dimension.trans
+          (F.dimension ⟨i.val.val, i.property.2, i.val.isLt⟩))
+    simp only [cellDirection] at hdimL hdimR
+    exact le_antisymm (by simpa only [hdimL, hdimR] using hle) hlo
+  · intro i k hik
+    obtain ⟨x, hx⟩ := hne i
+    have hxk : x ∈ P.cell h (c k).val :=
+      hsub k (image_mono (a.nested i k hik) (intrinsicInterior_subset hx))
+    have ht := hereditary_trace P P h h (ancestor_descendant_refl P h)
+      (c k).val (c i).val (c k).property (c i).property ⟨x, (hs i).1 hx, hxk⟩
+    exact (Set.image_subset_image_iff (P.prototypeFrame h).injective).mp ht
+  · intro i
+    exact hsub i
+
+open private incidentForest_step1_inflated_pow from Enforce.Source.Headers in
+/-- Step 3 of the V4 proof of `trace_refines` (V4 1.22(b)): "the chain inside
+the recorded chain". The height-`s` cells of the inflated owner are precisely
+the `σˢ`-images of its native cells. -/
+private theorem trace_refines_step3_scale (A : S.ι) (r s : ℕ)
+    (w : S.RoleWord A r) (e : Cell d) :
+    (inflatedNative A r w s).cell s e =
+      (S.σ ^ s) '' ((S.nativeTile A r w).cell 0 e) := by
+  rw [recursiveTrace_tiles_step0_cell_zero]
+  dsimp [inflatedNative, FramedNode.cell, FramedNode.prototypeFrame]
+  rw [Set.image_image]
+  apply Set.image_congr
+  intro x _
+  exact incidentForest_step1_inflated_pow (S.nativeTile A r w) (nativeFrame_mem A r w) s x
+
 /-- P17, V4 1.22(b): finer trace pieces refine both the owner and every coface.
 Native-scale levels `r` and `r+s` are compared by the common ambient map `σˢ`. -/
 theorem trace_refines (A : S.ι) (F : FacetFlag S A) (r s : ℕ)
@@ -1472,7 +1606,32 @@ theorem trace_refines (A : S.ι) (F : FacetFlag S A) (r s : ℕ)
       ∀ i : ChainIndex d (traceDimension d),
         b.tile.cell 0 (b.chain.cell i).val ⊆
           (S.σ ^ s) '' (a.tile.cell 0 (a.chain.cell i).val) := by
-  sorry
+  obtain ⟨w, hC, hP⟩ := trace_refines_step1_owner A r s (r + s) (Nat.add_comm r s) b.owner
+  obtain ⟨c, hc⟩ := trace_refines_step2_lift_chain (inflatedNative A r w s) b.tile hP hC b.chain
+  have hscale (X : Set (E d)) :
+      (S.σ ^ (r + s)) '' X = (S.σ ^ s) '' ((S.σ ^ r) '' X) := by
+    rw [Set.image_image]
+    congr 1
+    funext x
+    rw [Nat.add_comm r s, pow_add]
+    rfl
+  let a : TracePiece A F r :=
+    { owner := w
+      chain :=
+        { cell := c.cell
+          dimension := c.dimension
+          nested := c.nested
+          contained := by
+            intro i
+            have ht := c.contained i
+            rw [trace_refines_step3_scale, hscale] at ht
+            exact (Set.image_subset_image_iff (S.σ ^ s).injective).mp ht } }
+  refine ⟨a, hC, ?_⟩
+  intro i
+  change b.tile.cell 0 (b.chain.cell i).val ⊆
+    (S.σ ^ s) '' ((S.nativeTile A r w).cell 0 (c.cell i).val)
+  rw [← trace_refines_step3_scale]
+  exact hc i
 
 open private ancestor_descendant_child
   hereditary_trace_step7_carrier hereditary_trace_step1_cell_frontier
